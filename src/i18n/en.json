@@ -1,0 +1,118 @@
+{
+  "nav": {
+    "features": "Features",
+    "showcase": "Repairs",
+    "testimonials": "Stories",
+    "scan": "Scan Problem"
+  },
+  "landing": {
+    "headline": "Fix anything. Fear nothing.",
+    "subheadline": "Point your camera at a broken household item. FixAura diagnoses the issue, lists your tools, and guides you step-by-step with AR overlays.",
+    "ctaPrimary": "Scan Problem",
+    "ctaSecondary": "Watch Demo",
+    "confidenceLabel": "Diagnosis confidence",
+    "featuresTitle": "Repair intelligence, built in",
+    "showcaseTitle": "Works on everyday fixes",
+    "testimonialsTitle": "Trusted by DIY makers",
+    "ctaBannerTitle": "Ready to fix it yourself?",
+    "ctaBannerSubtitle": "Start with a quick scan — no account required.",
+    "footerTagline": "AR-powered repair assistant",
+    "footerRights": "All rights reserved."
+  },
+  "capture": {
+    "title": "Scan the problem",
+    "instruction": "Align the broken part inside the frame",
+    "capture": "Capture",
+    "flip": "Flip camera",
+    "analyzing": "Analyzing with AI…",
+    "permissionTitle": "Camera access needed",
+    "permissionBody": "Allow camera access so FixAura can scan and diagnose your repair.",
+    "permissionRetry": "Try again",
+    "errorTitle": "Camera unavailable",
+    "errorBody": "We couldn't access your camera. Check permissions or try another device.",
+    "unsafeLighting": "Lighting looks too dim — move to a brighter area for a clearer scan.",
+    "unstableMotion": "Hold steady — motion detected. Pause before capturing."
+  },
+  "diagnosis": {
+    "title": "Diagnosis",
+    "detectedIssue": "Detected issue",
+    "recommendedFix": "Recommended fix",
+    "riskLevel": "Risk level",
+    "summary": "Summary",
+    "whyResult": "Why this result?",
+    "ctaTools": "See Tools Needed",
+    "ctaRetake": "Retake Photo",
+    "lowConfidence": "Low confidence",
+    "riskLow": "Low risk",
+    "riskMedium": "Medium risk",
+    "riskHigh": "High risk"
+  },
+  "tools": {
+    "title": "Gather your tools",
+    "subtitle": "Check off each item before you begin.",
+    "prepTime": "Estimated prep",
+    "minutes": "min",
+    "essential": "Essential",
+    "haveAll": "I have everything",
+    "missing": "Missing tools",
+    "continue": "Continue to guide",
+    "acknowledgeEssential": "Acknowledge all essential tools to continue"
+  },
+  "guide": {
+    "title": "Repair guide",
+    "step": "Step",
+    "of": "of",
+    "next": "Next step",
+    "previous": "Previous",
+    "repeat": "Repeat step",
+    "pause": "Pause",
+    "resume": "Resume",
+    "confirmStep": "I've completed this step",
+    "safetyConfirm": "Confirm safety",
+    "loading": "Loading repair plan…"
+  },
+  "completion": {
+    "title": "Repair complete",
+    "subtitle": "You did it — great work staying safe and thorough.",
+    "moneySaved": "Money saved",
+    "timeSaved": "Time saved",
+    "wasteAvoided": "Waste avoided",
+    "share": "Share result",
+    "startAnother": "Start another repair",
+    "rating": "How helpful was FixAura?",
+    "thanks": "Thanks for your feedback!"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "language": "Language"
+  },
+  "safety": {
+    "powerOff": "Turn off power at the breaker before continuing.",
+    "waterShutoff": "Shut off water supply before disassembly.",
+    "gloves": "Wear protective gloves for this step.",
+    "genericTitle": "Safety check",
+    "genericConfirm": "I understand — continue"
+  },
+  "fallback": {
+    "title": "We're not fully confident",
+    "body": "The image may be unclear or the issue unusual. Retake a well-lit photo, or continue with caution.",
+    "retake": "Retake photo",
+    "continueCaution": "Continue with caution"
+  },
+  "confidence": {
+    "label": "Confidence",
+    "high": "High confidence",
+    "medium": "Moderate confidence",
+    "low": "Low confidence"
+  },
+  "voice": {
+    "listening": "Listening…",
+    "tapToSpeak": "Voice command"
+  }
+}
