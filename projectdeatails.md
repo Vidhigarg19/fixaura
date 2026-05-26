@@ -172,10 +172,6 @@ Fallback messaging always includes: "Call a licensed technician" as a valid, non
 Electrical steps always include a power shutoff verification before proceeding
 Water steps always verify shutoff valve is closed before any pipe work
 
-
-🏆 Why This Wins at a Hackathon
-Judging CriteriaHow FixAura ScoresDemo-abilityCamera + AR overlays + safety bubble = visually impressive in 2 minutesReal-world impactSolves an everyday problem billions of people faceAI integrationVision model + text generation + voice — not a gimmick, core to the productUI innovationSafety bubbles, AR arrows, and confidence meter are memorable and novelExplainability"Point camera at broken thing, get step-by-step fix" — judges get it instantlyFeasibilityA polished 1-scenario prototype is buildable in 24–48 hours
-
 🚀 Future Roadmap (Post-Hackathon)
 
 10+ repair categories: plumbing, electrical, appliances, furniture, HVAC
