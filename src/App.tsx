@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AnimatePresence } from 'framer-motion'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 
 const Landing = lazy(() => import('./Pages/Landing'))
 const CameraCapture = lazy(() => import('./Pages/CameraCapture'))
@@ -17,12 +17,20 @@ function PageLoader() {
   )
 }
 
-function App() {
+function AnimatedRoutes() {
+  const location = useLocation();
+
   return (
-    <BrowserRouter>
-      <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      >
         <Suspense fallback={<PageLoader />}>
-          <Routes>
+          <Routes location={location}>
             <Route path="/" element={<Landing />} />
             <Route path="/capture" element={<CameraCapture />} />
             <Route path="/diagnosis" element={<Diagnosis />} />
@@ -32,9 +40,15 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-      </AnimatePresence>
-    </BrowserRouter>
-  )
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AnimatedRoutes />
+    </BrowserRouter>
+  );
+}

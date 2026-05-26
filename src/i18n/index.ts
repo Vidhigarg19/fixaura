@@ -2,9 +2,7 @@ import en from './en.json'
 import hi from './hi.json'
 
 export type Locale = 'en' | 'hi'
-
 type Messages = typeof en
-
 const catalogs: Record<Locale, Messages> = { en, hi }
 
 let currentLocale: Locale =

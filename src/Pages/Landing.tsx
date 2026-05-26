@@ -1,6 +1,7 @@
-import { motion } from 'framer-motion'
-import { useInView } from 'react-intersection-observer'
-import { Link } from 'react-router-dom'
+import React from "react";
+import { motion } from "framer-motion";
+import { useInView } from "react-intersection-observer";
+import { Link } from "react-router-dom";
 import {
   Camera,
   Shield,
@@ -9,100 +10,180 @@ import {
   Star,
   Play,
   ChevronRight,
-} from 'lucide-react'
-import LanguageToggle from '../components/LanguageToggle'
-import ConfidenceMeter from '../components/ConfidenceMeter'
-import { t } from '../i18n'
+  BadgeCheck,
+  CheckCircle2,
+  Sparkles,
+  TriangleAlert,
+  ArrowRight,
+  Droplets,
+  PlugZap,
+  Fan,
+  Refrigerator,
+  MonitorSmartphone,
+  Sofa,
+  GlassWater,
+  ScanSearch,
+  AudioLines,
+  PanelTopOpen,
+} from "lucide-react";
+import LanguageToggle from "../components/LanguageToggle";
+import ConfidenceMeter from "../components/ConfidenceMeter";
+import { t } from "../i18n";
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0 },
-}
+};
+
+const fadeLeft = {
+  hidden: { opacity: 0, x: -40 },
+  visible: { opacity: 1, x: 0 },
+};
+
+const fadeRight = {
+  hidden: { opacity: 0, x: 40 },
+  visible: { opacity: 1, x: 0 },
+};
 
 const stagger = {
-  visible: { transition: { staggerChildren: 0.12 } },
-}
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.06 } },
+};
+
+const cardStagger = {
+  visible: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } },
+};
 
 function RevealSection({
   children,
-  className = '',
+  className = "",
   id,
 }: {
-  children: React.ReactNode
-  className?: string
-  id?: string
+  children: React.ReactNode;
+  className?: string;
+  id?: string;
 }) {
-  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.15 })
+  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.15 });
+
   return (
     <motion.section
       id={id}
       ref={ref}
       initial="hidden"
-      animate={inView ? 'visible' : 'hidden'}
+      animate={inView ? "visible" : "hidden"}
       variants={stagger}
       className={className}
     >
       {children}
     </motion.section>
-  )
+  );
 }
 
 const features = [
-  { icon: Camera, key: 'AI vision scan' },
-  { icon: Shield, key: 'Safety-first guidance' },
-  { icon: Wrench, key: 'Tool checklists' },
-  { icon: Zap, key: 'AR step overlays' },
-]
+  {
+    icon: Camera,
+    title: "AI vision scan",
+    description:
+      "Point your phone camera at any broken household object and FixAura detects the likely issue instantly.",
+  },
+  {
+    icon: Shield,
+    title: "Safety-first guidance",
+    description:
+      "Critical steps are gated behind confirmation prompts so users never skip safety checks.",
+  },
+  {
+    icon: Wrench,
+    title: "Tool checklists",
+    description:
+      "Each repair generates a practical checklist so users know exactly what to gather before starting.",
+  },
+  {
+    icon: Zap,
+    title: "AR step overlays",
+    description:
+      "On-screen highlights and arrows make each repair step feel guided, visual, and easy to follow.",
+  },
+];
 
-const categories = ['Appliances', 'Plumbing', 'Furniture', 'Electronics', 'Outdoor', 'Fixtures']
+const categories = [
+  { name: "Appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10" },
+  { name: "Plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10" },
+  { name: "Furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10" },
+  { name: "Electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10" },
+  { name: "Outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10" },
+  { name: "Fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10" },
+];
+
 const testimonials = [
-  { name: 'Maya R.', quote: 'Fixed our dryer in one evening — saved a $200 service call.' },
-  { name: 'James K.', quote: 'The AR arrows made a scary repair feel manageable.' },
-  { name: 'Priya S.', quote: 'Confidence meter told me when to retake the photo. Smart.' },
-]
+  {
+    name: "Maya R.",
+    role: "DIY Homeowner",
+    quote: "Fixed our dryer in one evening — saved a $200 service call.",
+  },
+  {
+    name: "James K.",
+    role: "Product Designer",
+    quote: "The AR arrows made a scary repair feel manageable.",
+  },
+  {
+    name: "Priya S.",
+    role: "Software Engineer",
+    quote: "Confidence meter told me when to retake the photo. Smart.",
+  },
+];
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-background text-text-primary overflow-x-hidden">
-      <div className="fixed inset-0 bg-aura-radial pointer-events-none" />
-      <div className="fixed inset-0 bg-aura-mesh pointer-events-none opacity-60" />
+    <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
+      <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:72px_72px]" />
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
       <motion.header
-        initial={{ opacity: 0, y: -12 }}
+        initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-30 glass-panel border-b border-border/80"
+        className="sticky top-0 z-40 glass-panel border-b border-border/80 backdrop-blur-xl"
       >
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-4 py-4">
+        <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-4">
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center gap-2"
+            initial={{ opacity: 0, x: -12 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-3"
           >
-            <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center glow-teal">
+            <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center shadow-[0_0_24px_rgba(0,245,212,0.24)]">
               <Wrench className="h-5 w-5 text-primary" />
             </div>
-            <span className="font-bold text-lg tracking-tight">FixAura</span>
+            <div className="leading-none">
+              <span className="block font-bold text-[18px] tracking-tight text-text-primary">
+                FixAura
+              </span>
+              <span className="block text-[11px] uppercase tracking-[0.26em] text-text-subtle mt-1">
+                AR-powered repair assistant
+              </span>
+            </div>
           </motion.div>
+
           <nav className="hidden md:flex items-center gap-8 text-sm text-text-secondary">
             <a href="#features" className="hover:text-primary transition-colors">
-              {t('nav.features')}
+              {t("nav.features")}
             </a>
             <a href="#showcase" className="hover:text-primary transition-colors">
-              {t('nav.showcase')}
+              {t("nav.showcase")}
             </a>
             <a href="#testimonials" className="hover:text-primary transition-colors">
-              {t('nav.testimonials')}
+              {t("nav.testimonials")}
             </a>
           </nav>
+
           <div className="flex items-center gap-3">
             <LanguageToggle />
             <Link to="/capture">
               <motion.span
-                whileHover={{ scale: 1.03 }}
+                whileHover={{ scale: 1.03, boxShadow: "0 0 32px rgba(0,245,212,0.45)" }}
                 whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-background"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)]"
               >
-                {t('nav.scan')}
+                {t("nav.scan")}
                 <ChevronRight className="h-4 w-4" />
               </motion.span>
             </Link>
@@ -111,171 +192,420 @@ export default function Landing() {
       </motion.header>
 
       <main className="relative">
-        <section className="relative mx-auto max-w-6xl px-4 pt-16 pb-24 md:pt-24">
+        <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
           <motion.div
             variants={stagger}
             initial="hidden"
             animate="visible"
-            className="grid lg:grid-cols-2 gap-12 items-center"
+            className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center w-full"
           >
-            <div>
-              <motion.h1 variants={fadeUp} className="text-display text-text-primary mb-6">
-                {t('landing.headline')}
+            <div className="relative z-10">
+              <motion.div
+                variants={fadeUp}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/20 bg-primary/8 text-primary text-[12px] font-semibold tracking-[0.18em] uppercase mb-6 shadow-[0_0_24px_rgba(0,245,212,0.12)]"
+              >
+                <BadgeCheck className="h-4 w-4" />
+                {t("landing.badge")}
+              </motion.div>
+
+              <motion.h1
+                variants={fadeUp}
+                className="text-[42px] md:text-[64px] lg:text-[72px] leading-[0.98] tracking-[-0.03em] font-extrabold text-text-primary max-w-[11ch]"
+              >
+                <span className="block">Fix anything.</span>
+                <span className="block text-primary">Fear nothing.</span>
               </motion.h1>
-              <motion.p variants={fadeUp} className="text-body-lg text-text-secondary mb-8 max-w-lg">
-                {t('landing.subheadline')}
+
+              <motion.p
+                variants={fadeUp}
+                className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-[38rem]"
+              >
+                Point your camera at any broken household object — get instant diagnosis,
+                AR-guided steps, and safety-first confirmations.
               </motion.p>
-              <motion.div variants={fadeUp} className="flex flex-wrap gap-4">
+
+              <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-4">
                 <Link to="/capture">
                   <motion.span
-                    whileHover={{ scale: 1.03, boxShadow: '0 0 32px rgba(0,245,212,0.45)' }}
+                    whileHover={{ scale: 1.03, boxShadow: "0 0 34px rgba(0,245,212,0.42)" }}
                     whileTap={{ scale: 0.97 }}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-background"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3.5 font-semibold text-background shadow-[0_18px_42px_rgba(0,245,212,0.18)]"
                   >
                     <Camera className="h-5 w-5" />
-                    {t('landing.ctaPrimary')}
+                    {t("landing.ctaPrimary")}
                   </motion.span>
                 </Link>
+
                 <motion.a
                   href="#preview"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-xl border border-border px-6 py-3 text-text-secondary hover:border-primary/40"
+                  className="inline-flex items-center gap-2 rounded-full border border-border-default/90 bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
                 >
                   <Play className="h-5 w-5" />
-                  {t('landing.ctaSecondary')}
+                  {t("landing.ctaSecondary")}
                 </motion.a>
+              </motion.div>
+
+              <motion.div variants={fadeUp} className="mt-8 flex items-center gap-4 text-sm text-text-subtle">
+                <div className="flex -space-x-2">
+                  {["A", "M", "P", "J"].map((letter) => (
+                    <div
+                      key={letter}
+                      className="h-9 w-9 rounded-full border border-border-default bg-brand-surface flex items-center justify-center text-[12px] font-semibold text-text-primary shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
+                    >
+                      {letter}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <p className="text-text-primary font-semibold">50k+ DIYers trust FixAura</p>
+                  <p className="text-text-subtle">Safety-first repairs with clear AR guidance.</p>
+                </div>
               </motion.div>
             </div>
 
             <motion.div
               id="preview"
               variants={fadeUp}
-              animate={{ y: [0, -10, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              className="relative"
+              animate={{ y: [0, -12, 0] }}
+              transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+              className="relative flex justify-center lg:justify-end"
             >
-              <div className="glass-panel rounded-2xl p-6 phone-shadow">
-                <div className="aspect-[9/16] max-h-[420px] mx-auto rounded-xl bg-surface-high relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent" />
-                  <ARPreviewMock />
+              <div className="relative w-full max-w-[430px]">
+                <div className="absolute -inset-8 bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.20),transparent_62%)] blur-3xl" />
+                <div className="glass-panel rounded-[2rem] p-5 md:p-6 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.36)] relative overflow-hidden">
+                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary/10 to-transparent" />
+                  <div className="aspect-[9/16] max-h-[540px] mx-auto rounded-[1.5rem] bg-[#08182c] relative overflow-hidden border border-white/5">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(0,245,212,0.14),transparent_34%)]" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#04101f]/65" />
+                    <img
+                      alt="AR Repair Mockup"
+                      className="absolute inset-0 w-full h-full object-cover opacity-88"
+                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzkx241-OG9bs7JVkdeP8sKDiMiw6RPKYI29l4oYQ6R6f3-5gxj8rNnCWMMohWMbT0fhGNFbKKZch0qVWSPvKJfS8A-SOQIq7-4MS8rTLxJxi0Xi1bLWpo-heldzx0Zvr_FgdOoBHopqVZ_7PuTN7GDfww6cGPiKjbvBk4AJN5QIQZwcDYR_V-17Zca0LHbtUTijn6Irzfv3HkifsGmD8PA89GF0z6rVuw8DjLmPKUeNS7-KYBwU2Ue972MEnNWYdeO7fvmFuC"
+                    />
+                    <div className="absolute inset-0">
+                      <div className="absolute top-[16%] left-[16%] h-[42%] w-[48%] rounded-2xl border border-primary/60 shadow-[0_0_26px_rgba(0,245,212,0.20)]" />
+                      <div className="absolute top-[19%] right-[18%] h-10 w-10 rounded-full border border-secondary/70 bg-primary/10 animate-pulse" />
+                      <motion.div
+                        initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ delay: 0.4, duration: 0.45 }}
+                        className="absolute top-8 left-6 right-6 glass-panel rounded-2xl p-4 border border-white/10"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[12px] uppercase tracking-[0.22em] text-primary font-semibold">
+                            Diagnosis
+                          </span>
+                          <span className="text-[12px] font-semibold text-secondary">
+                            89% Conf.
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[15px] font-semibold text-text-primary">
+                              Worn Faucet Washer
+                            </p>
+                            <p className="text-[13px] text-text-subtle mt-1">
+                              Repair is safe to continue after shutoff confirmation.
+                            </p>
+                          </div>
+                          <CheckCircle2 className="h-6 w-6 text-secondary shrink-0" />
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6, duration: 0.45 }}
+                        className="absolute bottom-8 left-5 glass-panel rounded-2xl px-4 py-3 border border-white/10"
+                      >
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-text-subtle">
+                          Live scan
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="text-[13px] text-text-primary font-medium">
+                            AR overlay locked to the leak area
+                          </span>
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.8, duration: 0.45 }}
+                        className="absolute -bottom-6 -right-5 glass-panel rounded-2xl p-4 border border-primary/20 shadow-[0_0_40px_rgba(0,245,212,0.12)]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <ConfidenceMeter value={89} size={92} />
+                          </div>
+                          <div>
+                            <p className="text-[12px] uppercase tracking-[0.2em] text-text-subtle">
+                              Confidence
+                            </p>
+                            <p className="text-[14px] font-semibold text-text-primary mt-1">
+                              High certainty
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  </div>
                 </div>
-                <motion.div
-                  className="absolute -bottom-4 -left-4 glass-panel rounded-xl p-4 border border-primary/30"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.5 }}
-                >
-                  <p className="text-label-bold text-text-subtle mb-2">
-                    {t('landing.confidenceLabel')}
-                  </p>
-                  <ConfidenceMeter value={87} size={100} />
-                </motion.div>
+
+                <div className="absolute -top-6 -right-3 h-20 w-20 rounded-full border border-primary/15 bg-primary/5 animate-[spin_22s_linear_infinite]" />
+                <div className="absolute -bottom-8 -left-4 h-28 w-28 rounded-full border-2 border-primary/10 bg-transparent animate-[spin_28s_linear_infinite_reverse]" />
               </div>
             </motion.div>
           </motion.div>
         </section>
 
-        <RevealSection className="mx-auto max-w-6xl px-4 py-20" id="features">
-          <motion.h2 variants={fadeUp} className="text-heading-xl text-center mb-12">
-            {t('landing.featuresTitle')}
-          </motion.h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map(({ icon: Icon, key }) => (
+        <RevealSection className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20" id="features">
+          <motion.div variants={fadeUp} className="text-center mb-12">
+            <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
+              Precision engineered
+            </p>
+            <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
+              {t("landing.featuresTitle")}
+            </h2>
+            <div className="w-24 h-1 bg-primary mx-auto rounded-full mt-5 shadow-[0_0_16px_rgba(0,245,212,0.28)]" />
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {features.map(({ icon: Icon, title, description }) => (
               <motion.div
-                key={key}
+                key={title}
                 variants={fadeUp}
-                whileHover={{ y: -4 }}
-                className="glass-panel rounded-xl p-6 feature-card"
+                whileHover={{ y: -6 }}
+                className="glass-panel rounded-[1.5rem] p-6 border border-white/10 hover:border-primary/30 transition-colors group"
               >
-                <Icon className="h-8 w-8 text-primary mb-4" />
-                <p className="font-semibold">{key}</p>
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5 border border-primary/15">
+                  <Icon className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-[18px] font-semibold text-text-primary mb-3">{title}</h3>
+                <p className="text-[15px] leading-[1.65] text-text-secondary">{description}</p>
               </motion.div>
             ))}
           </div>
         </RevealSection>
 
-        <RevealSection id="showcase" className="mx-auto max-w-6xl px-4 py-20">
-          <motion.h2 variants={fadeUp} className="text-heading-xl text-center mb-12">
-            {t('landing.showcaseTitle')}
-          </motion.h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {categories.map((cat) => (
+        <RevealSection id="showcase" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
+          <motion.div variants={fadeUp} className="text-center mb-12">
+            <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
+              {t("landing.showcaseKicker")}
+            </p>
+            <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
+              {t("landing.showcaseTitle")}
+            </h2>
+          </motion.div>
+
+          <motion.div
+            variants={cardStagger}
+            className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5"
+          >
+            {categories.map(({ name, icon: Icon, tone }) => (
               <motion.div
-                key={cat}
+                key={name}
                 variants={fadeUp}
-                className="glass-panel rounded-xl p-6 text-center hover:border-primary/30 transition-colors"
+                whileHover={{ y: -6, scale: 1.01 }}
+                className={`glass-panel rounded-[1.5rem] p-5 md:p-6 text-center border border-white/10 bg-gradient-to-br ${tone} hover:border-primary/25 transition-colors cursor-pointer`}
               >
-                <span className="text-body-md font-medium">{cat}</span>
+                <div className="mx-auto h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/10">
+                  <Icon className="h-7 w-7 md:h-8 md:w-8 text-primary" />
+                </div>
+                <span className="text-[15px] md:text-[16px] font-semibold text-text-primary">
+                  {name}
+                </span>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </RevealSection>
 
-        <RevealSection id="testimonials" className="mx-auto max-w-6xl px-4 py-20">
-          <motion.h2 variants={fadeUp} className="text-heading-xl text-center mb-12">
-            {t('landing.testimonialsTitle')}
-          </motion.h2>
-          <div className="grid md:grid-cols-3 gap-6">
+        <RevealSection id="testimonials" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
+          <motion.div variants={fadeUp} className="text-center mb-12">
+            <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
+              Real user trust
+            </p>
+            <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
+              {t("landing.testimonialsTitle")}
+            </h2>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-5">
             {testimonials.map((item) => (
               <motion.blockquote
                 key={item.name}
                 variants={fadeUp}
-                className="glass-panel rounded-xl p-6"
+                whileHover={{ y: -5 }}
+                className="glass-panel rounded-[1.5rem] p-6 border border-white/10 relative overflow-hidden"
               >
-                <div className="flex gap-1 text-warning mb-3">
+                <div className="absolute top-4 right-4 text-primary/10">
+                  <Star className="h-14 w-14 fill-current" />
+                </div>
+                <div className="flex text-primary mb-4">
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <Star key={i} className="h-4 w-4 fill-warning" />
+                    <Star key={i} className="h-4 w-4 fill-current" />
                   ))}
                 </div>
-                <p className="text-text-secondary mb-4">&ldquo;{item.quote}&rdquo;</p>
-                <cite className="text-sm font-semibold not-italic">{item.name}</cite>
+                <p className="text-[15px] leading-[1.7] text-text-secondary mb-5">
+                  “{item.quote}”
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-full bg-primary/10 border border-primary/15 flex items-center justify-center">
+                    <span className="text-primary font-semibold text-[13px]">
+                      {item.name
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")}
+                    </span>
+                  </div>
+                  <div>
+                    <cite className="block text-[14px] font-semibold not-italic text-text-primary">
+                      {item.name}
+                    </cite>
+                    <span className="block text-[12px] uppercase tracking-[0.16em] text-text-subtle mt-1">
+                      {item.role}
+                    </span>
+                  </div>
+                </div>
               </motion.blockquote>
             ))}
           </div>
         </RevealSection>
 
-        <section className="mx-auto max-w-6xl px-4 py-16">
+        <section className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-8 md:py-12">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="glass-panel rounded-2xl p-10 text-center border border-primary/20 glow-teal"
+            viewport={{ once: true, amount: 0.2 }}
+            className="relative overflow-hidden rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(0,245,212,0.14),rgba(75,219,203,0.10),rgba(4,19,41,0.92))] p-8 md:p-12 text-center shadow-[0_0_60px_rgba(0,245,212,0.10)]"
           >
-            <h2 className="text-heading-lg mb-3">{t('landing.ctaBannerTitle')}</h2>
-            <p className="text-text-secondary mb-6">{t('landing.ctaBannerSubtitle')}</p>
-            <Link to="/capture">
-              <motion.span
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex rounded-xl bg-primary px-8 py-3 font-semibold text-background"
-              >
-                {t('landing.ctaPrimary')}
-              </motion.span>
-            </Link>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18)_0%,transparent_58%)] opacity-70" />
+            <div className="relative z-10">
+              <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-4">
+                {t("landing.ctaBannerKicker")}
+              </p>
+              <h2 className="text-[32px] md:text-[56px] font-extrabold tracking-[-0.03em] text-text-primary">
+                {t("landing.ctaBannerTitle")}
+              </h2>
+              <p className="mt-5 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-2xl mx-auto">
+                Download the app today and get your first 3 repairs completely free. No subscription required.
+              </p>
+
+              <Link to="/capture">
+                <motion.span
+                  whileHover={{ scale: 1.04, boxShadow: "0 0 32px rgba(0,245,212,0.46)" }}
+                  whileTap={{ scale: 0.97 }}
+                  className="inline-flex items-center gap-2 mt-8 rounded-full bg-primary px-8 py-3.5 font-semibold text-background shadow-[0_18px_42px_rgba(0,245,212,0.18)]"
+                >
+                  {t("landing.ctaPrimary")}
+                  <ArrowRight className="h-5 w-5" />
+                </motion.span>
+              </Link>
+            </div>
           </motion.div>
         </section>
       </main>
 
-      <footer className="border-t border-border py-10">
-        <div className="mx-auto max-w-6xl px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-text-subtle text-sm">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-primary" />
-            <span>FixAura — {t('landing.footerTagline')}</span>
+      <footer className="border-t border-white/8 mt-6 py-10 md:py-12 bg-[#03101f]/80 backdrop-blur-xl">
+        <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-4 text-sm">
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center">
+                <Wrench className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <span className="block text-[18px] font-bold text-text-primary">FixAura</span>
+                <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
+                  Surgical precision for every repair.
+                </span>
+              </div>
+            </div>
+            <p className="text-text-secondary leading-[1.7] max-w-xs">
+              FixAura helps everyday people diagnose, plan, and complete repairs with confidence, safety, and clarity.
+            </p>
           </div>
-          <p>© {new Date().getFullYear()} FixAura. {t('landing.footerRights')}</p>
+
+          <div>
+            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+              Product
+            </h4>
+            <ul className="space-y-3 text-text-secondary">
+              <li>
+                <a className="hover:text-primary transition-colors" href="#features">
+                  Features
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#showcase">
+                  Pro Mode
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#features">
+                  Safety First
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#testimonials">
+                  Status
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+              Legal
+            </h4>
+            <ul className="space-y-3 text-text-secondary">
+              <li>
+                <a className="hover:text-primary transition-colors" href="#">
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#">
+                  Terms of Service
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#">
+                  Cookie Policy
+                </a>
+              </li>
+              <li>
+                <a className="hover:text-primary transition-colors" href="#">
+                  Safety Disclosure
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <div className="glass-panel p-5 rounded-[1.25rem] border border-white/10">
+              <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-3">
+                Newsletter
+              </h4>
+              <p className="text-text-secondary mb-4 leading-[1.65]">
+                Get repair tips and AR news.
+              </p>
+              <div className="flex flex-col gap-3">
+                <input
+                  className="h-12 rounded-xl bg-brand-surface/80 border border-border-default px-4 text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-primary/70 transition-colors"
+                  placeholder="Email address"
+                  type="email"
+                />
+                <button className="h-12 rounded-xl bg-primary text-background font-semibold hover:opacity-90 transition-opacity">
+                  Subscribe
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
-  )
-}
-
-function ARPreviewMock() {
-  return (
-    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 360" aria-hidden>
-      <rect x="20" y="40" width="160" height="200" rx="8" fill="none" stroke="#00F5D4" strokeWidth="1" opacity="0.5" />
-      <path d="M100 120 L100 200 M100 200 L80 180 M100 200 L120 180" stroke="#00F5D4" strokeWidth="2" fill="none" />
-      <circle cx="100" cy="100" r="24" fill="none" stroke="#4BDBCB" strokeWidth="1.5" />
-    </svg>
-  )
+  );
 }

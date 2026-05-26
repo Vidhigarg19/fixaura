@@ -21,7 +21,7 @@ export default function LanguageToggle({ onChange }: LanguageToggleProps) {
       whileHover={{ scale: 1.03 }}
       whileTap={{ scale: 0.97 }}
       onClick={toggle}
-      className="text-label-bold text-text-subtle hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border"
+      className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-label-bold text-text-subtle transition-colors hover:border-primary/40 hover:text-primary"
       aria-label="Toggle language"
     >
       {locale === 'en' ? 'हिन्दी' : 'EN'}
