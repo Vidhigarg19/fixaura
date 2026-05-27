@@ -130,9 +130,34 @@ export default function CameraCapture() {
       }
     } catch (err) {
       console.error('Camera error:', err)
+      
+      // Detailed error logging
+      if (err instanceof Error) {
+        console.error('Error name:', err.name)
+        console.error('Error message:', err.message)
+      }
+      
       // Differentiate between permission denied and other errors
-      if (err instanceof Error && err.name === 'NotAllowedError') {
-        setCameraState('permission')
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          console.error('Permission denied by user')
+          setCameraState('permission')
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          console.error('No camera device found')
+          setCameraState('error')
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          console.error('Camera is in use by another application')
+          setCameraState('error')
+        } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+          console.error('Camera constraints not satisfied')
+          setCameraState('error')
+        } else if (err.name === 'SecurityError') {
+          console.error('Security error - HTTPS required')
+          setCameraState('error')
+        } else {
+          console.error('Unknown camera error')
+          setCameraState('error')
+        }
       } else {
         setCameraState('error')
       }
@@ -298,29 +323,51 @@ export default function CameraCapture() {
                 </div>
               )}
               
+              {/* Permission Reset Instructions */}
+              <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg text-left">
+                <p className="text-sm font-semibold text-primary mb-2">🔧 Quick Fix:</p>
+                <ol className="text-sm text-text-secondary space-y-1 list-decimal list-inside">
+                  <li>Click the 🔒 or 🎥 icon in your browser's address bar</li>
+                  <li>Change Camera permission to "Allow"</li>
+                  <li>Refresh this page or click "Try again" below</li>
+                </ol>
+              </div>
+              
               {/* Troubleshooting tips */}
               <details className="mb-6 text-left">
                 <summary className="cursor-pointer text-sm text-primary hover:underline">
-                  Troubleshooting tips
+                  More troubleshooting tips
                 </summary>
                 <ul className="mt-3 text-sm text-text-secondary space-y-2 list-disc list-inside">
                   <li>Ensure you're using HTTPS (not HTTP)</li>
-                  <li>Click "Allow" when prompted for camera access</li>
-                  <li>Check browser settings for camera permissions</li>
+                  <li>Close other apps that might be using the camera</li>
                   <li>Try a different browser (Chrome, Safari, Edge)</li>
-                  <li>Ensure no other app is using the camera</li>
+                  <li>Restart your browser</li>
+                  <li>Check if camera works in other websites</li>
                 </ul>
               </details>
               
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={startCamera}
-                className="rounded-xl bg-primary px-6 py-3 font-semibold text-background"
-              >
-                {t('capture.permissionRetry')}
-              </motion.button>
+              <div className="flex gap-3 justify-center">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={startCamera}
+                  className="rounded-xl bg-primary px-6 py-3 font-semibold text-background"
+                >
+                  {t('capture.permissionRetry')}
+                </motion.button>
+                
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => window.location.reload()}
+                  className="rounded-xl border border-primary px-6 py-3 font-semibold text-primary"
+                >
+                  Refresh Page
+                </motion.button>
+              </div>
             </div>
           </div>
         )}
