@@ -304,16 +304,18 @@ export default function CameraCapture() {
       </div>
 
       <div className="relative flex-1 min-h-[70vh] bg-black">
+        {/* Video element is ALWAYS mounted so videoRef is available when startCamera runs */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`absolute inset-0 w-full h-full object-cover bg-black ${cameraState !== 'ready' ? 'invisible' : ''}`}
+          style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+        />
+
         {cameraState === 'ready' && (
           <>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover bg-black"
-              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-            />
             {/* Show loading overlay if video not ready */}
             {!videoReady && (
               <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
