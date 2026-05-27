@@ -66,54 +66,50 @@ function RevealSection({
 const features = [
   {
     icon: Camera,
-    title: "AI vision scan",
-    description:
-      "Point your phone camera at any broken household object and FixAura detects the likely issue instantly.",
+    titleKey: "landing.feature.aiVisionScan.title",
+    descriptionKey: "landing.feature.aiVisionScan.description",
   },
   {
     icon: Shield,
-    title: "Safety-first guidance",
-    description:
-      "Critical steps are gated behind confirmation prompts so users never skip safety checks.",
+    titleKey: "landing.feature.safetyGuidance.title",
+    descriptionKey: "landing.feature.safetyGuidance.description",
   },
   {
     icon: Wrench,
-    title: "Tool checklists",
-    description:
-      "Each repair generates a practical checklist so users know exactly what to gather before starting.",
+    titleKey: "landing.feature.toolChecklists.title",
+    descriptionKey: "landing.feature.toolChecklists.description",
   },
   {
     icon: Zap,
-    title: "AR step overlays",
-    description:
-      "On-screen highlights and arrows make each repair step feel guided, visual, and easy to follow.",
+    titleKey: "landing.feature.arStepOverlays.title",
+    descriptionKey: "landing.feature.arStepOverlays.description",
   },
 ];
 
 const categories = [
-  { name: "Appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10" },
-  { name: "Plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10" },
-  { name: "Furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10" },
-  { name: "Electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10" },
-  { name: "Outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10" },
-  { name: "Fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10" },
+  { nameKey: "landing.category.appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10" },
+  { nameKey: "landing.category.plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10" },
+  { nameKey: "landing.category.furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10" },
+  { nameKey: "landing.category.electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10" },
+  { nameKey: "landing.category.outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10" },
+  { nameKey: "landing.category.fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10" },
 ];
 
 const testimonials = [
   {
-    name: "Maya R.",
-    role: "DIY Homeowner",
-    quote: "Fixed our dryer in one evening — saved a $200 service call.",
+    nameKey: "landing.testimonials.maya.name",
+    roleKey: "landing.testimonials.maya.role",
+    quoteKey: "landing.testimonials.maya.quote",
   },
   {
-    name: "James K.",
-    role: "Product Designer",
-    quote: "The AR arrows made a scary repair feel manageable.",
+    nameKey: "landing.testimonials.james.name",
+    roleKey: "landing.testimonials.james.role",
+    quoteKey: "landing.testimonials.james.quote",
   },
   {
-    name: "Priya S.",
-    role: "Software Engineer",
-    quote: "Confidence meter told me when to retake the photo. Smart.",
+    nameKey: "landing.testimonials.priya.name",
+    roleKey: "landing.testimonials.priya.role",
+    quoteKey: "landing.testimonials.priya.quote",
   },
 ];
 
@@ -140,10 +136,10 @@ export default function Landing() {
             </div>
             <div className="leading-none">
               <span className="block font-bold text-[18px] tracking-tight text-text-primary">
-                FixAura
+                {t("common.brandName")}
               </span>
               <span className="block text-[11px] uppercase tracking-[0.26em] text-text-subtle mt-1">
-                AR-powered repair assistant
+                {t("landing.footerTagline")}
               </span>
             </div>
           </motion.div>
@@ -197,16 +193,15 @@ export default function Landing() {
                 variants={fadeUp}
                 className="text-[42px] md:text-[64px] lg:text-[72px] leading-[0.98] tracking-[-0.03em] font-extrabold text-text-primary max-w-[11ch]"
               >
-                <span className="block">Fix anything.</span>
-                <span className="block text-primary">Fear nothing.</span>
+                <span className="block">{t("landing.heroLine1")}</span>
+                <span className="block text-primary">{t("landing.heroLine2")}</span>
               </motion.h1>
 
               <motion.p
                 variants={fadeUp}
                 className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-[38rem]"
               >
-                Point your camera at any broken household object — get instant diagnosis,
-                AR-guided steps, and safety-first confirmations.
+                {t("landing.subheadline")}
               </motion.p>
 
               <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-4">
@@ -244,8 +239,8 @@ export default function Landing() {
                   ))}
                 </div>
                 <div>
-                  <p className="text-text-primary font-semibold">50k+ DIYers trust FixAura</p>
-                  <p className="text-text-subtle">Safety-first repairs with clear AR guidance.</p>
+                  <p className="text-text-primary font-semibold">{t("landing.trustStat")}</p>
+                  <p className="text-text-subtle">{t("landing.trustSubtitle")}</p>
                 </div>
               </motion.div>
             </div>
@@ -265,7 +260,7 @@ export default function Landing() {
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(0,245,212,0.14),transparent_34%)]" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#04101f]/65" />
                     <img
-                      alt="AR Repair Mockup"
+                      alt={t("landing.preview.alt")}
                       className="absolute inset-0 w-full h-full object-cover opacity-88"
                       src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzkx241-OG9bs7JVkdeP8sKDiMiw6RPKYI29l4oYQ6R6f3-5gxj8rNnCWMMohWMbT0fhGNFbKKZch0qVWSPvKJfS8A-SOQIq7-4MS8rTLxJxi0Xi1bLWpo-heldzx0Zvr_FgdOoBHopqVZ_7PuTN7GDfww6cGPiKjbvBk4AJN5QIQZwcDYR_V-17Zca0LHbtUTijn6Irzfv3HkifsGmD8PA89GF0z6rVuw8DjLmPKUeNS7-KYBwU2Ue972MEnNWYdeO7fvmFuC"
                     />
@@ -280,19 +275,19 @@ export default function Landing() {
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[12px] uppercase tracking-[0.22em] text-primary font-semibold">
-                            Diagnosis
+                            {t("landing.preview.diagnosisTitle")}
                           </span>
                           <span className="text-[12px] font-semibold text-secondary">
-                            89% Conf.
+                            {t("landing.preview.confidenceText")}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="text-[15px] font-semibold text-text-primary">
-                              Worn Faucet Washer
+                              {t("landing.preview.issueName")}
                             </p>
                             <p className="text-[13px] text-text-subtle mt-1">
-                              Repair is safe to continue after shutoff confirmation.
+                              {t("landing.preview.safetyLine")}
                             </p>
                           </div>
                           <CheckCircle2 className="h-6 w-6 text-secondary shrink-0" />
@@ -306,12 +301,12 @@ export default function Landing() {
                         className="absolute bottom-8 left-5 glass-panel rounded-2xl px-4 py-3 border border-white/10"
                       >
                         <p className="text-[11px] uppercase tracking-[0.22em] text-text-subtle">
-                          Live scan
+                          {t("landing.preview.liveScanLabel")}
                         </p>
                         <div className="mt-2 flex items-center gap-2">
                           <Sparkles className="h-4 w-4 text-primary" />
                           <span className="text-[13px] text-text-primary font-medium">
-                            AR overlay locked to the leak area
+                            {t("landing.preview.arOverlayLockedLine")}
                           </span>
                         </div>
                       </motion.div>
@@ -328,10 +323,10 @@ export default function Landing() {
                           </div>
                           <div>
                             <p className="text-[12px] uppercase tracking-[0.2em] text-text-subtle">
-                              Confidence
+                              {t("landing.preview.confidenceLabel")}
                             </p>
                             <p className="text-[14px] font-semibold text-text-primary mt-1">
-                              High certainty
+                              {t("landing.preview.confidenceValue")}
                             </p>
                           </div>
                         </div>
@@ -350,7 +345,7 @@ export default function Landing() {
         <RevealSection className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20" id="features">
           <motion.div variants={fadeUp} className="text-center mb-12">
             <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
-              Precision engineered
+              {t("landing.featuresKicker")}
             </p>
             <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
               {t("landing.featuresTitle")}
@@ -359,9 +354,9 @@ export default function Landing() {
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {features.map(({ icon: Icon, title, description }) => (
+            {features.map(({ icon: Icon, titleKey, descriptionKey }) => (
               <motion.div
-                key={title}
+                key={titleKey}
                 variants={fadeUp}
                 whileHover={{ y: -6 }}
                 className="glass-panel rounded-[1.5rem] p-6 border border-white/10 hover:border-primary/30 transition-colors group"
@@ -369,8 +364,10 @@ export default function Landing() {
                 <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5 border border-primary/15">
                   <Icon className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="text-[18px] font-semibold text-text-primary mb-3">{title}</h3>
-                <p className="text-[15px] leading-[1.65] text-text-secondary">{description}</p>
+                <h3 className="text-[18px] font-semibold text-text-primary mb-3">{t(titleKey)}</h3>
+                <p className="text-[15px] leading-[1.65] text-text-secondary">
+                  {t(descriptionKey)}
+                </p>
               </motion.div>
             ))}
           </div>
@@ -390,9 +387,9 @@ export default function Landing() {
             variants={cardStagger}
             className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5"
           >
-            {categories.map(({ name, icon: Icon, tone }) => (
+            {categories.map(({ nameKey, icon: Icon, tone }) => (
               <motion.div
-                key={name}
+                key={nameKey}
                 variants={fadeUp}
                 whileHover={{ y: -6, scale: 1.01 }}
                 className={`glass-panel rounded-[1.5rem] p-5 md:p-6 text-center border border-white/10 bg-gradient-to-br ${tone} hover:border-primary/25 transition-colors cursor-pointer`}
@@ -401,7 +398,7 @@ export default function Landing() {
                   <Icon className="h-7 w-7 md:h-8 md:w-8 text-primary" />
                 </div>
                 <span className="text-[15px] md:text-[16px] font-semibold text-text-primary">
-                  {name}
+                  {t(nameKey)}
                 </span>
               </motion.div>
             ))}
@@ -411,7 +408,7 @@ export default function Landing() {
         <RevealSection id="testimonials" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
           <motion.div variants={fadeUp} className="text-center mb-12">
             <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
-              Real user trust
+              {t("landing.testimonialsKicker")}
             </p>
             <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
               {t("landing.testimonialsTitle")}
@@ -421,7 +418,7 @@ export default function Landing() {
           <div className="grid md:grid-cols-3 gap-5">
             {testimonials.map((item) => (
               <motion.blockquote
-                key={item.name}
+                key={item.nameKey}
                 variants={fadeUp}
                 whileHover={{ y: -5 }}
                 className="glass-panel rounded-[1.5rem] p-6 border border-white/10 relative overflow-hidden"
@@ -435,12 +432,12 @@ export default function Landing() {
                   ))}
                 </div>
                 <p className="text-[15px] leading-[1.7] text-text-secondary mb-5">
-                  “{item.quote}”
+                  “{t(item.quoteKey)}”
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="h-11 w-11 rounded-full bg-primary/10 border border-primary/15 flex items-center justify-center">
                     <span className="text-primary font-semibold text-[13px]">
-                      {item.name
+                      {t(item.nameKey)
                         .split(" ")
                         .map((part) => part[0])
                         .join("")}
@@ -448,10 +445,10 @@ export default function Landing() {
                   </div>
                   <div>
                     <cite className="block text-[14px] font-semibold not-italic text-text-primary">
-                      {item.name}
+                      {t(item.nameKey)}
                     </cite>
                     <span className="block text-[12px] uppercase tracking-[0.16em] text-text-subtle mt-1">
-                      {item.role}
+                      {t(item.roleKey)}
                     </span>
                   </div>
                 </div>
@@ -476,7 +473,7 @@ export default function Landing() {
                 {t("landing.ctaBannerTitle")}
               </h2>
               <p className="mt-5 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-2xl mx-auto">
-                Download the app today and get your first 3 repairs completely free. No subscription required.
+                {t("landing.ctaBannerSubtitle")}
               </p>
 
               <Link to="/capture">
@@ -502,40 +499,40 @@ export default function Landing() {
                 <Wrench className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <span className="block text-[18px] font-bold text-text-primary">FixAura</span>
+                <span className="block text-[18px] font-bold text-text-primary">{t("common.brandName")}</span>
                 <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
-                  Surgical precision for every repair.
+                  {t("landing.footerSurgicalTagline")}
                 </span>
               </div>
             </div>
             <p className="text-text-secondary leading-[1.7] max-w-xs">
-              FixAura helps everyday people diagnose, plan, and complete repairs with confidence, safety, and clarity.
+              {t("landing.footerDescription")}
             </p>
           </div>
 
           <div>
             <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
-              Product
+              {t("landing.footerProductHeading")}
             </h4>
             <ul className="space-y-3 text-text-secondary">
               <li>
                 <a className="hover:text-primary transition-colors" href="#features">
-                  Features
+                  {t("landing.footerProductFeatures")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#showcase">
-                  Pro Mode
+                  {t("landing.footerProductProMode")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#features">
-                  Safety First
+                  {t("landing.footerProductSafetyFirst")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#testimonials">
-                  Status
+                  {t("landing.footerProductStatus")}
                 </a>
               </li>
             </ul>
@@ -543,27 +540,27 @@ export default function Landing() {
 
           <div>
             <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
-              Legal
+              {t("landing.footerLegalHeading")}
             </h4>
             <ul className="space-y-3 text-text-secondary">
               <li>
                 <a className="hover:text-primary transition-colors" href="#">
-                  Privacy Policy
+                  {t("landing.footerLegalPrivacyPolicy")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#">
-                  Terms of Service
+                  {t("landing.footerLegalTermsOfService")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#">
-                  Cookie Policy
+                  {t("landing.footerLegalCookiePolicy")}
                 </a>
               </li>
               <li>
                 <a className="hover:text-primary transition-colors" href="#">
-                  Safety Disclosure
+                  {t("landing.footerLegalSafetyDisclosure")}
                 </a>
               </li>
             </ul>
@@ -572,19 +569,19 @@ export default function Landing() {
           <div>
             <div className="glass-panel p-5 rounded-[1.25rem] border border-white/10">
               <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-3">
-                Newsletter
+                {t("landing.footerNewsletterHeading")}
               </h4>
               <p className="text-text-secondary mb-4 leading-[1.65]">
-                Get repair tips and AR news.
+                {t("landing.footerNewsletterBody")}
               </p>
               <div className="flex flex-col gap-3">
                 <input
                   className="h-12 rounded-xl bg-brand-surface/80 border border-border-default px-4 text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-primary/70 transition-colors"
-                  placeholder="Email address"
+                  placeholder={t("landing.footerNewsletterPlaceholderEmail")}
                   type="email"
                 />
                 <button className="h-12 rounded-xl bg-primary text-background font-semibold hover:opacity-90 transition-opacity">
-                  Subscribe
+                  {t("landing.footerNewsletterSubscribeButton")}
                 </button>
               </div>
             </div>

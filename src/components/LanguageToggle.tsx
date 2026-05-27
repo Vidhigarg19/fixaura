@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { getLocale, setLocale, type Locale } from '../i18n'
+import { getLocale, setLocale, t, type Locale } from '../i18n'
 
 interface LanguageToggleProps {
   onChange?: () => void
@@ -12,7 +12,6 @@ export default function LanguageToggle({ onChange }: LanguageToggleProps) {
     const next: Locale = locale === 'en' ? 'hi' : 'en'
     setLocale(next)
     onChange?.()
-    window.location.reload()
   }
 
   return (
@@ -22,9 +21,9 @@ export default function LanguageToggle({ onChange }: LanguageToggleProps) {
       whileTap={{ scale: 0.97 }}
       onClick={toggle}
       className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-label-bold text-text-subtle transition-colors hover:border-primary/40 hover:text-primary"
-      aria-label="Toggle language"
+      aria-label={t('common.toggleLanguageAria')}
     >
-      {locale === 'en' ? 'हिन्दी' : 'EN'}
+      {locale === 'en' ? t('common.languageHI') : t('common.languageEN')}
     </motion.button>
   )
 }

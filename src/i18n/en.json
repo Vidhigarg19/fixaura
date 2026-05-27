@@ -7,17 +7,110 @@
   },
   "landing": {
     "headline": "Fix anything. Fear nothing.",
-    "subheadline": "Point your camera at a broken household item. FixAura diagnoses the issue, lists your tools, and guides you step-by-step with AR overlays.",
+    "subheadline": "Point your camera at any broken household object — get instant diagnosis, AR-guided steps, and safety-first confirmations.",
     "ctaPrimary": "Scan Problem",
     "ctaSecondary": "Watch Demo",
     "confidenceLabel": "Diagnosis confidence",
+
+    "badge": "Precision engineered",
+    "heroLine1": "Fix anything.",
+    "heroLine2": "Fear nothing.",
+    "trustStat": "50k+ DIYers trust FixAura",
+    "trustSubtitle": "Safety-first repairs with clear AR guidance.",
+
     "featuresTitle": "Repair intelligence, built in",
+    "featuresKicker": "Precision engineered",
+
+    "showcaseKicker": "Pro Mode",
     "showcaseTitle": "Works on everyday fixes",
+
+    "testimonialsKicker": "Real user trust",
     "testimonialsTitle": "Trusted by DIY makers",
+
+    "ctaBannerKicker": "Get FixAura free",
     "ctaBannerTitle": "Ready to fix it yourself?",
-    "ctaBannerSubtitle": "Start with a quick scan — no account required.",
+    "ctaBannerSubtitle": "Download the app today and get your first 3 repairs completely free. No subscription required.",
+
     "footerTagline": "AR-powered repair assistant",
-    "footerRights": "All rights reserved."
+    "footerSurgicalTagline": "Surgical precision for every repair.",
+    "footerDescription": "FixAura helps everyday people diagnose, plan, and complete repairs with confidence, safety, and clarity.",
+
+    "footerProductHeading": "Product",
+    "footerProductFeatures": "Features",
+    "footerProductProMode": "Pro Mode",
+    "footerProductSafetyFirst": "Safety First",
+    "footerProductStatus": "Status",
+
+    "footerLegalHeading": "Legal",
+    "footerLegalPrivacyPolicy": "Privacy Policy",
+    "footerLegalTermsOfService": "Terms of Service",
+    "footerLegalCookiePolicy": "Cookie Policy",
+    "footerLegalSafetyDisclosure": "Safety Disclosure",
+
+    "footerNewsletterHeading": "Newsletter",
+    "footerNewsletterBody": "Get repair tips and AR news.",
+    "footerNewsletterPlaceholderEmail": "Email address",
+    "footerNewsletterSubscribeButton": "Subscribe",
+
+    "footerRights": "All rights reserved.",
+
+    "feature": {
+      "aiVisionScan": {
+        "title": "AI vision scan",
+        "description": "Point your phone camera at any broken household object and FixAura detects the likely issue instantly."
+      },
+      "safetyGuidance": {
+        "title": "Safety-first guidance",
+        "description": "Critical steps are gated behind confirmation prompts so users never skip safety checks."
+      },
+      "toolChecklists": {
+        "title": "Tool checklists",
+        "description": "Each repair generates a practical checklist so users know exactly what to gather before starting."
+      },
+      "arStepOverlays": {
+        "title": "AR step overlays",
+        "description": "On-screen highlights and arrows make each repair step feel guided, visual, and easy to follow."
+      }
+    },
+
+    "category": {
+      "appliances": "Appliances",
+      "plumbing": "Plumbing",
+      "furniture": "Furniture",
+      "electronics": "Electronics",
+      "outdoor": "Outdoor",
+      "fixtures": "Fixtures"
+    },
+
+    "testimonials": {
+      "maya": {
+        "name": "Maya R.",
+        "role": "DIY Homeowner",
+        "quote": "Fixed our dryer in one evening — saved a $200 service call."
+      },
+      "james": {
+        "name": "James K.",
+        "role": "Product Designer",
+        "quote": "The AR arrows made a scary repair feel manageable."
+      },
+      "priya": {
+        "name": "Priya S.",
+        "role": "Software Engineer",
+        "quote": "Confidence meter told me when to retake the photo. Smart."
+      }
+    },
+
+    "preview": {
+      "alt": "AR Repair Mockup",
+      "diagnosisTitle": "Diagnosis",
+      "confidenceText": "89% Conf.",
+      "issueName": "Worn Faucet Washer",
+      "safetyLine": "Repair is safe to continue after shutoff confirmation.",
+      "liveScanLabel": "Live scan",
+      "arOverlayLockedLine": "AR overlay locked to the leak area",
+      "confidenceLabel": "Confidence",
+      "confidenceValue": "High certainty"
+    }
   },
   "capture": {
     "title": "Scan the problem",
@@ -78,6 +171,13 @@
     "timeSaved": "Time saved",
     "wasteAvoided": "Waste avoided",
     "share": "Share result",
+    "shareTitle": "FixAura",
+    "sharePrefix": "I just completed a repair with FixAura — saved ~$",
+    "shareMiddle": " and ",
+    "shareSuffix": " minutes!",
+    "timeUnit": " min",
+    "wasteUnit": " kg",
+    "rateAria": "Rate this repair",
     "startAnother": "Start another repair",
     "rating": "How helpful was FixAura?",
     "thanks": "Thanks for your feedback!"
@@ -90,7 +190,11 @@
     "continue": "Continue",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "language": "Language"
+    "language": "Language",
+    "toggleLanguageAria": "Toggle language",
+    "languageEN": "EN",
+    "languageHI": "हिन्दी",
+    "brandName": "FixAura"
   },
   "safety": {
     "powerOff": "Turn off power at the breaker before continuing.",

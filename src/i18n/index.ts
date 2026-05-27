@@ -10,6 +10,8 @@ let currentLocale: Locale =
     (localStorage.getItem('fixaura-locale') as Locale)) ||
   'en'
 
+const localeListeners = new Set<() => void>()
+
 function getByPath(obj: Record<string, unknown>, path: string): string {
   const parts = path.split('.')
   let cur: unknown = obj
@@ -33,12 +35,14 @@ export function setLocale(locale: Locale) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('fixaura-locale', locale)
   }
+  localeListeners.forEach((l) => l())
 }
 
 export function getLocale(): Locale {
   return currentLocale
 }
 
-export function useLocaleLabel(): Record<Locale, string> {
-  return { en: 'English', hi: 'हिन्दी' }
+export function subscribeLocale(listener: () => void) {
+  localeListeners.add(listener)
+  return () => localeListeners.delete(listener)
 }

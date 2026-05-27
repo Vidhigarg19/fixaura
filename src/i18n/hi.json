@@ -7,17 +7,110 @@
   },
   "landing": {
     "headline": "कुछ भी ठीक करें। कुछ भी न डरें।",
-    "subheadline": "अपने कैमरे को टूटी हुई चीज़ पर रखें। FixAura समस्या का निदान करता है, औज़ार बताता है, और AR के साथ कदम-दर-कदम मार्गदर्शन देता है।",
+    "subheadline": "अपने फोन के कैमरे को किसी भी टूटी हुई वस्तु पर रखें — तुरंत निदान, AR-मार्गदर्शित कदम, और सुरक्षा-पहले पुष्टि के साथ।",
     "ctaPrimary": "समस्या स्कैन करें",
     "ctaSecondary": "डेमो देखें",
     "confidenceLabel": "निदान विश्वास",
+
+    "badge": "सटीक रूप से इंजीनियर्ड",
+    "heroLine1": "कुछ भी ठीक करें।",
+    "heroLine2": "कुछ भी न डरें।",
+    "trustStat": "50k+ DIYers ने FixAura पर भरोसा किया",
+    "trustSubtitle": "स्पष्ट AR मार्गदर्शन के साथ सुरक्षा-पहले मरम्मत।",
+
     "featuresTitle": "मरम्मत बुद्धिमत्ता, अंदर से",
+    "featuresKicker": "सटीक रूप से इंजीनियर्ड",
+
+    "showcaseKicker": "Pro मोड",
     "showcaseTitle": "रोज़मर्रा की मरम्मत पर काम करता है",
+
+    "testimonialsKicker": "वास्तविक उपयोगकर्ताओं का भरोसा",
     "testimonialsTitle": "DIY निर्माताओं द्वारा विश्वसनीय",
+
+    "ctaBannerKicker": "FixAura फ्री में पाएं",
     "ctaBannerTitle": "खुद ठीक करने के लिए तैयार?",
-    "ctaBannerSubtitle": "एक त्वरित स्कैन से शुरू करें — खाते की ज़रूरत नहीं।",
+    "ctaBannerSubtitle": "ऐप आज डाउनलोड करें और अपनी पहली 3 मरम्मत पूरी तरह मुफ्त पाएं। सब्सक्रिप्शन की जरूरत नहीं।",
+
     "footerTagline": "AR-संचालित मरम्मत सहायक",
-    "footerRights": "सर्वाधिकार सुरक्षित।"
+    "footerSurgicalTagline": "हर मरम्मत में सटीकता।",
+    "footerDescription": "FixAura मदद करता है—दैनिक लोग निदान करें, योजना बनाएं, और आत्मविश्वास, सुरक्षा और स्पष्टता के साथ मरम्मत पूरी करें।",
+
+    "footerProductHeading": "प्रोडक्ट",
+    "footerProductFeatures": "फीचर्स",
+    "footerProductProMode": "Pro मोड",
+    "footerProductSafetyFirst": "पहले सुरक्षा",
+    "footerProductStatus": "स्थिति",
+
+    "footerLegalHeading": "कानूनी",
+    "footerLegalPrivacyPolicy": "गोपनीयता नीति",
+    "footerLegalTermsOfService": "सेवा की शर्तें",
+    "footerLegalCookiePolicy": "कुकी नीति",
+    "footerLegalSafetyDisclosure": "सुरक्षा सूचना",
+
+    "footerNewsletterHeading": "न्यूज़लेटर",
+    "footerNewsletterBody": "मरम्मत टिप्स और AR समाचार पाएं।",
+    "footerNewsletterPlaceholderEmail": "ईमेल पता",
+    "footerNewsletterSubscribeButton": "सब्सक्राइब",
+
+    "footerRights": "सर्वाधिकार सुरक्षित।",
+
+    "feature": {
+      "aiVisionScan": {
+        "title": "AI विज़न स्कैन",
+        "description": "किसी भी टूटी घरेलू वस्तु पर अपना फोन कैमरा लगाएं — FixAura तुरंत संभावित समस्या पहचान लेता है।"
+      },
+      "safetyGuidance": {
+        "title": "सुरक्षा-पहले मार्गदर्शन",
+        "description": "महत्वपूर्ण चरणों को पुष्टि प्रॉम्प्ट के साथ सुरक्षित रखा जाता है ताकि आप सुरक्षा चेक्स स्किप न करें।"
+      },
+      "toolChecklists": {
+        "title": "टूल चेकलिस्ट",
+        "description": "हर मरम्मत एक व्यावहारिक चेकलिस्ट बनाती है ताकि आप शुरू करने से पहले सही चीज़ें जान सकें।"
+      },
+      "arStepOverlays": {
+        "title": "AR स्टेप ओवरलेज़",
+        "description": "स्क्रीन पर हाइलाइट्स और ऐरो हर कदम को मार्गदर्शित, विज़ुअल और आसान बनाते हैं।"
+      }
+    },
+
+    "category": {
+      "appliances": "उपकरण",
+      "plumbing": "प्लंबिंग",
+      "furniture": "फर्नीचर",
+      "electronics": "इलेक्ट्रॉनिक्स",
+      "outdoor": "आउटडोर",
+      "fixtures": "फिक्स्चर"
+    },
+
+    "testimonials": {
+      "maya": {
+        "name": "Maya R.",
+        "role": "DIY गृहस्वामी",
+        "quote": "एक शाम में हमारी ड्रायर ठीक हो गई — $200 की सर्विस कॉल बच गई।"
+      },
+      "james": {
+        "name": "James K.",
+        "role": "प्रोडक्ट डिज़ाइनर",
+        "quote": "AR के ऐरो ने एक डरावनी मरम्मत को भी संभालने लायक बना दिया।"
+      },
+      "priya": {
+        "name": "Priya S.",
+        "role": "सॉफ्टवेयर इंजीनियर",
+        "quote": "कॉन्फिडेंस मीटर ने बताया कि फोटो कब दोबारा लेनी चाहिए। बहुत स्मार्ट।"
+      }
+    },
+
+    "preview": {
+      "alt": "AR मरम्मत का डेमो",
+      "diagnosisTitle": "निदान",
+      "confidenceText": "89% कॉन्फ.",
+      "issueName": "घिसा हुआ नल वॉशर",
+      "safetyLine": "शटऑफ की पुष्टि के बाद मरम्मत जारी रखना सुरक्षित है।",
+      "liveScanLabel": "लाइव स्कैन",
+      "arOverlayLockedLine": "लीक वाले हिस्से पर AR ओवरले लॉक है",
+      "confidenceLabel": "विश्वास",
+      "confidenceValue": "उच्च निश्चितता"
+    }
   },
   "capture": {
     "title": "समस्या स्कैन करें",
@@ -78,6 +171,13 @@
     "timeSaved": "बचाया समय",
     "wasteAvoided": "टाला गया कचरा",
     "share": "परिणाम साझा करें",
+    "shareTitle": "FixAura",
+    "sharePrefix": "मैंने FixAura के साथ मरम्मत पूरी की — ~$",
+    "shareMiddle": " और ",
+    "shareSuffix": " मिनट बचाए!",
+    "timeUnit": " मिनट",
+    "wasteUnit": " kg",
+    "rateAria": "इस मरम्मत को रेट करें",
     "startAnother": "दूसरी मरम्मत शुरू करें",
     "rating": "FixAura कितना मददगार था?",
     "thanks": "आपकी प्रतिक्रिया के लिए धन्यवाद!"
@@ -90,7 +190,11 @@
     "continue": "जारी रखें",
     "cancel": "रद्द",
     "confirm": "पुष्टि",
-    "language": "भाषा"
+    "language": "भाषा",
+    "toggleLanguageAria": "भाषा बदलें",
+    "languageEN": "EN",
+    "languageHI": "हिन्दी",
+    "brandName": "FixAura"
   },
   "safety": {
     "powerOff": "जारी रखने से पहले ब्रेकर से बिजली बंद करें।",

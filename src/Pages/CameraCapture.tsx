@@ -29,7 +29,9 @@ export default function CameraCapture() {
     try {
       streamRef.current?.getTracks().forEach((t) => t.stop())
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: facingMode === 'environment'
+                    ? { ideal: 'environment' }
+                    : 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       })
       streamRef.current = stream
@@ -141,6 +143,9 @@ export default function CameraCapture() {
               ref={videoRef}
               playsInline
               muted
+              onLoadedMetadata={() => {
+                 videoRef.current?.play()
+              }}
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-background/40" />

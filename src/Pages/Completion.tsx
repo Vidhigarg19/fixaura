@@ -17,9 +17,9 @@ export default function Completion() {
   const waste = session?.diagnosis?.severity === 'high' ? 2.4 : 1.1
 
   const share = async () => {
-    const text = `I just completed a repair with FixAura — saved ~$${money} and ${timeMin} minutes!`
+    const text = `${t('completion.sharePrefix')}${money}${t('completion.shareMiddle')}${timeMin}${t('completion.shareSuffix')}`
     if (navigator.share) {
-      await navigator.share({ title: 'FixAura', text })
+      await navigator.share({ title: t('completion.shareTitle'), text })
     } else {
       await navigator.clipboard.writeText(text)
     }
@@ -83,9 +83,24 @@ export default function Completion() {
 
         <div className="grid gap-4 mb-10">
           {[
-            { label: t('completion.moneySaved'), value: money, prefix: '$' },
-            { label: t('completion.timeSaved'), value: timeMin, suffix: ' min' },
-            { label: t('completion.wasteAvoided'), value: waste, suffix: ' kg' },
+            {
+              label: t('completion.moneySaved'),
+              value: money,
+              prefix: '$',
+              decimals: 0,
+            },
+            {
+              label: t('completion.timeSaved'),
+              value: timeMin,
+              suffix: t('completion.timeUnit'),
+              decimals: 0,
+            },
+            {
+              label: t('completion.wasteAvoided'),
+              value: waste,
+              suffix: t('completion.wasteUnit'),
+              decimals: 1,
+            },
           ].map((metric, i) => (
             <motion.div
               key={metric.label}
@@ -100,7 +115,7 @@ export default function Completion() {
                 <p className="text-label-bold text-text-subtle mb-2">{metric.label}</p>
                 <p className="text-3xl font-bold text-primary">
                   {metric.prefix}
-                  <CountUp end={metric.value} duration={2} decimals={metric.suffix?.includes('kg') ? 1 : 0} />
+                  <CountUp end={metric.value} duration={2} decimals={metric.decimals} />
                   {metric.suffix}
                 </p>
             </motion.div>
@@ -120,7 +135,7 @@ export default function Completion() {
                   setRating(n)
                   setRated(true)
                 }}
-                aria-label={`Rate ${n}`}
+                aria-label={t('completion.rateAria')}
               >
                 <Star
                   className={`h-8 w-8 ${n <= rating ? 'fill-warning text-warning' : 'text-border'}`}

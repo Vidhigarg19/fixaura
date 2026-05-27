@@ -1,6 +1,7 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useSyncExternalStore } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { getLocale, subscribeLocale } from './i18n'
 
 const Landing = lazy(() => import('./Pages/Landing'))
 const CameraCapture = lazy(() => import('./Pages/CameraCapture'))
@@ -48,7 +49,14 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      <LocaleSync />
       <AnimatedRoutes />
     </BrowserRouter>
   );
+}
+
+function LocaleSync() {
+  // Forces a re-render when the selected locale changes.
+  useSyncExternalStore(subscribeLocale, getLocale)
+  return null
 }
