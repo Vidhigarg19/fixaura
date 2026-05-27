@@ -23,6 +23,7 @@ export default function CameraCapture() {
   const [analyzing, setAnalyzing] = useState(false)
   const [unsafeWarning, setUnsafeWarning] = useState<string | null>(null)
   const [showSafety, setShowSafety] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
   const motionRef = useRef(0)
 
   const startCamera = useCallback(async () => {
@@ -35,23 +36,68 @@ export default function CameraCapture() {
         return
       }
 
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: facingMode === 'environment'
-            ? { ideal: 'environment' }
-            : 'user', 
-          width: { ideal: 1280 }, 
-          height: { ideal: 720 } 
-        },
-        audio: false,
-      })
+      // Stop existing stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+
+      console.log('Requesting camera with facingMode:', facingMode)
+      
+      // Try with facingMode first
+      let stream: MediaStream | null = null
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: facingMode === 'environment' ? { ideal: 'environment' } : 'user',
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 } 
+          },
+          audio: false,
+        })
+      } catch (err) {
+        // Fallback: try without facingMode constraint (some devices don't support it)
+        console.warn('Failed with facingMode, trying without constraints:', err)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 }
+          },
+          audio: false,
+        })
+      }
+
+      if (!stream) {
+        throw new Error('Failed to get camera stream')
+      }
+
       streamRef.current = stream
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        // Wait for video to be ready
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded, dimensions:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight)
+          setVideoReady(true)
+          videoRef.current?.play().then(() => {
+            console.log('Video playing successfully')
+            setCameraState('ready')
+          }).catch((playErr) => {
+            console.error('Video play error:', playErr)
+            setCameraState('error')
+          })
+        }
+        
+        // Timeout fallback if video doesn't load
+        setTimeout(() => {
+          if (cameraState === 'loading') {
+            console.warn('Video loading timeout, forcing ready state')
+            setCameraState('ready')
+          }
+        }, 3000)
+      } else {
+        setCameraState('ready')
       }
-      setCameraState('ready')
     } catch (err) {
       console.error('Camera error:', err)
       // Differentiate between permission denied and other errors
@@ -64,8 +110,12 @@ export default function CameraCapture() {
   }, [facingMode])
 
   useEffect(() => {
+    setVideoReady(false)
     startCamera()
-    return () => streamRef.current?.getTracks().forEach((t) => t.stop())
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      setVideoReady(false)
+    }
   }, [startCamera])
 
   useEffect(() => {
@@ -151,6 +201,14 @@ export default function CameraCapture() {
         >
           <ArrowLeft className="h-5 w-5" />
         </motion.button>
+        
+        {/* Debug info */}
+        {cameraState === 'ready' && videoRef.current && (
+          <div className="glass-panel rounded-lg px-3 py-1 text-xs text-text-secondary">
+            {videoRef.current.videoWidth}x{videoRef.current.videoHeight}
+          </div>
+        )}
+        
         <VoiceInput onCommand={handleVoice} />
       </div>
 
@@ -159,19 +217,28 @@ export default function CameraCapture() {
           <>
             <video
               ref={videoRef}
+              autoPlay
               playsInline
               muted
-              onLoadedMetadata={() => {
-                 videoRef.current?.play()
-              }}
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
             />
-            <div className="absolute inset-0 bg-background/40" />
+            {/* Show loading overlay if video dimensions are 0 */}
+            {!videoReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+                <div className="text-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-2" />
+                  <p className="text-text-secondary text-sm">Initializing camera...</p>
+                </div>
+              </div>
+            )}
+            {/* Lighter overlay so video is visible */}
+            <div className="absolute inset-0 bg-black/10 pointer-events-none" />
             <AROverlay variant="capture" />
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="absolute bottom-32 left-0 right-0 text-center text-sm text-text-primary px-6"
+              className="absolute bottom-32 left-0 right-0 text-center text-sm text-white drop-shadow-lg px-6"
             >
               {t('capture.instruction')}
             </motion.p>
