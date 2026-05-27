@@ -13,18 +13,13 @@ import {
   BadgeCheck,
   CheckCircle2,
   Sparkles,
-  TriangleAlert,
   ArrowRight,
   Droplets,
-  PlugZap,
   Fan,
   Refrigerator,
   MonitorSmartphone,
   Sofa,
   GlassWater,
-  ScanSearch,
-  AudioLines,
-  PanelTopOpen,
 } from "lucide-react";
 import LanguageToggle from "../components/LanguageToggle";
 import ConfidenceMeter from "../components/ConfidenceMeter";
@@ -33,16 +28,6 @@ import { t } from "../i18n";
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0 },
-};
-
-const fadeLeft = {
-  hidden: { opacity: 0, x: -40 },
-  visible: { opacity: 1, x: 0 },
-};
-
-const fadeRight = {
-  hidden: { opacity: 0, x: 40 },
-  visible: { opacity: 1, x: 0 },
 };
 
 const stagger = {
