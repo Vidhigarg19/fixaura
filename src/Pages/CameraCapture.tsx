@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, SwitchCamera, Loader2 } from 'lucide-react'
+import { ArrowLeft, Camera, SwitchCamera, Loader2, Upload, ImagePlus } from 'lucide-react'
 import PageShell from '../components/PageShell'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
@@ -25,6 +25,7 @@ export default function CameraCapture() {
   const [showSafety, setShowSafety] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
   const motionRef = useRef(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const startCamera = useCallback(async () => {
     setCameraState('loading')
@@ -235,6 +236,41 @@ export default function CameraCapture() {
     }
   }
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || analyzing) return
+    setAnalyzing(true)
+    try {
+      const canvas = canvasRef.current
+      if (!canvas) throw new Error('no canvas')
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = url
+      })
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no context')
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/jpeg', 0.9)
+      )
+      if (!blob) throw new Error('upload processing failed')
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      const diagnosis = await analyzeImage(blob)
+      setDiagnosis(diagnosis, dataUrl)
+      navigate('/diagnosis')
+    } catch {
+      setCameraState('error')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   const handleVoice = (text: string) => {
     if (text.includes('photo') || text.includes('capture') || text.includes('scan')) {
       void capture()
@@ -332,6 +368,26 @@ export default function CameraCapture() {
                   <li>Refresh this page or click "Try again" below</li>
                 </ol>
               </div>
+
+              {/* Upload Photo Fallback — prominent */}
+              <div className="mb-4 p-4 bg-surface-high rounded-xl border border-border">
+                <p className="text-sm text-text-secondary mb-3">Or skip the camera entirely:</p>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={analyzing}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-background disabled:opacity-50"
+                >
+                  {analyzing ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="h-5 w-5" />
+                  )}
+                  {analyzing ? t('capture.analyzing') : t('capture.uploadPhoto')}
+                </motion.button>
+              </div>
               
               {/* Troubleshooting tips */}
               <details className="mb-6 text-left">
@@ -353,7 +409,7 @@ export default function CameraCapture() {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={startCamera}
-                  className="rounded-xl bg-primary px-6 py-3 font-semibold text-background"
+                  className="rounded-xl border border-primary px-5 py-2.5 text-sm font-semibold text-primary"
                 >
                   {t('capture.permissionRetry')}
                 </motion.button>
@@ -363,7 +419,7 @@ export default function CameraCapture() {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => window.location.reload()}
-                  className="rounded-xl border border-primary px-6 py-3 font-semibold text-primary"
+                  className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-text-secondary"
                 >
                   Refresh Page
                 </motion.button>
@@ -378,6 +434,16 @@ export default function CameraCapture() {
           </div>
         )}
       </div>
+
+      {/* Hidden file input for upload fallback */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
 
       <div className="relative z-20 flex items-center justify-center gap-8 py-8 bg-background border-t border-border">
         <motion.button
@@ -404,6 +470,19 @@ export default function CameraCapture() {
           ) : (
             <Camera className="h-8 w-8 text-primary" />
           )}
+        </motion.button>
+
+        {/* Upload button — always available as alternative */}
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={analyzing}
+          className="glass-panel rounded-full p-3 disabled:opacity-50"
+          aria-label={t('capture.uploadPhoto')}
+        >
+          <Upload className="h-6 w-6 text-text-secondary" />
         </motion.button>
       </div>
 

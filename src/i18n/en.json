@@ -124,7 +124,8 @@
     "errorTitle": "Camera unavailable",
     "errorBody": "We couldn't access your camera. Check permissions or try another device.",
     "unsafeLighting": "Lighting looks too dim — move to a brighter area for a clearer scan.",
-    "unstableMotion": "Hold steady — motion detected. Pause before capturing."
+    "unstableMotion": "Hold steady — motion detected. Pause before capturing.",
+    "uploadPhoto": "Upload a Photo Instead"
   },
   "diagnosis": {
     "title": "Diagnosis",
