@@ -1,12 +1,20 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { getLocale, setLocale, t, type Locale } from '../i18n'
+import { getLocale, setLocale, subscribeLocale, t, type Locale } from '../i18n'
 
 interface LanguageToggleProps {
   onChange?: () => void
 }
 
 export default function LanguageToggle({ onChange }: LanguageToggleProps) {
-  const locale = getLocale()
+  const [locale, setLocaleState] = useState<Locale>(getLocale())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const unsubscribe = subscribeLocale(() => {
+      setLocaleState(getLocale())
+    })
+    return unsubscribe
+  }, [])
 
   const toggle = () => {
     const next: Locale = locale === 'en' ? 'hi' : 'en'
