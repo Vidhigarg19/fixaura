@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from 'react'
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import LanguageToggle from "../components/LanguageToggle";
 import ConfidenceMeter from "../components/ConfidenceMeter";
-import { t } from "../i18n";
+import { t, subscribeLocale } from '../i18n'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -114,6 +114,12 @@ const testimonials = [
 ];
 
 export default function Landing() {
+  const [, forceUpdate] = useState(0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
+    return unsubscribe
+  }, [])
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -131,10 +137,12 @@ export default function Landing() {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-3"
           >
-            <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center shadow-[0_0_24px_rgba(0,245,212,0.24)]">
-              <Wrench className="h-5 w-5 text-primary" />
-            </div>
-            <div className="leading-none">
+            <img
+              src="/logo.png"
+              alt="FixAura Logo"
+              className="h-10 w-10 rounded-2xl object-contain"
+            />
+                <div className="leading-none">
               <span className="block font-bold text-[18px] tracking-tight text-text-primary">
                 {t("common.brandName")}
               </span>
@@ -495,9 +503,11 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-4 text-sm">
           <div className="md:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center">
-                <Wrench className="h-5 w-5 text-primary" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="FixAura Logo"
+                className="h-10 w-10 rounded-2xl object-contain"
+              />
               <div>
                 <span className="block text-[18px] font-bold text-text-primary">{t("common.brandName")}</span>
                 <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
