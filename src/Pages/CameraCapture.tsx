@@ -28,6 +28,8 @@ export default function CameraCapture() {
 
   const startCamera = useCallback(async () => {
     setCameraState('loading')
+    setVideoReady(false)
+    
     try {
       // Check if mediaDevices is available (HTTPS required)
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -71,32 +73,60 @@ export default function CameraCapture() {
         throw new Error('Failed to get camera stream')
       }
 
+      console.log('Camera stream obtained successfully')
       streamRef.current = stream
       
       if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        // Wait for video to be ready
-        videoRef.current.onloadedmetadata = () => {
-          console.log('Video metadata loaded, dimensions:', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight)
-          setVideoReady(true)
-          videoRef.current?.play().then(() => {
-            console.log('Video playing successfully')
-            setCameraState('ready')
-          }).catch((playErr) => {
-            console.error('Video play error:', playErr)
-            setCameraState('error')
-          })
-        }
+        const video = videoRef.current
+        video.srcObject = stream
         
-        // Timeout fallback if video doesn't load
-        setTimeout(() => {
-          if (cameraState === 'loading') {
-            console.warn('Video loading timeout, forcing ready state')
+        // Create a promise that resolves when video is ready
+        const videoReadyPromise = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.warn('Video metadata timeout - forcing play')
+            reject(new Error('Metadata timeout'))
+          }, 5000)
+          
+          video.onloadedmetadata = () => {
+            clearTimeout(timeout)
+            console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight)
+            resolve()
+          }
+          
+          video.onerror = () => {
+            clearTimeout(timeout)
+            console.error('Video element error')
+            reject(new Error('Video error'))
+          }
+        })
+        
+        try {
+          // Wait for metadata to load
+          await videoReadyPromise
+          
+          // Now play the video
+          await video.play()
+          console.log('Video playing successfully')
+          setVideoReady(true)
+          setCameraState('ready')
+        } catch (playErr) {
+          console.warn('Video play/metadata error, trying direct play:', playErr)
+          // Fallback: try to play anyway
+          try {
+            await video.play()
+            console.log('Video playing after fallback')
+            setVideoReady(true)
+            setCameraState('ready')
+          } catch (finalErr) {
+            console.error('Final video play error:', finalErr)
+            // Still set to ready so user can try to capture
+            setVideoReady(true)
             setCameraState('ready')
           }
-        }, 3000)
+        }
       } else {
-        setCameraState('ready')
+        console.error('Video ref is null')
+        setCameraState('error')
       }
     } catch (err) {
       console.error('Camera error:', err)
@@ -220,25 +250,25 @@ export default function CameraCapture() {
               autoPlay
               playsInline
               muted
-              className="absolute inset-0 w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover bg-black"
               style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
             />
-            {/* Show loading overlay if video dimensions are 0 */}
+            {/* Show loading overlay if video not ready */}
             {!videoReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+              <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
                 <div className="text-center">
                   <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-text-secondary text-sm">Initializing camera...</p>
                 </div>
               </div>
             )}
-            {/* Lighter overlay so video is visible */}
-            <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+            {/* Subtle overlay for better text visibility */}
+            {videoReady && <div className="absolute inset-0 bg-black/5 pointer-events-none" />}
             <AROverlay variant="capture" />
             <motion.p
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="absolute bottom-32 left-0 right-0 text-center text-sm text-white drop-shadow-lg px-6"
+              animate={{ opacity: videoReady ? 1 : 0 }}
+              className="absolute bottom-32 left-0 right-0 text-center text-sm text-white drop-shadow-lg px-6 z-10"
             >
               {t('capture.instruction')}
             </motion.p>
