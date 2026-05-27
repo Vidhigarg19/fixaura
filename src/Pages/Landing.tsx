@@ -127,9 +127,9 @@ export default function Landing() {
   const [, forceUpdate] = useState(0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
-    return unsubscribe
-  }, [])
+  const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
+  return () => { unsubscribe() }
+}, [])
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -420,7 +420,7 @@ export default function Landing() {
             variants={cardStagger}
             className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5"
           >
-            {categories.map(({ nameKey, icon: Icon, tone, image }) => (
+            {categories.map(({ nameKey, icon: Icon, image }) => (
               <motion.div
                 key={nameKey}
                 variants={fadeUp}

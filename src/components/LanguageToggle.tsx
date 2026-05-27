@@ -10,11 +10,9 @@ export default function LanguageToggle({ onChange }: LanguageToggleProps) {
   const [locale, setLocaleState] = useState<Locale>(getLocale())
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const unsubscribe = subscribeLocale(() => {
-      setLocaleState(getLocale())
-    })
-    return unsubscribe
-  }, [])
+  const unsubscribe = subscribeLocale(() => setLocaleState(getLocale()))
+  return () => { unsubscribe() }
+}, [])
 
   const toggle = () => {
     const next: Locale = locale === 'en' ? 'hi' : 'en'
