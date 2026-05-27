@@ -68,32 +68,42 @@ const features = [
     icon: Camera,
     titleKey: "landing.feature.aiVisionScan.title",
     descriptionKey: "landing.feature.aiVisionScan.description",
+    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
   },
   {
     icon: Shield,
     titleKey: "landing.feature.safetyGuidance.title",
     descriptionKey: "landing.feature.safetyGuidance.description",
+    image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=80",
   },
   {
     icon: Wrench,
     titleKey: "landing.feature.toolChecklists.title",
     descriptionKey: "landing.feature.toolChecklists.description",
+    image: "https://images.unsplash.com/photo-1581166397057-235af2b3c6dd?w=400&q=80",
   },
   {
     icon: Zap,
     titleKey: "landing.feature.arStepOverlays.title",
     descriptionKey: "landing.feature.arStepOverlays.description",
+    image: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&q=80",
   },
-];
+]
 
 const categories = [
-  { nameKey: "landing.category.appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10" },
-  { nameKey: "landing.category.plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10" },
-  { nameKey: "landing.category.furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10" },
-  { nameKey: "landing.category.electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10" },
-  { nameKey: "landing.category.outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10" },
-  { nameKey: "landing.category.fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10" },
-];
+  { nameKey: "landing.category.appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10",
+    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80" },
+  { nameKey: "landing.category.plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10",
+    image: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&q=80" },
+  { nameKey: "landing.category.furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10",
+    image: "https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=400&q=80" },
+  { nameKey: "landing.category.electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10",
+    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80" },
+  { nameKey: "landing.category.outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10",
+    image: "https://images.unsplash.com/photo-1527684651001-731c474bbb5a?w=400&q=80" },
+  { nameKey: "landing.category.fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10",
+    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&q=80" },
+]
 
 const testimonials = [
   {
@@ -237,15 +247,20 @@ export default function Landing() {
 
               <motion.div variants={fadeUp} className="mt-8 flex items-center gap-4 text-sm text-text-subtle">
                 <div className="flex -space-x-2">
-                  {["A", "M", "P", "J"].map((letter) => (
-                    <div
-                      key={letter}
-                      className="h-9 w-9 rounded-full border border-border-default bg-brand-surface flex items-center justify-center text-[12px] font-semibold text-text-primary shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
-                    >
-                      {letter}
-                    </div>
-                  ))}
-                </div>
+                  {[
+                    "https://randomuser.me/api/portraits/women/44.jpg",
+                    "https://randomuser.me/api/portraits/men/32.jpg",
+                    "https://randomuser.me/api/portraits/women/68.jpg",
+                    "https://randomuser.me/api/portraits/men/75.jpg",
+                    ].map((src, i) => (
+                      <img
+                        key={i}
+                        src={src}
+                        alt="user"
+                        className="h-9 w-9 rounded-full border-2 border-primary/30 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
+                     />
+                    ))}
+                  </div>
                 <div>
                   <p className="text-text-primary font-semibold">{t("landing.trustStat")}</p>
                   <p className="text-text-subtle">{t("landing.trustSubtitle")}</p>
@@ -362,20 +377,30 @@ export default function Landing() {
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {features.map(({ icon: Icon, titleKey, descriptionKey }) => (
+            {features.map(({ icon: Icon, titleKey, descriptionKey, image }) => (
               <motion.div
                 key={titleKey}
                 variants={fadeUp}
                 whileHover={{ y: -6 }}
-                className="glass-panel rounded-[1.5rem] p-6 border border-white/10 hover:border-primary/30 transition-colors group"
+                className="glass-panel rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-primary/30 transition-colors group"
               >
-                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-5 border border-primary/15">
-                  <Icon className="h-6 w-6 text-primary" />
+                <div className="relative h-40 w-full overflow-hidden">
+                  <img
+                    src={image}
+                    alt={t(titleKey)}
+                    className="w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#041329]/80" />
+                  <div className="absolute bottom-3 left-3 h-10 w-10 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
                 </div>
-                <h3 className="text-[18px] font-semibold text-text-primary mb-3">{t(titleKey)}</h3>
-                <p className="text-[15px] leading-[1.65] text-text-secondary">
-                  {t(descriptionKey)}
-                </p>
+                <div className="p-5">
+                  <h3 className="text-[18px] font-semibold text-text-primary mb-3">{t(titleKey)}</h3>
+                  <p className="text-[15px] leading-[1.65] text-text-secondary">
+                    {t(descriptionKey)}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -395,19 +420,31 @@ export default function Landing() {
             variants={cardStagger}
             className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5"
           >
-            {categories.map(({ nameKey, icon: Icon, tone }) => (
+            {categories.map(({ nameKey, icon: Icon, tone, image }) => (
               <motion.div
                 key={nameKey}
                 variants={fadeUp}
                 whileHover={{ y: -6, scale: 1.01 }}
-                className={`glass-panel rounded-[1.5rem] p-5 md:p-6 text-center border border-white/10 bg-gradient-to-br ${tone} hover:border-primary/25 transition-colors cursor-pointer`}
+                className={`glass-panel rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-primary/25 transition-colors cursor-pointer group`}
               >
-                <div className="mx-auto h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/10">
-                  <Icon className="h-7 w-7 md:h-8 md:w-8 text-primary" />
+                <div className="relative h-36 w-full overflow-hidden">
+                  <img
+                    src={image}
+                    alt={t(nameKey)}
+                    className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#041329]/90" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-14 w-14 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
+                      <Icon className="h-7 w-7 text-primary" />
+                    </div>
+                  </div>
                 </div>
-                <span className="text-[15px] md:text-[16px] font-semibold text-text-primary">
-                  {t(nameKey)}
-                </span>
+                <div className="p-4 text-center">
+                  <span className="text-[15px] md:text-[16px] font-semibold text-text-primary">
+                    {t(nameKey)}
+                  </span>
+                </div>
               </motion.div>
             ))}
           </motion.div>
@@ -443,14 +480,15 @@ export default function Landing() {
                   “{t(item.quoteKey)}”
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-full bg-primary/10 border border-primary/15 flex items-center justify-center">
-                    <span className="text-primary font-semibold text-[13px]">
-                      {t(item.nameKey)
-                        .split(" ")
-                        .map((part) => part[0])
-                        .join("")}
-                    </span>
-                  </div>
+                  <img
+                      src={`https://randomuser.me/api/portraits/${
+                        item.nameKey.includes("maya") ? "women/44" :
+                        item.nameKey.includes("james") ? "men/32" :
+                        "women/68"
+                      }.jpg`}
+                      alt={t(item.nameKey)}
+                      className="h-11 w-11 rounded-full border-2 border-primary/30 object-cover"
+                    />
                   <div>
                     <cite className="block text-[14px] font-semibold not-italic text-text-primary">
                       {t(item.nameKey)}
