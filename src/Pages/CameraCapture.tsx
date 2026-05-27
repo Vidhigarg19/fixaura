@@ -6,6 +6,7 @@ import PageShell from '../components/PageShell'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
+import CameraDiagnostics from '../components/CameraDiagnostics'
 import { analyzeImage } from '../services/visionAI'
 import { setDiagnosis } from '../services/repairSession'
 import { t } from '../i18n'
@@ -27,11 +28,22 @@ export default function CameraCapture() {
   const startCamera = useCallback(async () => {
     setCameraState('loading')
     try {
+      // Check if mediaDevices is available (HTTPS required)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API not available. HTTPS required.')
+        setCameraState('error')
+        return
+      }
+
       streamRef.current?.getTracks().forEach((t) => t.stop())
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode === 'environment'
-                    ? { ideal: 'environment' }
-                    : 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+          facingMode: facingMode === 'environment'
+            ? { ideal: 'environment' }
+            : 'user', 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 } 
+        },
         audio: false,
       })
       streamRef.current = stream
@@ -40,8 +52,14 @@ export default function CameraCapture() {
         await videoRef.current.play()
       }
       setCameraState('ready')
-    } catch {
-      setCameraState('permission')
+    } catch (err) {
+      console.error('Camera error:', err)
+      // Differentiate between permission denied and other errors
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setCameraState('permission')
+      } else {
+        setCameraState('error')
+      }
     }
   }, [facingMode])
 
@@ -168,11 +186,35 @@ export default function CameraCapture() {
                   ? t('capture.permissionTitle')
                   : t('capture.errorTitle')}
               </h2>
-              <p className="text-text-secondary mb-6">
+              <p className="text-text-secondary mb-4">
                 {cameraState === 'permission'
                   ? t('capture.permissionBody')
                   : t('capture.errorBody')}
               </p>
+              
+              {/* HTTPS Warning */}
+              {window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && (
+                <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-sm text-yellow-200">
+                    ⚠️ Camera requires HTTPS. Please access via <strong>https://</strong>
+                  </p>
+                </div>
+              )}
+              
+              {/* Troubleshooting tips */}
+              <details className="mb-6 text-left">
+                <summary className="cursor-pointer text-sm text-primary hover:underline">
+                  Troubleshooting tips
+                </summary>
+                <ul className="mt-3 text-sm text-text-secondary space-y-2 list-disc list-inside">
+                  <li>Ensure you're using HTTPS (not HTTP)</li>
+                  <li>Click "Allow" when prompted for camera access</li>
+                  <li>Check browser settings for camera permissions</li>
+                  <li>Try a different browser (Chrome, Safari, Edge)</li>
+                  <li>Ensure no other app is using the camera</li>
+                </ul>
+              </details>
+              
               <motion.button
                 type="button"
                 whileHover={{ scale: 1.03 }}
@@ -238,6 +280,9 @@ export default function CameraCapture() {
         }}
         onCancel={() => setShowSafety(false)}
       />
+
+      {/* Camera Diagnostics Tool - helpful for debugging */}
+      {(cameraState === 'permission' || cameraState === 'error') && <CameraDiagnostics />}
     </PageShell>
   )
 }
