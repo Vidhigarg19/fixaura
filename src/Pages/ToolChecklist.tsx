@@ -1,7 +1,10 @@
 import { motion } from 'framer-motion'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, AlertCircle } from 'lucide-react'
+import {
+  Check, AlertCircle, Wrench, Hammer, Scissors,
+  Zap, Droplets, Wind, ShieldCheck, Paintbrush, Ruler, Flashlight
+} from 'lucide-react'
 import PageShell from '../components/PageShell'
 import SafetyBubble from '../components/SafetyBubble'
 import { getSession, saveSession } from '../services/repairSession'
@@ -17,6 +20,75 @@ const itemVariant = {
   visible: { opacity: 1, x: 0 },
 }
 
+const TOOL_ICONS: Record<string, { icon: React.ElementType }> = {
+  // Adjustable wrench
+  wrench:      { icon: Wrench },
+  adjustable:  { icon: Wrench },
+  spanner:     { icon: Wrench },
+
+  // Pliers
+  plier:       { icon: Wrench },
+
+  // Thread-locker / glue / adhesive
+  thread:      { icon: Paintbrush },
+  locker:      { icon: Paintbrush },
+  adhesive:    { icon: Paintbrush },
+  glue:        { icon: Paintbrush },
+
+  // Work gloves
+  glove:       { icon: ShieldCheck },
+  safety:      { icon: ShieldCheck },
+
+  // Bucket
+  bucket:      { icon: Droplets },
+  container:   { icon: Droplets },
+  bowl:        { icon: Droplets },
+
+  // Cloth / rag
+  cloth:       { icon: Wind },
+  rag:         { icon: Wind },
+  towel:       { icon: Wind },
+  wipe:        { icon: Wind },
+
+  // Screwdriver
+  screw:       { icon: Wrench },
+  driver:      { icon: Wrench },
+  phillips:    { icon: Wrench },
+
+  // Hammer
+  hammer:      { icon: Hammer },
+
+  // Electrical
+  multimeter:  { icon: Zap },
+  tester:      { icon: Zap },
+  wire:        { icon: Zap },
+  electric:    { icon: Zap },
+
+  // Torch / flashlight
+  torch:       { icon: Flashlight },
+  flashlight:  { icon: Flashlight },
+  light:       { icon: Flashlight },
+
+  // Tape / measuring
+  tape:        { icon: Ruler },
+  measur:      { icon: Ruler },
+
+  // Scissors / cutter
+  scissor:     { icon: Scissors },
+  cutter:      { icon: Scissors },
+  knife:       { icon: Scissors },
+
+  // Brush / paint
+  brush:       { icon: Paintbrush },
+  paint:       { icon: Paintbrush },
+}
+function matchTool(tool: string): { icon: React.ElementType } {
+  const name = tool.toLowerCase()
+  for (const [key, val] of Object.entries(TOOL_ICONS)) {
+    if (name.includes(key)) return val
+  }
+  return { icon: Wrench }
+}
 export default function ToolChecklist() {
   const navigate = useNavigate()
   const session = getSession()
@@ -100,6 +172,7 @@ export default function ToolChecklist() {
           {tools.map((tool) => {
             const done = !!checked[tool]
             const essential = isEssentialTool(tool)
+            const { icon: Icon } = matchTool(tool)
             return (
               <motion.li key={tool} variants={itemVariant}>
                 <button
@@ -124,6 +197,11 @@ export default function ToolChecklist() {
                       <AlertCircle className="h-4 w-4 text-warning" />
                     ) : null}
                   </span>
+
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+
                   <div className="flex-1">
                     <span className={done ? 'line-through text-text-subtle' : ''}>{tool}</span>
                     {essential && (

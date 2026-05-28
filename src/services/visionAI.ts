@@ -9,11 +9,11 @@ const MOCK_DIAGNOSIS: DiagnosisResult = {
   recommendedFix:
     'Power off the unit, remove the cover panel, replace worn bracket screws, and re-seat the bracket with thread-locker.',
   recommendedTools: [
-    'Phillips screwdriver',
-    'Replacement screws (M4)',
+    'Adjustable wrench',
+    'Pliers',
     'Thread-locker',
     'Work gloves',
-    'Multimeter',
+    'Bucket',
   ],
   nextStepAdvice: 'Gather tools and shut off power before opening the housing.',
   safetyWarning: 'Disconnect power at the breaker before any disassembly.',

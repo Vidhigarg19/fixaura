@@ -1,13 +1,13 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
 import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
-import { getSession, saveSession, estimateSavings } from '../services/repairSession'
+import { getSession, saveSession, estimateSavings, clearSession } from '../services/repairSession'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { t } from '../i18n'
 
@@ -54,7 +54,8 @@ export default function RepairGuide() {
     if (!session?.diagnosis) return
     const savings = estimateSavings(session.diagnosis)
     saveSession({ ...savings, completedAt: new Date().toISOString() })
-    navigate('/done')
+    clearSession()
+    navigate('/')
   }
 
   const handleVoice = (text: string) => {
@@ -162,17 +163,30 @@ export default function RepairGuide() {
             {index < total - 1 ? t('guide.next') : t('guide.confirmStep')}
           </motion.button>
 
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={next}
-            disabled={!canAdvance() || paused}
-            className="rounded-xl border border-border p-3"
-            aria-label={t('guide.next')}
-          >
-            <ChevronRight />
-          </motion.button>
+          {index < total - 1 ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={next}
+              disabled={!canAdvance() || paused}
+              className="rounded-xl border border-border p-3"
+              aria-label={t('guide.next')}
+            >
+              <ChevronRight />
+            </motion.button>
+          ) : (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={finish}
+              className="rounded-xl bg-success/20 border border-success/40 p-3"
+              aria-label={t('guide.confirmStep')}
+            >
+              <CheckCircle2 className="h-5 w-5 text-success" />
+            </motion.button>
+          )}
         </div>
       </div>
 
