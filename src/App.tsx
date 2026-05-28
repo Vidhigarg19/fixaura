@@ -9,7 +9,7 @@ const CameraCapture = lazy(() => import('./Pages/CameraCapture'))
 const Diagnosis = lazy(() => import('./Pages/Diagnosis'))
 const ToolChecklist = lazy(() => import('./Pages/ToolChecklist'))
 const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
-const Completion = lazy(() => import('./Pages/Completion'))
+// const Completion = lazy(() => import('./Pages/Completion'))
 
 function PageLoader() {
   return (
