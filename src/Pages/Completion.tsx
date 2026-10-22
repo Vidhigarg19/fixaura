@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'
-import CountUp from 'react-countup'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { CheckCircle2, Share2, RotateCcw, Star } from 'lucide-react'
 import { useState } from 'react'
 import PageShell from '../components/PageShell'
@@ -12,12 +11,10 @@ export default function Completion() {
   const [rating, setRating] = useState(0)
   const [rated, setRated] = useState(false)
 
-  const money = session?.moneySaved ?? 85
-  const timeMin = session?.timeSavedMinutes ?? 45
-  const waste = session?.diagnosis?.severity === 'high' ? 2.4 : 1.1
+  const completion = session?.completedRepair
 
   const share = async () => {
-    const text = `${t('completion.sharePrefix')}${money}${t('completion.shareMiddle')}${timeMin}${t('completion.shareSuffix')}`
+    const text = `${t('completion.sharePrefix')}${completion?.repairSummary ?? t('completion.noSummary')}`
     if (navigator.share) {
       await navigator.share({ title: t('completion.shareTitle'), text })
     } else {
@@ -28,6 +25,8 @@ export default function Completion() {
   const startAnother = () => {
     clearSession()
   }
+
+  if (!completion || !session?.diagnosis) return <Navigate to="/" replace />
 
   return (
     <PageShell className="pb-16">
@@ -81,45 +80,16 @@ export default function Completion() {
           {t('completion.subtitle')}
         </motion.p>
 
-        <div className="grid gap-4 mb-10">
-          {[
-            {
-              label: t('completion.moneySaved'),
-              value: money,
-              prefix: '$',
-              decimals: 0,
-            },
-            {
-              label: t('completion.timeSaved'),
-              value: timeMin,
-              suffix: t('completion.timeUnit'),
-              decimals: 0,
-            },
-            {
-              label: t('completion.wasteAvoided'),
-              value: waste,
-              suffix: t('completion.wasteUnit'),
-              decimals: 1,
-            },
-          ].map((metric, i) => (
-            <motion.div
-              key={metric.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: [0, -4, 0] }}
-              transition={{
-                opacity: { delay: 0.3 + i * 0.1, duration: 0.4 },
-                y: { duration: 3, repeat: Infinity, delay: i * 0.3 },
-              }}
-              className="glass-panel rounded-xl p-6"
-            >
-                <p className="text-label-bold text-text-subtle mb-2">{metric.label}</p>
-                <p className="text-3xl font-bold text-primary">
-                  {metric.prefix}
-                  <CountUp end={metric.value} duration={2} decimals={metric.decimals} />
-                  {metric.suffix}
-                </p>
-            </motion.div>
-          ))}
+        <div className="glass-panel rounded-xl p-6 mb-10 text-left">
+          <p className="text-label-bold text-text-subtle mb-2">{t('completion.repairSummary')}</p>
+          <p className="text-body-md whitespace-pre-wrap">
+            {completion.repairSummary || t('completion.noSummary')}
+          </p>
+          <p className="text-sm text-text-subtle mt-4">
+            {t('completion.completedAt')}{' '}
+            {new Date(completion.completedAt).toLocaleString()}
+          </p>
+          <p className="text-sm text-text-subtle mt-2">{t('completion.savingsUnavailable')}</p>
         </div>
 
         <div className="glass-panel rounded-xl p-6 mb-8">

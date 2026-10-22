@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -7,7 +7,9 @@ import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
-import { getSession, saveSession, estimateSavings, clearSession } from '../services/repairSession'
+import { getSession, saveSession } from '../services/repairSession'
+import { saveCompletedRepairStep } from '../services/repairStepProgress'
+import { persistCompletedRepair } from '../services/completedRepair'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { t } from '../i18n'
 
@@ -22,6 +24,10 @@ export default function RepairGuide() {
   const [paused, setPaused] = useState(false)
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [safetyConfirmed, setSafetyConfirmed] = useState<Record<string, boolean>>({})
+  const [savingProgress, setSavingProgress] = useState(false)
+  const [progressError, setProgressError] = useState('')
+  const [completionError, setCompletionError] = useState('')
+  const saveInFlight = useRef(false)
 
   const step = steps[index]
   const total = steps.length
@@ -36,30 +42,54 @@ export default function RepairGuide() {
     return true
   }, [step, safetyConfirmed])
 
-  const next = () => {
-    if (!step) return
+  const next = async () => {
+    if (!step || saveInFlight.current) return
     if (step.requiresConfirmation && !safetyConfirmed[step.id]) {
       setSafetyOpen(true)
       return
     }
-    if (index < total - 1) setIndex((i) => i + 1)
-    else finish()
+
+    saveInFlight.current = true
+    setSavingProgress(true)
+    setProgressError('')
+    setCompletionError('')
+
+    try {
+      await saveCompletedRepairStep(session?.diagnosisPersistence?.repairSessionId, step.id)
+
+      if (index < total - 1) {
+        setIndex((currentIndex) => currentIndex + 1)
+        return
+      }
+
+      try {
+        const completedRepair = await persistCompletedRepair(
+          session?.diagnosisPersistence?.repairSessionId,
+          session?.diagnosisPersistence?.diagnosisId
+        )
+        saveSession({ completedRepair })
+        navigate('/completed')
+      } catch (error) {
+        setCompletionError(
+          error instanceof Error ? error.message : t('completion.saveError')
+        )
+      }
+    } catch (error) {
+      setProgressError(
+        error instanceof Error ? error.message : t('guide.progressSaveError')
+      )
+    } finally {
+      saveInFlight.current = false
+      setSavingProgress(false)
+    }
   }
 
   const prev = () => {
     if (index > 0) setIndex((i) => i - 1)
   }
 
-  const finish = () => {
-    if (!session?.diagnosis) return
-    const savings = estimateSavings(session.diagnosis)
-    saveSession({ ...savings, completedAt: new Date().toISOString() })
-    clearSession()
-    navigate('/')
-  }
-
   const handleVoice = (text: string) => {
-    if (text.includes('next')) next()
+    if (text.includes('next')) void next()
     else if (text.includes('back') || text.includes('previous')) prev()
     else if (text.includes('repeat')) setIndex(index)
   }
@@ -75,6 +105,21 @@ export default function RepairGuide() {
   return (
     <PageShell className="flex flex-col pb-28">
       <StepTimeline total={total} current={index} />
+      {savingProgress && (
+        <p role="status" className="mx-auto mt-3 px-4 text-sm text-text-secondary">
+          {index === total - 1 ? t('guide.completionSaving') : t('guide.progressSaving')}
+        </p>
+      )}
+      {progressError && (
+        <p role="alert" className="mx-auto mt-3 px-4 text-sm text-error">
+          {progressError}
+        </p>
+      )}
+      {completionError && (
+        <p role="alert" className="mx-auto mt-3 px-4 text-sm text-error">
+          {completionError}
+        </p>
+      )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
         <div className="flex items-center justify-between mb-4 text-sm text-text-subtle">
@@ -134,7 +179,7 @@ export default function RepairGuide() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={prev}
-            disabled={index === 0}
+            disabled={index === 0 || savingProgress}
             className="rounded-xl border border-border p-3 disabled:opacity-30"
             aria-label={t('guide.previous')}
           >
@@ -146,7 +191,8 @@ export default function RepairGuide() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setPaused(!paused)}
-            className="rounded-xl border border-border p-3"
+            disabled={savingProgress}
+            className="rounded-xl border border-border p-3 disabled:opacity-50"
             aria-label={paused ? t('guide.resume') : t('guide.pause')}
           >
             {paused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
@@ -156,8 +202,8 @@ export default function RepairGuide() {
             type="button"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            onClick={next}
-            disabled={paused}
+            onClick={() => void next()}
+            disabled={paused || savingProgress}
             className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50"
           >
             {index < total - 1 ? t('guide.next') : t('guide.confirmStep')}
@@ -168,8 +214,8 @@ export default function RepairGuide() {
               type="button"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={next}
-              disabled={!canAdvance() || paused}
+              onClick={() => void next()}
+              disabled={!canAdvance() || paused || savingProgress}
               className="rounded-xl border border-border p-3"
               aria-label={t('guide.next')}
             >
@@ -180,7 +226,8 @@ export default function RepairGuide() {
               type="button"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={finish}
+              onClick={() => void next()}
+              disabled={savingProgress}
               className="rounded-xl bg-success/20 border border-success/40 p-3"
               aria-label={t('guide.confirmStep')}
             >

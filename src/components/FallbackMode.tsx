@@ -5,9 +5,10 @@ import { t } from '../i18n'
 
 interface FallbackModeProps {
   onContinue?: () => void
+  continueDisabled?: boolean
 }
 
-export default function FallbackMode({ onContinue }: FallbackModeProps) {
+export default function FallbackMode({ onContinue, continueDisabled = false }: FallbackModeProps) {
   const navigate = useNavigate()
 
   return (
@@ -43,7 +44,8 @@ export default function FallbackMode({ onContinue }: FallbackModeProps) {
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={onContinue}
-                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary"
+                disabled={continueDisabled}
+                className="rounded-xl border border-border px-4 py-2 text-sm text-text-secondary disabled:opacity-50"
               >
                 {t('fallback.continueCaution')}
               </motion.button>

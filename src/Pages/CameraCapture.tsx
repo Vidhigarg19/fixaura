@@ -21,6 +21,8 @@ export default function CameraCapture() {
   const [cameraState, setCameraState] = useState<CameraState>('loading')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
   const [analyzing, setAnalyzing] = useState(false)
+  const [applianceType, setApplianceType] = useState('')
+  const [applianceError, setApplianceError] = useState('')
   const [unsafeWarning, setUnsafeWarning] = useState<string | null>(null)
   const [showSafety, setShowSafety] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
@@ -204,6 +206,11 @@ export default function CameraCapture() {
   }, [cameraState])
 
   const capture = async () => {
+    if (!applianceType.trim()) {
+  setApplianceError('Please enter the appliance name.')
+  return
+}
+setApplianceError('')
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || analyzing) return
@@ -227,7 +234,7 @@ export default function CameraCapture() {
       if (!blob) throw new Error('capture failed')
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
       const diagnosis = await analyzeImage(blob)
-      setDiagnosis(diagnosis, dataUrl)
+      setDiagnosis(diagnosis, dataUrl, applianceType.trim())
       navigate('/diagnosis')
     } catch {
       setCameraState('error')
@@ -237,6 +244,12 @@ export default function CameraCapture() {
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!applianceType.trim()) {
+  setApplianceError('Please enter the appliance name.')
+  e.target.value = ''
+  return
+}
+setApplianceError('')
     const file = e.target.files?.[0]
     if (!file || analyzing) return
     setAnalyzing(true)
@@ -262,7 +275,7 @@ export default function CameraCapture() {
       if (!blob) throw new Error('upload processing failed')
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
       const diagnosis = await analyzeImage(blob)
-      setDiagnosis(diagnosis, dataUrl)
+      setDiagnosis(diagnosis, dataUrl, applianceType.trim())
       navigate('/diagnosis')
     } catch {
       setCameraState('error')
@@ -438,6 +451,30 @@ export default function CameraCapture() {
       </div>
 
       {/* Hidden file input for upload fallback */}
+      
+<div className="relative z-20 bg-background px-4 py-3">
+  <label htmlFor="applianceType" className="block text-sm font-medium mb-2">
+    Appliance name
+  </label>
+  <input
+    id="applianceType"
+    type="text"
+    value={applianceType}
+    onChange={(e) => {
+      setApplianceType(e.target.value)
+      setApplianceError('')
+    }}
+    placeholder="e.g. Fan, AC, Refrigerator"
+    className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
+    maxLength={100}
+  />
+  {applianceError && (
+    <p className="text-sm text-error mt-2" role="alert">
+      {applianceError}
+    </p>
+  )}
+</div>
+
       <input
         ref={fileInputRef}
         type="file"

@@ -24,9 +24,24 @@ export interface RepairStep {
 
 export interface RepairSession {
   diagnosis: DiagnosisResult
+  diagnosisAttemptId?: string
+  diagnosisPersistence?: {
+    userId: string
+    applianceId?: string
+    diagnosisId?: string
+    repairSessionId?: string
+  }
   imageDataUrl?: string
+  applianceType?: string
   toolsAcknowledged?: string[]
   completedAt?: string
+  completedRepair?: {
+    id: string
+    diagnosisId: string
+    repairSummary: string | null
+    completedAt: string
+    feedbackRating: number | null
+  }
   moneySaved?: number
   timeSavedMinutes?: number
 }

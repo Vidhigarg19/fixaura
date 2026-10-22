@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import type { User } from '@supabase/supabase-js'
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
@@ -24,6 +25,7 @@ import {
 import LanguageToggle from "../components/LanguageToggle";
 import ConfidenceMeter from "../components/ConfidenceMeter";
 import { t, subscribeLocale } from '../i18n'
+import { supabase } from '../lib/supabase'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -125,11 +127,25 @@ const testimonials = [
 
 export default function Landing() {
   const [, forceUpdate] = useState(0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [authUser, setAuthUser] = useState<User | null>(null)
   useEffect(() => {
   const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
   return () => { unsubscribe() }
 }, [])
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function handleSignOut() {
+    const { error } = await supabase.auth.signOut()
+    if (error) console.error('Sign out failed:', error)
+  }
+
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -176,6 +192,22 @@ export default function Landing() {
 
           <div className="flex items-center gap-3">
             <LanguageToggle />
+            {authUser ? (
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="rounded-full border border-border-default/90 px-4 py-2.5 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
+              >
+                Sign out
+              </button>
+            ) : (
+              <Link
+                to="/auth"
+                className="rounded-full border border-border-default/90 px-4 py-2.5 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
+              >
+                Sign In
+              </Link>
+            )}
             <Link to="/capture">
               <motion.span
                 whileHover={{ scale: 1.03, boxShadow: "0 0 32px rgba(0,245,212,0.45)" }}

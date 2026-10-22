@@ -18,8 +18,18 @@ export function saveSession(partial: Partial<RepairSession>) {
   sessionStorage.setItem(KEY, JSON.stringify(next))
 }
 
-export function setDiagnosis(diagnosis: DiagnosisResult, imageDataUrl?: string) {
-  saveSession({ diagnosis, imageDataUrl })
+export function setDiagnosis(
+  diagnosis: DiagnosisResult,
+  imageDataUrl?: string,
+  applianceType?: string
+) {
+  saveSession({
+    diagnosis,
+    diagnosisAttemptId: crypto.randomUUID(),
+    diagnosisPersistence: undefined,
+    imageDataUrl,
+    applianceType,
+  })
 }
 
 export function clearSession() {
