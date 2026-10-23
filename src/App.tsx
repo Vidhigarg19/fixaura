@@ -1,10 +1,10 @@
-
-import { Suspense, lazy, useSyncExternalStore, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState, useSyncExternalStore } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Wrench } from 'lucide-react'
 import { getLocale, subscribeLocale } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
+import { supabase } from './services/supabase'
 
 const Landing = lazy(() => import('./Pages/Landing'))
 const CameraCapture = lazy(() => import('./Pages/CameraCapture'))
@@ -14,6 +14,8 @@ const DiagnosisHistory = lazy(() => import('./Pages/DiagnosisHistory'))
 const ToolChecklist = lazy(() => import('./Pages/ToolChecklist'))
 const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
 const Completion = lazy(() => import('./Pages/Completion'))
+const History = lazy(() => import('./Pages/History'))
+const Login = lazy(() => import('./Pages/Login'))
 
 function PageLoader() {
   return (
@@ -48,18 +50,45 @@ function AnimatedRoutes() {
           <Routes location={location}>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/history" element={<DiagnosisHistory />} />
+            <Route path="/diagnosis-history" element={<DiagnosisHistory />} />
             <Route path="/capture" element={<CameraCapture />} />
             <Route path="/diagnosis" element={<Diagnosis />} />
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
             <Route path="/completed" element={<Completion />} />
+            <Route path="/history" element={<ProtectedHistory />} />
+            <Route path="/login" element={<Login />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </motion.div>
     </AnimatePresence>
   )
+}
+
+function ProtectedHistory() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(() =>
+    supabase ? null : false
+  )
+
+  useEffect(() => {
+    if (!supabase) return
+    let active = true
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session))
+    })
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) setAuthenticated(Boolean(data.session))
+    })
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  if (authenticated === null) return <PageLoader />
+  if (!authenticated) return <Navigate to="/login" replace />
+  return <History />
 }
 
 export default function App() {

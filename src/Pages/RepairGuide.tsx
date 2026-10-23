@@ -7,20 +7,22 @@ import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
-import { getSession, saveSession } from '../services/repairSession'
+import FollowUpChat from '../components/FollowUpChat'
+import { estimateSavings, getSession, saveSession } from '../services/repairSession'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { persistCompletedRepair } from '../services/completedRepair'
 import { buildRepairPlan } from '../services/repairPlanner'
+import { completeSession, updateProgress } from '../services/historyService'
 import { t } from '../i18n'
 
 export default function RepairGuide() {
   const navigate = useNavigate()
   const session = getSession()
   const steps = useMemo(
-    () => (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
-    [session?.diagnosis]
+    () => session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
+    [session?.diagnosis, session?.steps]
   )
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(session?.currentStep ?? 0)
   const [paused, setPaused] = useState(false)
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [safetyConfirmed, setSafetyConfirmed] = useState<Record<string, boolean>>({})
@@ -42,6 +44,40 @@ export default function RepairGuide() {
     return true
   }, [step, safetyConfirmed])
 
+  const moveTo = (nextIndex: number) => {
+    setIndex(nextIndex)
+    saveSession({ currentStep: nextIndex })
+    setProgressError('')
+    if (session?.historySessionId) {
+      void updateProgress(session.historySessionId, nextIndex).catch((error: unknown) => {
+        setProgressError(error instanceof Error ? error.message : t('history.progressError'))
+      })
+    }
+  }
+
+  const finish = async () => {
+    if (!session?.diagnosis) return
+    setCompletionError('')
+    try {
+      const completedRepair = await persistCompletedRepair(
+        session.diagnosisPersistence?.repairSessionId,
+        session.diagnosisPersistence?.diagnosisId
+      )
+      if (session.historySessionId) await completeSession(session.historySessionId)
+      const savings = estimateSavings(session.diagnosis)
+      saveSession({
+        completedRepair,
+        ...savings,
+        completedAt: completedRepair.completedAt,
+      })
+      navigate('/completed')
+    } catch (error) {
+      setCompletionError(
+        error instanceof Error ? error.message : t('completion.saveError')
+      )
+    }
+  }
+
   const next = async () => {
     if (!step || saveInFlight.current) return
     if (step.requiresConfirmation && !safetyConfirmed[step.id]) {
@@ -58,21 +94,9 @@ export default function RepairGuide() {
       await saveCompletedRepairStep(session?.diagnosisPersistence?.repairSessionId, step.id)
 
       if (index < total - 1) {
-        setIndex((currentIndex) => currentIndex + 1)
-        return
-      }
-
-      try {
-        const completedRepair = await persistCompletedRepair(
-          session?.diagnosisPersistence?.repairSessionId,
-          session?.diagnosisPersistence?.diagnosisId
-        )
-        saveSession({ completedRepair })
-        navigate('/completed')
-      } catch (error) {
-        setCompletionError(
-          error instanceof Error ? error.message : t('completion.saveError')
-        )
+        moveTo(index + 1)
+      } else {
+        await finish()
       }
     } catch (error) {
       setProgressError(
@@ -85,13 +109,13 @@ export default function RepairGuide() {
   }
 
   const prev = () => {
-    if (index > 0) setIndex((i) => i - 1)
+    if (index > 0) moveTo(index - 1)
   }
 
   const handleVoice = (text: string) => {
     if (text.includes('next')) void next()
     else if (text.includes('back') || text.includes('previous')) prev()
-    else if (text.includes('repeat')) setIndex(index)
+    else if (text.includes('repeat')) moveTo(index)
   }
 
   if (!session?.diagnosis || !step) {
@@ -122,6 +146,11 @@ export default function RepairGuide() {
       )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
+        {progressError && (
+          <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">
+            {progressError}
+          </p>
+        )}
         <div className="flex items-center justify-between mb-4 text-sm text-text-subtle">
           <span>
             {t('guide.step')} {index + 1} {t('guide.of')} {total}
@@ -170,6 +199,12 @@ export default function RepairGuide() {
             </p>
           </motion.div>
         </AnimatePresence>
+
+        {session.diagnosis && <FollowUpChat
+          sessionId={session.historySessionId}
+          diagnosis={session.diagnosis}
+          step={step}
+        />}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 py-4">

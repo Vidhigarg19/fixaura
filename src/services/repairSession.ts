@@ -29,6 +29,9 @@ export function setDiagnosis(
     diagnosisPersistence: undefined,
     imageDataUrl,
     applianceType,
+    historySessionId: undefined,
+    steps: undefined,
+    currentStep: 0,
   })
 }
 

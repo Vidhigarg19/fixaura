@@ -228,5 +228,46 @@
   "voice": {
     "listening": "Listening…",
     "tapToSpeak": "Voice command"
+  },
+  "history": {
+    "navHistory": "History",
+    "title": "Repair history",
+    "pickUp": "Pick up where you left off?",
+    "emptyTitle": "No repairs yet",
+    "emptyBody": "Scan your first problem to start a repair.",
+    "scanFirst": "Scan your first problem",
+    "status": {
+      "completed": "Completed",
+      "in_progress": "In progress"
+    },
+    "step": "Step",
+    "of": "of",
+    "messages": "messages",
+    "continue": "Continue",
+    "view": "View",
+    "delete": "Delete",
+    "confirmDelete": "Delete this repair and its messages?",
+    "close": "Close summary",
+    "diagnosis": "Diagnosis",
+    "savedChat": "Saved chat",
+    "user": "You",
+    "assistant": "FixAura",
+    "chatTitle": "Ask about this repair",
+    "chatEmpty": "Ask a question to get repair guidance.",
+    "chatPlaceholder": "Ask a follow-up question",
+    "sendMessage": "Send message",
+    "mockReply": "Mock reply: This is a sample response. Follow the repair steps and safety notes shown above.",
+    "back": "Back",
+    "loadError": "We couldn't load your repair history.",
+    "deleteError": "We couldn't delete this repair.",
+    "progressError": "We couldn't save your repair progress.",
+    "chatError": "We couldn't load or save the repair chat.",
+    "saveError": "We couldn't save your repair.",
+    "sessionMissing": "This repair could not be found. Refresh your history and try again.",
+    "loginTitle": "Sign in to FixAura",
+    "loginBody": "Enter your email and we'll send you a secure sign-in link.",
+    "email": "Email address",
+    "sendLoginLink": "Email me a sign-in link",
+    "loginSent": "Check your email for a sign-in link."
   }
 }
