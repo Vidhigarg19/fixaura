@@ -6,6 +6,9 @@ import PageShell from '../components/PageShell'
 import ConfidenceMeter from '../components/ConfidenceMeter'
 import FallbackMode from '../components/FallbackMode'
 import { getSession } from '../services/repairSession'
+import { saveSession } from '../services/repairSession'
+import { createSession } from '../services/historyService'
+import { buildRepairPlan } from '../services/repairPlanner'
 import { t } from '../i18n'
 import type { RiskLevel } from '../types/repair'
 
@@ -27,6 +30,28 @@ export default function Diagnosis() {
   const navigate = useNavigate()
   const session = getSession()
   const [expanded, setExpanded] = useState(false)
+  const [starting, setStarting] = useState(false)
+  const [saveError, setSaveError] = useState('')
+
+  const startRepair = async () => {
+    if (!session?.diagnosis || starting) return
+    setStarting(true)
+    setSaveError('')
+    const steps = buildRepairPlan(session.diagnosis)
+    try {
+      const saved = await createSession(session.diagnosis, steps)
+      saveSession({
+        historySessionId: saved?.id,
+        steps,
+        currentStep: 0,
+      })
+      navigate('/tools')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : t('history.saveError'))
+    } finally {
+      setStarting(false)
+    }
+  }
 
   if (!session?.diagnosis) {
     return (
@@ -66,7 +91,7 @@ export default function Diagnosis() {
 
         {lowConfidence && (
           <div className="mb-6">
-            <FallbackMode onContinue={() => navigate('/tools')} />
+            <FallbackMode onContinue={() => void startRepair()} />
           </div>
         )}
 
@@ -122,10 +147,11 @@ export default function Diagnosis() {
             type="button"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => navigate('/tools')}
-            className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background"
+            onClick={() => void startRepair()}
+            disabled={starting}
+            className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           >
-            {t('diagnosis.ctaTools')}
+            {starting ? t('common.loading') : t('diagnosis.ctaTools')}
           </motion.button>
           <Link to="/capture" className="flex-1">
             <motion.span
@@ -137,6 +163,7 @@ export default function Diagnosis() {
             </motion.span>
           </Link>
         </div>
+        {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>
   )

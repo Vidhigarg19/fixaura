@@ -29,4 +29,7 @@ export interface RepairSession {
   completedAt?: string
   moneySaved?: number
   timeSavedMinutes?: number
+  historySessionId?: string
+  steps?: RepairStep[]
+  currentStep?: number
 }

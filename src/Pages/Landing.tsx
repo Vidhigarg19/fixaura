@@ -24,6 +24,7 @@ import {
 import LanguageToggle from "../components/LanguageToggle";
 import ConfidenceMeter from "../components/ConfidenceMeter";
 import { t, subscribeLocale } from '../i18n'
+import { supabase } from '../services/supabase'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -125,11 +126,23 @@ const testimonials = [
 
 export default function Landing() {
   const [, forceUpdate] = useState(0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   useEffect(() => {
   const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
   return () => { unsubscribe() }
 }, [])
+  useEffect(() => {
+    if (!supabase) return
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session))
+    })
+    void supabase.auth.getSession().then(({ data }) => {
+      setIsAuthenticated(Boolean(data.session))
+    })
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -175,6 +188,14 @@ export default function Landing() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {isAuthenticated && (
+              <Link
+                to="/history"
+                className="rounded-lg px-2 py-2 text-sm text-text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {t('history.navHistory')}
+              </Link>
+            )}
             <LanguageToggle />
             <Link to="/capture">
               <motion.span

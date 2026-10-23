@@ -7,21 +7,24 @@ import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
+import FollowUpChat from '../components/FollowUpChat'
 import { getSession, saveSession, estimateSavings, clearSession } from '../services/repairSession'
 import { buildRepairPlan } from '../services/repairPlanner'
+import { completeSession, updateProgress } from '../services/historyService'
 import { t } from '../i18n'
 
 export default function RepairGuide() {
   const navigate = useNavigate()
   const session = getSession()
   const steps = useMemo(
-    () => (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
-    [session?.diagnosis]
+    () => session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
+    [session?.diagnosis, session?.steps]
   )
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(session?.currentStep ?? 0)
   const [paused, setPaused] = useState(false)
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [safetyConfirmed, setSafetyConfirmed] = useState<Record<string, boolean>>({})
+  const [progressError, setProgressError] = useState('')
 
   const step = steps[index]
   const total = steps.length
@@ -36,23 +39,42 @@ export default function RepairGuide() {
     return true
   }, [step, safetyConfirmed])
 
+  const moveTo = (nextIndex: number) => {
+    setIndex(nextIndex)
+    saveSession({ currentStep: nextIndex })
+    if (session?.historySessionId) {
+      void updateProgress(session.historySessionId, nextIndex).catch((error: unknown) => {
+        setProgressError(error instanceof Error ? error.message : t('history.progressError'))
+      })
+    }
+  }
+
   const next = () => {
     if (!step) return
     if (step.requiresConfirmation && !safetyConfirmed[step.id]) {
       setSafetyOpen(true)
       return
     }
-    if (index < total - 1) setIndex((i) => i + 1)
-    else finish()
+    if (index < total - 1) moveTo(index + 1)
+    else void finish()
   }
 
   const prev = () => {
-    if (index > 0) setIndex((i) => i - 1)
+    if (index > 0) moveTo(index - 1)
   }
 
-  const finish = () => {
+  const finish = async () => {
     if (!session?.diagnosis) return
     const savings = estimateSavings(session.diagnosis)
+    try {
+      if (session.historySessionId) await completeSession(session.historySessionId)
+    } catch (error) {
+      window.alert(
+        `${t('history.saveError')}: ${
+          error instanceof Error ? error.message : t('history.progressError')
+        }`
+      )
+    }
     saveSession({ ...savings, completedAt: new Date().toISOString() })
     clearSession()
     navigate('/')
@@ -61,7 +83,7 @@ export default function RepairGuide() {
   const handleVoice = (text: string) => {
     if (text.includes('next')) next()
     else if (text.includes('back') || text.includes('previous')) prev()
-    else if (text.includes('repeat')) setIndex(index)
+    else if (text.includes('repeat')) moveTo(index)
   }
 
   if (!session?.diagnosis || !step) {
@@ -77,6 +99,11 @@ export default function RepairGuide() {
       <StepTimeline total={total} current={index} />
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
+        {progressError && (
+          <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">
+            {progressError}
+          </p>
+        )}
         <div className="flex items-center justify-between mb-4 text-sm text-text-subtle">
           <span>
             {t('guide.step')} {index + 1} {t('guide.of')} {total}
@@ -125,6 +152,12 @@ export default function RepairGuide() {
             </p>
           </motion.div>
         </AnimatePresence>
+
+        {session.diagnosis && <FollowUpChat
+          sessionId={session.historySessionId}
+          diagnosis={session.diagnosis}
+          step={step}
+        />}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 py-4">
@@ -180,7 +213,7 @@ export default function RepairGuide() {
               type="button"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={finish}
+              onClick={() => void finish()}
               className="rounded-xl bg-success/20 border border-success/40 p-3"
               aria-label={t('guide.confirmStep')}
             >

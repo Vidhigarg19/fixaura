@@ -19,7 +19,13 @@ export function saveSession(partial: Partial<RepairSession>) {
 }
 
 export function setDiagnosis(diagnosis: DiagnosisResult, imageDataUrl?: string) {
-  saveSession({ diagnosis, imageDataUrl })
+  saveSession({
+    diagnosis,
+    imageDataUrl,
+    historySessionId: undefined,
+    steps: undefined,
+    currentStep: 0,
+  })
 }
 
 export function clearSession() {
