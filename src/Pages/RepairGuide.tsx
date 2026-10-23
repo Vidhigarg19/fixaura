@@ -170,7 +170,7 @@ export default function RepairGuide() {
           <AROverlay variant="guide" visualCue={step.visualCue} />
           <motion.div
             key={step.id}
-            className="absolute inset-0 flex items-end p-4 bg-gradient-to-t from-background/90 to-transparent"
+            className="absolute inset-0 flex items-end p-4 bg-linear-to-t from-background/90 to-transparent"
             initial={{ opacity: 0 }}
             animate={{ opacity: paused ? 0.6 : 1 }}
           />

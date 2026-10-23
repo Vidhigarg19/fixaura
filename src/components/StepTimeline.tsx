@@ -28,7 +28,7 @@ export default function StepTimeline({ total, current }: StepTimelineProps) {
       </div>
       <div className="h-1 rounded-full bg-surface-high overflow-hidden">
         <motion.div
-          className="h-full bg-gradient-to-r from-primary-secondary to-primary"
+          className="h-full bg-linear-to-r from-primary-secondary to-primary"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.4, ease: 'easeOut' }}

@@ -47,20 +47,20 @@ export default function Login() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
               />
             </label>
             <button
               type="submit"
               disabled={sending}
-              className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
             >
               {sending ? t('common.loading') : t('history.sendLoginLink')}
             </button>
           </form>
         ) : <p role="status" className="mt-5 text-sm text-primary">{message}</p>}
         {error && <p role="alert" className="mt-4 text-sm text-warning">{error}</p>}
-        <Link to="/" className="mt-6 inline-block text-sm text-text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+        <Link to="/" className="mt-6 inline-block text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">
           {t('history.back')}
         </Link>
       </main>

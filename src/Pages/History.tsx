@@ -117,7 +117,7 @@ export default function History() {
       <main className="mx-auto max-w-3xl">
         <Link
           to="/"
-          className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t('history.back')}
@@ -146,7 +146,7 @@ export default function History() {
                   })
                   .finally(() => setLoading(false))
               }}
-              className="mt-3 rounded-lg border border-warning/50 px-4 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="mt-3 rounded-lg border border-warning/50 px-4 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary"
             >
               {t('common.retry')}
             </button>
@@ -165,7 +165,7 @@ export default function History() {
             <p className="mt-2 text-text-secondary">{t('history.emptyBody')}</p>
             <Link
               to="/capture"
-              className="mt-5 inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="mt-5 inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary"
             >
               {t('history.scanFirst')}
             </Link>
@@ -194,7 +194,7 @@ export default function History() {
                     type="button"
                     onClick={() => setPendingDelete(session)}
                     aria-label={`${t('history.delete')} ${session.issue_name}`}
-                    className="shrink-0 rounded-lg p-2 text-text-subtle hover:text-warning focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                    className="shrink-0 rounded-lg p-2 text-text-subtle hover:text-warning focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <Trash2 className="h-5 w-5" aria-hidden="true" />
                   </button>
@@ -220,7 +220,7 @@ export default function History() {
                   onClick={() => session.status === 'completed'
                     ? void openSummary(session)
                     : void continueSession(session.id)}
-                  className="mt-4 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:w-auto"
+                  className="mt-4 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary sm:w-auto"
                 >
                   {session.status === 'completed' ? t('history.view') : t('history.continue')}
                 </button>
@@ -245,10 +245,10 @@ export default function History() {
               <h2 id="delete-title" className="text-heading-md">{t('history.confirmDelete')}</h2>
               <p className="mt-2 text-sm text-text-secondary">{pendingDelete.issue_name}</p>
               <div className="mt-6 flex gap-3">
-                <button type="button" onClick={() => setPendingDelete(null)} className="flex-1 rounded-lg border border-border px-3 py-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                <button type="button" onClick={() => setPendingDelete(null)} className="flex-1 rounded-lg border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary">
                   {t('common.cancel')}
                 </button>
-                <button type="button" onClick={() => void confirmDelete()} className="flex-1 rounded-lg bg-warning px-3 py-2 font-semibold text-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+                <button type="button" onClick={() => void confirmDelete()} className="flex-1 rounded-lg bg-warning px-3 py-2 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary">
                   {t('history.delete')}
                 </button>
               </div>
@@ -272,7 +272,7 @@ export default function History() {
                   type="button"
                   aria-label={t('history.close')}
                   onClick={() => setViewing(null)}
-                  className="rounded-lg p-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  className="rounded-lg p-2 focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X aria-hidden="true" />
                 </button>

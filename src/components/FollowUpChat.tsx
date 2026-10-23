@@ -71,7 +71,7 @@ export default function FollowUpChat({ sessionId, diagnosis, step }: FollowUpCha
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 p-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+        className="w-full flex items-center justify-between gap-3 p-4 text-left focus-visible:outline-2 focus-visible:outline-primary"
       >
         <span>
           <span className="block font-semibold">{t('history.chatTitle')}</span>
@@ -108,13 +108,13 @@ export default function FollowUpChat({ sessionId, diagnosis, step }: FollowUpCha
               onChange={(event) => setDraft(event.target.value)}
               placeholder={t('history.chatPlaceholder')}
               aria-label={t('history.chatPlaceholder')}
-              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary"
             />
             <button
               type="submit"
               disabled={loading || !draft.trim()}
               aria-label={t('history.sendMessage')}
-              className="rounded-lg bg-primary p-3 text-background disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="rounded-lg bg-primary p-3 text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
             >
               <Send className="h-4 w-4" aria-hidden="true" />
             </button>

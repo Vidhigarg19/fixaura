@@ -368,7 +368,7 @@ export default function Diagnosis() {
             whileTap={{ scale: 0.97 }}
             onClick={() => void startRepair()}
             disabled={!repairSessionReady || starting}
-            className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
           >
             {starting ? t('common.loading') : t('diagnosis.ctaTools')}
           </motion.button>

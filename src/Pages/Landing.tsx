@@ -161,7 +161,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
-      <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:72px_72px]" />
+      <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[72px_72px]" />
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
       <motion.header
@@ -206,7 +206,7 @@ export default function Landing() {
             {authUser && (
               <Link
                 to="/history"
-                className="rounded-lg px-2 py-2 text-sm text-text-secondary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="rounded-lg px-2 py-2 text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {t('history.navHistory')}
               </Link>
@@ -269,7 +269,7 @@ export default function Landing() {
 
               <motion.p
                 variants={fadeUp}
-                className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-[38rem]"
+                className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-152"
               >
                 {t("landing.subheadline")}
               </motion.p>
@@ -327,13 +327,13 @@ export default function Landing() {
               transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
               className="relative flex justify-center lg:justify-end"
             >
-              <div className="relative w-full max-w-[430px]">
+              <div className="relative w-full max-w-107.5">
                 <div className="absolute -inset-8 bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.20),transparent_62%)] blur-3xl" />
-                <div className="glass-panel rounded-[2rem] p-5 md:p-6 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.36)] relative overflow-hidden">
-                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary/10 to-transparent" />
-                  <div className="aspect-[9/16] max-h-[540px] mx-auto rounded-[1.5rem] bg-[#08182c] relative overflow-hidden border border-white/5">
+                <div className="glass-panel rounded-4xl p-5 md:p-6 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.36)] relative overflow-hidden">
+                  <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-primary/10 to-transparent" />
+                  <div className="aspect-9/16 max-h-135 mx-auto rounded-3xl bg-[#08182c] relative overflow-hidden border border-white/5">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(0,245,212,0.14),transparent_34%)]" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#04101f]/65" />
+                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-[#04101f]/65" />
                     <img
                       alt={t("landing.preview.alt")}
                       className="absolute inset-0 w-full h-full object-cover opacity-88"
@@ -434,7 +434,7 @@ export default function Landing() {
                 key={titleKey}
                 variants={fadeUp}
                 whileHover={{ y: -6 }}
-                className="glass-panel rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-primary/30 transition-colors group"
+                className="glass-panel rounded-3xl overflow-hidden border border-white/10 hover:border-primary/30 transition-colors group"
               >
                 <div className="relative h-40 w-full overflow-hidden">
                   <img
@@ -442,7 +442,7 @@ export default function Landing() {
                     alt={t(titleKey)}
                     className="w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#041329]/80" />
+                  <div className="absolute inset-0 bg-linear-to-b from-transparent to-background/80" />
                   <div className="absolute bottom-3 left-3 h-10 w-10 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
                     <Icon className="h-5 w-5 text-primary" />
                   </div>
@@ -477,7 +477,7 @@ export default function Landing() {
                 key={nameKey}
                 variants={fadeUp}
                 whileHover={{ y: -6, scale: 1.01 }}
-                className={`glass-panel rounded-[1.5rem] overflow-hidden border border-white/10 hover:border-primary/25 transition-colors cursor-pointer group`}
+                className={`glass-panel rounded-3xl overflow-hidden border border-white/10 hover:border-primary/25 transition-colors cursor-pointer group`}
               >
                 <div className="relative h-36 w-full overflow-hidden">
                   <img
@@ -485,7 +485,7 @@ export default function Landing() {
                     alt={t(nameKey)}
                     className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#041329]/90" />
+                  <div className="absolute inset-0 bg-linear-to-b from-transparent to-background/90" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="h-14 w-14 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30">
                       <Icon className="h-7 w-7 text-primary" />
@@ -518,7 +518,7 @@ export default function Landing() {
                 key={item.nameKey}
                 variants={fadeUp}
                 whileHover={{ y: -5 }}
-                className="glass-panel rounded-[1.5rem] p-6 border border-white/10 relative overflow-hidden"
+                className="glass-panel rounded-3xl p-6 border border-white/10 relative overflow-hidden"
               >
                 <div className="absolute top-4 right-4 text-primary/10">
                   <Star className="h-14 w-14 fill-current" />
@@ -560,7 +560,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
-            className="relative overflow-hidden rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(0,245,212,0.14),rgba(75,219,203,0.10),rgba(4,19,41,0.92))] p-8 md:p-12 text-center shadow-[0_0_60px_rgba(0,245,212,0.10)]"
+            className="relative overflow-hidden rounded-4xl border border-primary/15 bg-linear-[135deg,rgba(0,245,212,0.14),rgba(75,219,203,0.10),rgba(4,19,41,0.92)] p-8 md:p-12 text-center shadow-[0_0_60px_rgba(0,245,212,0.10)]"
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.18)_0%,transparent_58%)] opacity-70" />
             <div className="relative z-10">
@@ -667,7 +667,7 @@ export default function Landing() {
           </div>
 
           <div>
-            <div className="glass-panel p-5 rounded-[1.25rem] border border-white/10">
+            <div className="glass-panel p-5 rounded-2xl border border-white/10">
               <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-3">
                 {t("landing.footerNewsletterHeading")}
               </h4>
