@@ -26,6 +26,7 @@ export default function CameraCapture() {
   const [unsafeWarning, setUnsafeWarning] = useState<string | null>(null)
   const [showSafety, setShowSafety] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
+  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
   const motionRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -168,11 +169,14 @@ export default function CameraCapture() {
   }, [facingMode])
 
   useEffect(() => {
-    setVideoReady(false)
-    startCamera()
+    const startTimeout = window.setTimeout(() => {
+      void startCamera()
+    }, 0)
     return () => {
+      window.clearTimeout(startTimeout)
       streamRef.current?.getTracks().forEach((t) => t.stop())
       setVideoReady(false)
+      setVideoSize(null)
     }
   }, [startCamera])
 
@@ -307,9 +311,9 @@ setApplianceError('')
         </motion.button>
         
         {/* Debug info */}
-        {cameraState === 'ready' && videoRef.current && (
+        {cameraState === 'ready' && videoSize && (
           <div className="glass-panel rounded-lg px-3 py-1 text-xs text-text-secondary">
-            {videoRef.current.videoWidth}x{videoRef.current.videoHeight}
+            {videoSize.w}x{videoSize.h}
           </div>
         )}
         
@@ -323,6 +327,12 @@ setApplianceError('')
           autoPlay
           playsInline
           muted
+          onLoadedMetadata={(e) =>
+            setVideoSize({
+              w: e.currentTarget.videoWidth,
+              h: e.currentTarget.videoHeight,
+            })
+          }
           className={`absolute inset-0 w-full h-full object-cover bg-black ${cameraState !== 'ready' ? 'invisible' : ''}`}
           style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
         />

@@ -28,6 +28,7 @@ interface Window {
   webkitSpeechRecognition?: typeof SpeechRecognition
 }
 
+// eslint-disable-next-line no-var
 declare var SpeechRecognition: {
   prototype: SpeechRecognition
   new (): SpeechRecognition

@@ -10,18 +10,31 @@ interface VoiceInputProps {
 
 export default function VoiceInput({ onCommand, className = '' }: VoiceInputProps) {
   const [listening, setListening] = useState(false)
-  const [supported, setSupported] = useState(true)
+  const [supported] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      Boolean(
+        (
+          window as unknown as {
+            SpeechRecognition?: unknown
+            webkitSpeechRecognition?: unknown
+          }
+        ).SpeechRecognition ||
+          (
+            window as unknown as {
+              webkitSpeechRecognition?: unknown
+            }
+          ).webkitSpeechRecognition
+      )
+  )
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
   useEffect(() => {
     const SR =
       window.SpeechRecognition ||
       (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition })
-        .webkitSpeechRecognition
-    if (!SR) {
-      setSupported(false)
-      return
-    }
+      .webkitSpeechRecognition
+    if (!SR) return
     const rec = new SR()
     rec.continuous = false
     rec.interimResults = false

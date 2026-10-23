@@ -92,7 +92,8 @@ function matchTool(tool: string): { icon: React.ElementType } {
 export default function ToolChecklist() {
   const navigate = useNavigate()
   const session = getSession()
-  const tools = session?.diagnosis?.recommendedTools ?? []
+  const recommended = session?.diagnosis?.recommendedTools
+  const tools = useMemo(() => recommended ?? [], [recommended])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [pendingTool, setPendingTool] = useState<string | null>(null)
