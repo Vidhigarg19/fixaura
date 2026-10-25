@@ -8,6 +8,7 @@ export interface HistorySession {
   id: string
   user_id: string
   title: string | null
+  description: string | null
   issue_name: string
   diagnosis: DiagnosisResult
   steps: RepairStep[]
@@ -44,13 +45,15 @@ function readableError(action: string, error: { message: string }) {
 
 export async function createSession(
   diagnosis: DiagnosisResult,
-  steps: RepairStep[]
+  steps: RepairStep[],
+  description: string
 ): Promise<HistorySession | null> {
   const userId = await getUserId()
   if (!supabase || !userId) return null
   const row = {
     user_id: userId,
     title: diagnosis.issueName,
+    description,
     issue_name: diagnosis.issueName,
     diagnosis,
     steps,

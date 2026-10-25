@@ -1,13 +1,5 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_ANTHROPIC_API_KEY?: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
-}
-
 interface SpeechRecognition extends EventTarget {
   continuous: boolean
   interimResults: boolean
@@ -15,12 +7,17 @@ interface SpeechRecognition extends EventTarget {
   start(): void
   stop(): void
   onresult: ((ev: SpeechRecognitionEvent) => void) | null
-  onerror: ((ev: Event) => void) | null
+  onerror: ((ev: SpeechRecognitionErrorEvent) => void) | null
   onend: (() => void) | null
 }
 
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList
+  resultIndex: number
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
 }
 
 interface Window {

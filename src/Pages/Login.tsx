@@ -22,7 +22,7 @@ export default function Login() {
     setMessage('')
     const { error: signInError } = await client.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/history` },
+      options: { emailRedirectTo: `${window.location.origin}/` },
     })
     if (signInError) setError(signInError.message)
     else {
@@ -30,6 +30,22 @@ export default function Login() {
       setMessage(t('history.loginSent'))
     }
     setSending(false)
+  }
+
+  const signInWithGoogle = async () => {
+    setSending(true)
+    setError('')
+    try {
+      const { error: googleError } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/' },
+      })
+      if (googleError) setError(googleError.message)
+    } catch (googleError) {
+      setError(googleError instanceof Error ? googleError.message : t('common.error'))
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -53,12 +69,22 @@ export default function Login() {
             <button
               type="submit"
               disabled={sending}
+              aria-label={sending ? t('common.loading') : t('history.sendLoginLink')}
               className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
             >
               {sending ? t('common.loading') : t('history.sendLoginLink')}
             </button>
           </form>
         ) : <p role="status" className="mt-5 text-sm text-primary">{message}</p>}
+        <button
+          type="button"
+          onClick={() => void signInWithGoogle()}
+          disabled={sending}
+          aria-label={t('auth.continueWithGoogle')}
+          className="mt-5 w-full rounded-xl border border-border px-4 py-3 font-semibold text-text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {t('auth.continueWithGoogle')}
+        </button>
         {error && <p role="alert" className="mt-4 text-sm text-warning">{error}</p>}
         <Link to="/" className="mt-6 inline-block text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">
           {t('history.back')}

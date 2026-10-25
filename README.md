@@ -585,7 +585,7 @@ npm install
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your keys (optional — app works with mock data)
+# Edit .env with your Supabase project settings (optional — app works with mock data)
 
 # Start dev server
 npm run dev
@@ -597,7 +597,7 @@ Open [http://localhost:5173](http://localhost:5173).
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_ANTHROPIC_API_KEY` | No | Anthropic API key for live Claude Vision diagnosis. Without it, the app uses realistic mock data. |
+Anthropic diagnosis runs through the `analyze-image` Supabase Edge Function. Configure `ANTHROPIC_API_KEY` as a Supabase function secret; never expose it as a `VITE_` variable. If the function or secret is unavailable, the app uses realistic mock diagnosis data.
 | `VITE_SUPABASE_URL` | No* | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | No* | Supabase anon key (safe for client — protected by RLS) |
 
