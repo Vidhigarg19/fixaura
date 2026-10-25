@@ -4,7 +4,7 @@
 
 - [ ] Test camera locally on `http://localhost:5173`
 - [ ] Verify all features work with mock data (no API key)
-- [ ] Test with Anthropic API key if using live AI
+- [ ] If using live AI, set the `ANTHROPIC_API_KEY` Supabase Function secret and deploy the `analyze-image` Edge Function
 - [ ] Run `npm run build` to ensure no build errors
 - [ ] Check `vercel.json` is present for proper routing
 
@@ -13,7 +13,6 @@
 - [ ] Push code to GitHub repository
 - [ ] Import project in Vercel dashboard
 - [ ] Configure environment variables (if needed):
-  - `VITE_ANTHROPIC_API_KEY` (optional)
 - [ ] Deploy to production
 
 ## Post-Deployment Testing
@@ -38,9 +37,9 @@
 - [ ] Camera permission prompt appears
 - [ ] "Allow" grants camera access successfully
 - [ ] "Deny" shows appropriate error message
-- [ ] Error state shows troubleshooting tips
-- [ ] Camera diagnostics tool appears on error
-- [ ] HTTPS warning shows if accessed via HTTP
+- [ ] Camera errors explain their cause and provide a retry action
+- [ ] Photo upload remains available when camera access fails
+- [ ] Insecure contexts show an HTTPS/localhost requirement
 
 ## Common Issues & Solutions
 

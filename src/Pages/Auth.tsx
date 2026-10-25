@@ -1,21 +1,32 @@
 
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import PageShell from '../components/PageShell'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
-export default function Auth() {
+export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  useSyncExternalStore(subscribeLocale, getLocale)
+  const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [confirmationPending, setConfirmationPending] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate('/', { replace: true })
+    })
+    return () => subscription.unsubscribe()
+  }, [navigate])
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+    setConfirmationPending(false)
 
     try {
       if (mode === 'signup') {
@@ -26,21 +37,37 @@ export default function Auth() {
         if (error) throw error
 
         if (data.session) {
-          navigate('/capture')
+          navigate('/', { replace: true })
         } else {
-          setMessage('Signup successful. Check your email to confirm your account, then log in.')
-          setMode('login')
+          setConfirmationPending(true)
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         })
         if (error) throw error
-        navigate('/capture')
+        if (data.session) navigate('/', { replace: true })
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Something went wrong.')
+      setMessage(error instanceof Error ? error.message : t('common.error'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setLoading(true)
+    setMessage('')
+    setConfirmationPending(false)
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/' },
+      })
+      if (error) throw error
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('common.error'))
     } finally {
       setLoading(false)
     }
@@ -50,17 +77,17 @@ export default function Auth() {
     <PageShell className="flex items-center justify-center p-6">
       <div className="glass-panel w-full max-w-md rounded-2xl p-6 space-y-5">
         <h1 className="text-heading-lg">
-          {mode === 'signup' ? 'Create your FixAura account' : 'Welcome back'}
+          {mode === 'signup' ? t('auth.createTitle') : t('auth.welcomeTitle')}
         </h1>
         <p className="text-text-secondary text-sm">
           {mode === 'signup'
-            ? 'Sign up to save your diagnoses and repair progress.'
-            : 'Log in to continue your repairs.'}
+            ? t('auth.signupBody')
+            : t('auth.loginBody')}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm mb-2">Email</label>
+            <label htmlFor="email" className="block text-sm mb-2">{t('auth.email')}</label>
             <input
               id="email"
               type="email"
@@ -68,13 +95,13 @@ export default function Auth() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
-              placeholder="you@example.com"
+              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              placeholder={t('auth.emailPlaceholder')}
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm mb-2">Password</label>
+            <label htmlFor="password" className="block text-sm mb-2">{t('auth.password')}</label>
             <input
               id="password"
               type="password"
@@ -83,23 +110,34 @@ export default function Auth() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
-              placeholder="At least 6 characters"
+              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              placeholder={t('auth.passwordPlaceholder')}
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50"
+            aria-label={loading ? t('common.loading') : mode === 'signup' ? t('auth.createAccount') : t('auth.login')}
+            className="w-full rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
           >
-            {loading ? 'Please wait...' : mode === 'signup' ? 'Create account' : 'Log in'}
+            {loading ? t('common.loading') : mode === 'signup' ? t('auth.createAccount') : t('auth.login')}
           </button>
         </form>
 
+        <button
+          type="button"
+          onClick={() => void handleGoogleSignIn()}
+          disabled={loading}
+          aria-label={t('auth.continueWithGoogle')}
+          className="w-full rounded-xl border border-border py-3 font-semibold text-text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {t('auth.continueWithGoogle')}
+        </button>
+
         {message && (
           <p role="status" className="text-sm text-text-secondary break-words">
-            {message}
+            {confirmationPending ? t('auth.confirmEmail') : message}
           </p>
         )}
 
@@ -108,16 +146,18 @@ export default function Auth() {
           onClick={() => {
             setMode(mode === 'signup' ? 'login' : 'signup')
             setMessage('')
+            setConfirmationPending(false)
           }}
-          className="w-full text-sm text-primary underline"
+          aria-label={mode === 'signup' ? t('auth.switchToLogin') : t('auth.switchToSignup')}
+          className="w-full text-sm text-primary underline focus-visible:outline-2 focus-visible:outline-primary"
         >
           {mode === 'signup'
-            ? 'Already have an account? Log in'
-            : "Don't have an account? Sign up"}
+            ? t('auth.switchToLogin')
+            : t('auth.switchToSignup')}
         </button>
 
-        <Link to="/" className="block text-center text-sm text-text-secondary underline">
-          Back to home
+        <Link to="/" className="block text-center text-sm text-text-secondary underline focus-visible:outline-2 focus-visible:outline-primary">
+          {t('auth.backHome')}
         </Link>
       </div>
     </PageShell>

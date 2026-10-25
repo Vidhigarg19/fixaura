@@ -32,7 +32,7 @@ export interface RepairSession {
     repairSessionId?: string
   }
   imageDataUrl?: string
-  applianceType?: string
+  description: string
   toolsAcknowledged?: string[]
   completedAt?: string
   completedRepair?: {

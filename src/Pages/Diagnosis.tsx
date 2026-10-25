@@ -1,6 +1,6 @@
 
 import { motion } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -9,7 +9,7 @@ import FallbackMode from '../components/FallbackMode'
 import { getSession, saveSession } from '../services/repairSession'
 import { createSession } from '../services/historyService'
 import { buildRepairPlan } from '../services/repairPlanner'
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
 import type { RiskLevel } from '../types/repair'
 import { supabase } from '../lib/supabase'
 
@@ -42,6 +42,7 @@ function riskColor(severity: RiskLevel) {
 }
 
 export default function Diagnosis() {
+  useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const [session] = useState(getSession)
   const [expanded, setExpanded] = useState(false)
@@ -71,8 +72,8 @@ export default function Diagnosis() {
           if (!user) throw new Error('Please log in to save your diagnosis.')
 
           const d = session.diagnosis
-          const applianceName = session.applianceType?.trim()
-          if (!applianceName) throw new Error('The appliance name is missing.')
+          const issueLabel = d.issueName.trim()
+          if (!issueLabel) throw new Error(t('diagnosis.issueNameMissing'))
 
           let persistence =
             session.diagnosisPersistence?.userId === user.id
@@ -97,8 +98,8 @@ export default function Diagnosis() {
                 .from('appliances')
                 .select('id')
                 .eq('user_id', user.id)
-                .eq('name', applianceName)
-                .eq('appliance_type', applianceName)
+                .eq('name', issueLabel)
+                .eq('appliance_type', issueLabel)
                 .limit(2)
 
             if (findApplianceError) throw findApplianceError
@@ -116,8 +117,8 @@ export default function Diagnosis() {
                   .from('appliances')
                   .insert({
                     user_id: user.id,
-                    name: applianceName,
-                    appliance_type: applianceName,
+                    name: issueLabel,
+                    appliance_type: issueLabel,
                   })
                   .select('id')
                   .single()
@@ -148,7 +149,7 @@ export default function Diagnosis() {
               .from('diagnoses')
               .insert({
                 user_id: user.id,
-                appliance_type: applianceName,
+                appliance_type: issueLabel,
                 issue_title: d.issueName,
                 diagnosis_result: d,
               })
@@ -239,7 +240,7 @@ export default function Diagnosis() {
     setSaveError('')
     const steps = buildRepairPlan(session.diagnosis)
     try {
-      const saved = await createSession(session.diagnosis, steps)
+      const saved = await createSession(session.diagnosis, steps, session.description)
       saveSession({
         historySessionId: saved?.id,
         steps,
@@ -308,6 +309,13 @@ export default function Diagnosis() {
           transition={{ delay: 0.2 }}
           className="glass-panel rounded-xl p-6 space-y-5 mb-6"
         >
+          <div>
+            <p className="text-label-bold text-text-subtle mb-1">
+              {t('diagnosis.yourDescription')}
+            </p>
+            <p className="text-body-md text-text-secondary">{session.description}</p>
+          </div>
+
           <div>
             <p className="text-label-bold text-text-subtle mb-1">
               {t('diagnosis.detectedIssue')}

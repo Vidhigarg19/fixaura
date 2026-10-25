@@ -1,560 +1,594 @@
 import { motion } from 'framer-motion'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, SwitchCamera, Loader2, Upload, ImagePlus } from 'lucide-react'
+import {
+  ArrowLeft,
+  Camera,
+  ImagePlus,
+  Loader2,
+  Mic,
+  SwitchCamera,
+  Upload,
+} from 'lucide-react'
 import PageShell from '../components/PageShell'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
-import CameraDiagnostics from '../components/CameraDiagnostics'
 import { analyzeImage } from '../services/visionAI'
 import { setDiagnosis } from '../services/repairSession'
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
-type CameraState = 'loading' | 'ready' | 'permission' | 'error'
+type CameraState = 'loading' | 'ready' | 'error'
+type VoiceState = 'idle' | 'listening' | 'error'
+
+const MAX_IMAGE_SIDE = 1280
+const MAX_DESCRIPTION_LENGTH = 500
+const MIN_DESCRIPTION_LENGTH = 10
+
+function stopTracks(stream: MediaStream | null) {
+  stream?.getTracks().forEach((track) => track.stop())
+}
+
+function createImageBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('Unable to create an image from the photo.'))
+    }, 'image/jpeg', 0.85)
+  })
+}
+
+function imageDimensions(width: number, height: number) {
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(width, height))
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+  }
+}
 
 export default function CameraCapture() {
   const navigate = useNavigate()
+  useSyncExternalStore(subscribeLocale, getLocale)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [cameraState, setCameraState] = useState<CameraState>('loading')
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
-  const [analyzing, setAnalyzing] = useState(false)
-  const [applianceType, setApplianceType] = useState('')
-  const [applianceError, setApplianceError] = useState('')
-  const [unsafeWarning, setUnsafeWarning] = useState<string | null>(null)
-  const [showSafety, setShowSafety] = useState(false)
-  const [videoReady, setVideoReady] = useState(false)
-  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
-  const motionRef = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [cameraState, setCameraState] = useState<CameraState>('loading')
+  const [cameraErrorKey, setCameraErrorKey] = useState('')
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+  const [retryCount, setRetryCount] = useState(0)
+  const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
+  const [photo, setPhoto] = useState<{ blob: Blob; dataUrl: string } | null>(null)
+  const [description, setDescription] = useState('')
+  const [descriptionTouched, setDescriptionTouched] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisErrorKey, setAnalysisErrorKey] = useState('')
+  const [unsafeWarningKey, setUnsafeWarningKey] = useState('')
+  const [showSafety, setShowSafety] = useState(false)
+  const [voiceSupported] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
+  )
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle')
+  const [voiceErrorKey, setVoiceErrorKey] = useState('')
+  const [interimTranscript, setInterimTranscript] = useState('')
 
-  const startCamera = useCallback(async () => {
+  const descriptionLength = description.trim().length
+  const descriptionValid =
+    descriptionLength >= MIN_DESCRIPTION_LENGTH &&
+    description.length <= MAX_DESCRIPTION_LENGTH
+  const descriptionValidation = descriptionLength < MIN_DESCRIPTION_LENGTH
+    ? t('capture.descriptionTooShort')
+    : description.length > MAX_DESCRIPTION_LENGTH
+      ? t('capture.descriptionTooLong')
+      : ''
+
+  const startCamera = useCallback(async (cancelled: () => boolean) => {
     setCameraState('loading')
-    setVideoReady(false)
-    
-    try {
-      // Check if mediaDevices is available (HTTPS required)
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API not available. HTTPS required.')
-        setCameraState('error')
-        return
-      }
-
-      // Stop existing stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-      }
-
-      console.log('Requesting camera with facingMode:', facingMode)
-      
-      // Try with facingMode first
-      let stream: MediaStream | null = null
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: facingMode === 'environment' ? { ideal: 'environment' } : 'user',
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 } 
-          },
-          audio: false,
-        })
-      } catch (err) {
-        // Fallback: try without facingMode constraint (some devices don't support it)
-        console.warn('Failed with facingMode, trying without constraints:', err)
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 }
-          },
-          audio: false,
-        })
-      }
-
-      if (!stream) {
-        throw new Error('Failed to get camera stream')
-      }
-
-      console.log('Camera stream obtained successfully')
-      streamRef.current = stream
-      
-      if (videoRef.current) {
-        const video = videoRef.current
-        video.srcObject = stream
-        
-        // Create a promise that resolves when video is ready
-        const videoReadyPromise = new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            console.warn('Video metadata timeout - forcing play')
-            reject(new Error('Metadata timeout'))
-          }, 5000)
-          
-          video.onloadedmetadata = () => {
-            clearTimeout(timeout)
-            console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight)
-            resolve()
-          }
-          
-          video.onerror = () => {
-            clearTimeout(timeout)
-            console.error('Video element error')
-            reject(new Error('Video error'))
-          }
-        })
-        
-        try {
-          // Wait for metadata to load
-          await videoReadyPromise
-          
-          // Now play the video
-          await video.play()
-          console.log('Video playing successfully')
-          setVideoReady(true)
-          setCameraState('ready')
-        } catch (playErr) {
-          console.warn('Video play/metadata error, trying direct play:', playErr)
-          // Fallback: try to play anyway
-          try {
-            await video.play()
-            console.log('Video playing after fallback')
-            setVideoReady(true)
-            setCameraState('ready')
-          } catch (finalErr) {
-            console.error('Final video play error:', finalErr)
-            // Still set to ready so user can try to capture
-            setVideoReady(true)
-            setCameraState('ready')
-          }
-        }
-      } else {
-        console.error('Video ref is null')
-        setCameraState('error')
-      }
-    } catch (err) {
-      console.error('Camera error:', err)
-      
-      // Detailed error logging
-      if (err instanceof Error) {
-        console.error('Error name:', err.name)
-        console.error('Error message:', err.message)
-      }
-      
-      // Differentiate between permission denied and other errors
-      if (err instanceof Error) {
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          console.error('Permission denied by user')
-          setCameraState('permission')
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          console.error('No camera device found')
-          setCameraState('error')
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          console.error('Camera is in use by another application')
-          setCameraState('error')
-        } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-          console.error('Camera constraints not satisfied')
-          setCameraState('error')
-        } else if (err.name === 'SecurityError') {
-          console.error('Security error - HTTPS required')
-          setCameraState('error')
-        } else {
-          console.error('Unknown camera error')
-          setCameraState('error')
-        }
-      } else {
-        setCameraState('error')
-      }
+    setCameraErrorKey('')
+    setVideoSize(null)
+    const currentStream = streamRef.current
+    if (currentStream) {
+      stopTracks(currentStream)
+      streamRef.current = null
     }
-  }, [facingMode])
+    setStream(null)
 
-  useEffect(() => {
-    const startTimeout = window.setTimeout(() => {
-      void startCamera()
-    }, 0)
-    return () => {
-      window.clearTimeout(startTimeout)
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      setVideoReady(false)
-      setVideoSize(null)
+    if (!window.isSecureContext) {
+      setCameraErrorKey('capture.cameraSecureContext')
+      setCameraState('error')
+      return
     }
-  }, [startCamera])
-
-  useEffect(() => {
-    if (cameraState !== 'ready' || !videoRef.current) return
-    let frame = 0
-    const id = setInterval(() => {
-      const v = videoRef.current
-      if (!v?.videoWidth) return
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      canvas.width = 32
-      canvas.height = 32
-      ctx.drawImage(v, 0, 0, 32, 32)
-      const data = ctx.getImageData(0, 0, 32, 32).data
-      let brightness = 0
-      for (let i = 0; i < data.length; i += 4) {
-        brightness += (data[i] + data[i + 1] + data[i + 2]) / 3
-      }
-      brightness /= data.length / 4
-      if (brightness < 40) setUnsafeWarning(t('capture.unsafeLighting'))
-      else if (frame > 0 && Math.abs(brightness - motionRef.current) > 25) {
-        setUnsafeWarning(t('capture.unstableMotion'))
-      } else setUnsafeWarning(null)
-      motionRef.current = brightness
-      frame++
-    }, 800)
-    return () => clearInterval(id)
-  }, [cameraState])
-
-  const capture = async () => {
-    if (!applianceType.trim()) {
-  setApplianceError('Please enter the appliance name.')
-  return
-}
-setApplianceError('')
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas || analyzing) return
-
-    if (unsafeWarning) {
-      setShowSafety(true)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraErrorKey('capture.cameraUnsupported')
+      setCameraState('error')
       return
     }
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(video, 0, 0)
-    setAnalyzing(true)
-
+    let acquiredStream: MediaStream
     try {
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/jpeg', 0.9)
-      )
-      if (!blob) throw new Error('capture failed')
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-      const diagnosis = await analyzeImage(blob)
-      setDiagnosis(diagnosis, dataUrl, applianceType.trim())
-      navigate('/diagnosis')
-    } catch {
+      try {
+        acquiredStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false,
+        })
+      } catch (error) {
+        const name = error instanceof Error ? error.name : ''
+        if (name !== 'OverconstrainedError' && name !== 'NotFoundError') throw error
+        acquiredStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        })
+      }
+    } catch (error) {
+      console.error('Unable to start the camera:', error)
+      if (cancelled()) return
+      const name = error instanceof Error ? error.name : ''
+      const errorKey =
+        name === 'NotAllowedError' || name === 'PermissionDeniedError'
+          ? 'capture.cameraPermissionDenied'
+          : name === 'NotFoundError' || name === 'DevicesNotFoundError'
+            ? 'capture.cameraNotFound'
+            : name === 'NotReadableError' || name === 'TrackStartError'
+              ? 'capture.cameraInUse'
+              : name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError'
+                ? 'capture.cameraConstraints'
+                : name === 'SecurityError'
+                  ? 'capture.cameraSecurityError'
+                  : 'capture.cameraUnknownError'
+      setCameraErrorKey(errorKey)
       setCameraState('error')
-    } finally {
-      setAnalyzing(false)
+      return
+    }
+
+    if (cancelled()) {
+      stopTracks(acquiredStream)
+      return
+    }
+    streamRef.current = acquiredStream
+    setStream(acquiredStream)
+  }, [facingMode])
+
+  useEffect(() => {
+    let active = true
+    const timer = window.setTimeout(() => {
+      void startCamera(() => !active)
+    }, 0)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+      const activeStream = streamRef.current
+      if (activeStream) {
+        stopTracks(activeStream)
+        streamRef.current = null
+      }
+    }
+  }, [retryCount, startCamera])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (!stream) {
+      video.srcObject = null
+      return
+    }
+    video.srcObject = stream
+    void video.play().catch((error: unknown) => {
+      console.error('Unable to play the camera preview:', error)
+      setCameraErrorKey('capture.cameraPlaybackError')
+      setCameraState('error')
+    })
+    return () => {
+      if (video.srcObject === stream) video.srcObject = null
+    }
+  }, [stream])
+
+  useEffect(() => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (cameraState !== 'ready' || !video || !canvas) return
+    const timer = window.setInterval(() => {
+      if (!video.videoWidth || !video.videoHeight) return
+      const context = canvas.getContext('2d')
+      if (!context) return
+      canvas.width = 32
+      canvas.height = 32
+      context.drawImage(video, 0, 0, 32, 32)
+      const pixels = context.getImageData(0, 0, 32, 32).data
+      let brightness = 0
+      for (let index = 0; index < pixels.length; index += 4) {
+        brightness += (pixels[index] + pixels[index + 1] + pixels[index + 2]) / 3
+      }
+      brightness /= pixels.length / 4
+      setUnsafeWarningKey(brightness < 40 ? 'capture.unsafeLighting' : '')
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [cameraState])
+
+  useEffect(() => () => {
+    recognitionRef.current?.stop()
+    recognitionRef.current = null
+  }, [])
+
+  const savePhoto = async (canvas: HTMLCanvasElement) => {
+    const blob = await createImageBlob(canvas)
+    setPhoto({ blob, dataUrl: canvas.toDataURL('image/jpeg', 0.85) })
+    setAnalysisErrorKey('')
+    setDescriptionTouched(false)
+  }
+
+  const capture = async () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || cameraState !== 'ready' || analyzing) return
+    if (unsafeWarningKey) {
+      setShowSafety(true)
+      return
+    }
+    const dimensions = imageDimensions(video.videoWidth, video.videoHeight)
+    if (!dimensions.width || !dimensions.height) return
+    canvas.width = dimensions.width
+    canvas.height = dimensions.height
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.drawImage(video, 0, 0, dimensions.width, dimensions.height)
+    try {
+      await savePhoto(canvas)
+    } catch (error) {
+      console.error('Unable to process the captured photo:', error)
+      setAnalysisErrorKey('capture.photoProcessingError')
     }
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!applianceType.trim()) {
-  setApplianceError('Please enter the appliance name.')
-  e.target.value = ''
-  return
-}
-setApplianceError('')
-    const file = e.target.files?.[0]
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
     if (!file || analyzing) return
-    setAnalyzing(true)
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const url = URL.createObjectURL(file)
     try {
-      const canvas = canvasRef.current
-      if (!canvas) throw new Error('no canvas')
-      const img = new Image()
-      const url = URL.createObjectURL(file)
+      const image = new Image()
       await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error('Failed to load image'))
-        img.src = url
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error('Unable to load uploaded image.'))
+        image.src = url
       })
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('no context')
-      ctx.drawImage(img, 0, 0)
+      const dimensions = imageDimensions(image.naturalWidth, image.naturalHeight)
+      canvas.width = dimensions.width
+      canvas.height = dimensions.height
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Canvas rendering is unavailable.')
+      context.drawImage(image, 0, 0, dimensions.width, dimensions.height)
+      await savePhoto(canvas)
+    } catch (error) {
+      console.error('Unable to process the uploaded photo:', error)
+      setAnalysisErrorKey('capture.photoProcessingError')
+    } finally {
       URL.revokeObjectURL(url)
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, 'image/jpeg', 0.9)
-      )
-      if (!blob) throw new Error('upload processing failed')
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-      const diagnosis = await analyzeImage(blob)
-      setDiagnosis(diagnosis, dataUrl, applianceType.trim())
+    }
+  }
+
+  const analyze = async () => {
+    setDescriptionTouched(true)
+    if (!photo || !descriptionValid || analyzing) return
+    setAnalyzing(true)
+    setAnalysisErrorKey('')
+    try {
+      const diagnosis = await analyzeImage(photo.blob, description.trim())
+      setDiagnosis(diagnosis, photo.dataUrl, description.trim())
       navigate('/diagnosis')
-    } catch {
-      setCameraState('error')
+    } catch (error) {
+      console.error('Image analysis failed:', error)
+      setAnalysisErrorKey('capture.analysisError')
     } finally {
       setAnalyzing(false)
     }
   }
 
-  const handleVoice = (text: string) => {
+  const handleVoiceCommand = (text: string) => {
     if (text.includes('photo') || text.includes('capture') || text.includes('scan')) {
       void capture()
     }
   }
 
+  const toggleVoiceInput = () => {
+    if (voiceState === 'listening') {
+      recognitionRef.current?.stop()
+      return
+    }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Recognition) return
+    const recognition = new Recognition()
+    recognitionRef.current = recognition
+    recognition.lang = getLocale() === 'hi' ? 'hi-IN' : 'en-IN'
+    recognition.continuous = true
+    recognition.interimResults = true
+    setVoiceErrorKey('')
+    setInterimTranscript('')
+    setVoiceState('listening')
+    recognition.onresult = (event) => {
+      let finalText = ''
+      let interimText = ''
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index]
+        const transcript = result[0]?.transcript ?? ''
+        if (result.isFinal) finalText += transcript
+        else interimText += transcript
+      }
+      if (finalText.trim()) {
+        const finalTranscript = finalText.trim()
+        setDescription((current) =>
+          current.trim()
+            ? `${current.trimEnd()} ${finalTranscript}`
+            : finalTranscript
+        )
+        setDescriptionTouched(true)
+      }
+      setInterimTranscript(interimText)
+    }
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      const errorKey =
+        event.error === 'not-allowed' || event.error === 'service-not-allowed'
+          ? 'capture.voicePermissionError'
+          : event.error === 'no-speech'
+            ? 'capture.voiceNoSpeechError'
+            : 'capture.voiceNetworkError'
+      setVoiceErrorKey(errorKey)
+      setVoiceState('error')
+      setInterimTranscript('')
+    }
+    recognition.onend = () => {
+      setVoiceState((current) => current === 'listening' ? 'idle' : current)
+      setInterimTranscript('')
+      recognitionRef.current = null
+    }
+    try {
+      recognition.start()
+    } catch (error) {
+      console.error('Unable to start voice input:', error)
+      setVoiceErrorKey('capture.voiceNetworkError')
+      setVoiceState('error')
+      recognitionRef.current = null
+    }
+  }
+
+  const clearPhoto = () => {
+    setPhoto(null)
+    setDescription('')
+    setDescriptionTouched(false)
+    setAnalysisErrorKey('')
+  }
+
   return (
-    <PageShell className="relative flex flex-col">
+    <PageShell className="relative flex min-h-screen flex-col">
       <canvas ref={canvasRef} className="hidden" />
-
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => navigate('/')}
-          className="glass-panel rounded-full p-2"
-          aria-label={t('common.back')}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </motion.button>
-        
-        {/* Debug info */}
-        {cameraState === 'ready' && videoSize && (
-          <div className="glass-panel rounded-lg px-3 py-1 text-xs text-text-secondary">
-            {videoSize.w}x{videoSize.h}
-          </div>
-        )}
-        
-        <VoiceInput onCommand={handleVoice} />
-      </div>
-
-      <div className="relative flex-1 min-h-[70vh] bg-black">
-        {/* Video element is ALWAYS mounted so videoRef is available when startCamera runs */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          onLoadedMetadata={(e) =>
-            setVideoSize({
-              w: e.currentTarget.videoWidth,
-              h: e.currentTarget.videoHeight,
-            })
-          }
-          className={`absolute inset-0 w-full h-full object-cover bg-black ${cameraState !== 'ready' ? 'invisible' : ''}`}
-          style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-        />
-
-        {cameraState === 'ready' && (
-          <>
-            {/* Show loading overlay if video not ready */}
-            {!videoReady && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
-                <div className="text-center">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-2" />
-                  <p className="text-text-secondary text-sm">Initializing camera...</p>
-                </div>
-              </div>
-            )}
-            {/* Subtle overlay for better text visibility */}
-            {videoReady && <div className="absolute inset-0 bg-black/5 pointer-events-none" />}
-            <AROverlay variant="capture" />
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: videoReady ? 1 : 0 }}
-              className="absolute bottom-32 left-0 right-0 text-center text-sm text-white drop-shadow-lg px-6 z-10"
-            >
-              {t('capture.instruction')}
-            </motion.p>
-          </>
-        )}
-
-        {(cameraState === 'permission' || cameraState === 'error') && (
-          <div className="absolute inset-0 flex items-center justify-center p-6">
-            <div className="glass-panel rounded-xl p-8 max-w-md text-center">
-              <h2 className="text-heading-md mb-2">
-                {cameraState === 'permission'
-                  ? t('capture.permissionTitle')
-                  : t('capture.errorTitle')}
-              </h2>
-              <p className="text-text-secondary mb-4">
-                {cameraState === 'permission'
-                  ? t('capture.permissionBody')
-                  : t('capture.errorBody')}
-              </p>
-              
-              {/* HTTPS Warning */}
-              {window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && (
-                <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-sm text-yellow-200">
-                    ⚠️ Camera requires HTTPS. Please access via <strong>https://</strong>
-                  </p>
-                </div>
-              )}
-              
-              {/* Permission Reset Instructions */}
-              <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg text-left">
-                <p className="text-sm font-semibold text-primary mb-2">🔧 Quick Fix:</p>
-                <ol className="text-sm text-text-secondary space-y-1 list-decimal list-inside">
-                  <li>Click the 🔒 or 🎥 icon in your browser's address bar</li>
-                  <li>Change Camera permission to "Allow"</li>
-                  <li>Refresh this page or click "Try again" below</li>
-                </ol>
-              </div>
-
-              {/* Upload Photo Fallback — prominent */}
-              <div className="mb-4 p-4 bg-surface-high rounded-xl border border-border">
-                <p className="text-sm text-text-secondary mb-3">Or skip the camera entirely:</p>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={analyzing}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-background disabled:opacity-50"
-                >
-                  {analyzing ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <ImagePlus className="h-5 w-5" />
-                  )}
-                  {analyzing ? t('capture.analyzing') : t('capture.uploadPhoto')}
-                </motion.button>
-              </div>
-              
-              {/* Troubleshooting tips */}
-              <details className="mb-6 text-left">
-                <summary className="cursor-pointer text-sm text-primary hover:underline">
-                  More troubleshooting tips
-                </summary>
-                <ul className="mt-3 text-sm text-text-secondary space-y-2 list-disc list-inside">
-                  <li>Ensure you're using HTTPS (not HTTP)</li>
-                  <li>Close other apps that might be using the camera</li>
-                  <li>Try a different browser (Chrome, Safari, Edge)</li>
-                  <li>Restart your browser</li>
-                  <li>Check if camera works in other websites</li>
-                </ul>
-              </details>
-              
-              <div className="flex gap-3 justify-center">
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={startCamera}
-                  className="rounded-xl border border-primary px-5 py-2.5 text-sm font-semibold text-primary"
-                >
-                  {t('capture.permissionRetry')}
-                </motion.button>
-                
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => window.location.reload()}
-                  className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-text-secondary"
-                >
-                  Refresh Page
-                </motion.button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {cameraState === 'loading' && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          </div>
-        )}
-      </div>
-
-      {/* Hidden file input for upload fallback */}
-      
-<div className="relative z-20 bg-background px-4 py-3">
-  <label htmlFor="applianceType" className="block text-sm font-medium mb-2">
-    Appliance name
-  </label>
-  <input
-    id="applianceType"
-    type="text"
-    value={applianceType}
-    onChange={(e) => {
-      setApplianceType(e.target.value)
-      setApplianceError('')
-    }}
-    placeholder="e.g. Fan, AC, Refrigerator"
-    className="w-full rounded-xl border border-border bg-background p-3 text-text-primary"
-    maxLength={100}
-  />
-  {applianceError && (
-    <p className="text-sm text-error mt-2" role="alert">
-      {applianceError}
-    </p>
-  )}
-</div>
-
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={handleFileUpload}
+        onChange={(event) => void handleFileUpload(event)}
       />
 
-      <div className="relative z-20 flex items-center justify-center gap-8 py-8 bg-background border-t border-border">
-        <motion.button
+      <header className="relative z-20 flex items-center justify-between p-4">
+        <button
           type="button"
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setFacingMode((f) => (f === 'environment' ? 'user' : 'environment'))}
-          className="glass-panel rounded-full p-3"
-          aria-label={t('capture.flip')}
+          onClick={() => navigate('/')}
+          className="glass-panel rounded-full p-2 focus-visible:outline-2 focus-visible:outline-primary"
+          aria-label={t('common.back')}
         >
-          <SwitchCamera className="h-6 w-6 text-text-secondary" />
-        </motion.button>
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        {cameraState === 'ready' && videoSize && !photo && (
+          <span className="glass-panel rounded-lg px-3 py-1 text-xs text-text-secondary">
+            {videoSize.w}x{videoSize.h}
+          </span>
+        )}
+        <VoiceInput onCommand={handleVoiceCommand} />
+      </header>
 
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.9 }}
-          disabled={cameraState !== 'ready' || analyzing}
-          onClick={() => void capture()}
-          className="relative h-20 w-20 rounded-full border-4 border-primary bg-primary/20 flex items-center justify-center disabled:opacity-50 animate-pulse-glow"
-          aria-label={t('capture.capture')}
-        >
-          {analyzing ? (
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pb-6">
+        <section className="relative min-h-[38vh] flex-1 overflow-hidden rounded-2xl bg-black sm:min-h-[48vh]">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            onLoadedMetadata={(event) => {
+              setVideoSize({
+                w: event.currentTarget.videoWidth,
+                h: event.currentTarget.videoHeight,
+              })
+              setCameraState('ready')
+            }}
+            onPlaying={() => setCameraState('ready')}
+            className={`absolute inset-0 h-full w-full object-cover ${photo || cameraState !== 'ready' ? 'invisible' : ''}`}
+            style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : undefined }}
+          />
+          {photo ? (
+            <img
+              src={photo.dataUrl}
+              alt={t('capture.photoPreviewAlt')}
+              className="absolute inset-0 h-full w-full object-contain"
+            />
+          ) : cameraState === 'ready' ? (
+            <>
+              <AROverlay variant="capture" />
+              <p className="absolute bottom-4 left-0 right-0 z-10 px-4 text-center text-sm text-white drop-shadow-lg">
+                {t('capture.instruction')}
+              </p>
+            </>
           ) : (
-            <Camera className="h-8 w-8 text-primary" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-5 text-center">
+              {cameraState === 'loading' && <Loader2 className="h-9 w-9 animate-spin text-primary" />}
+              {cameraState === 'error' && (
+                <>
+                  <p role="alert" className="max-w-md text-sm text-text-secondary">
+                    {t(cameraErrorKey)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRetryCount((count) => count + 1)}
+                    className="rounded-xl border border-primary px-5 py-2.5 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    {t('capture.permissionRetry')}
+                  </button>
+                </>
+              )}
+            </div>
           )}
-        </motion.button>
+          {unsafeWarningKey && !photo && cameraState === 'ready' && (
+            <p role="status" className="absolute left-3 right-3 top-3 z-20 rounded-lg bg-background/85 p-2 text-center text-sm text-warning">
+              {t(unsafeWarningKey)}
+            </p>
+          )}
+        </section>
 
-        {/* Upload button — always available as alternative */}
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={analyzing}
-          className="glass-panel rounded-full p-3 disabled:opacity-50"
-          aria-label={t('capture.uploadPhoto')}
-        >
-          <Upload className="h-6 w-6 text-text-secondary" />
-        </motion.button>
-      </div>
-
-      {analyzing && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-md">
-          <p className="text-body-lg shimmer-loading px-8 py-4 rounded-xl">
-            {t('capture.analyzing')}
-          </p>
-        </div>
-      )}
+        {!photo ? (
+          <section className="glass-panel rounded-2xl p-4">
+            <p className="mb-4 text-center text-sm text-text-secondary">{t('capture.title')}</p>
+            <div className="flex items-center justify-center gap-5">
+              <button
+                type="button"
+                onClick={() => setFacingMode((mode) => mode === 'environment' ? 'user' : 'environment')}
+                className="glass-panel rounded-full p-3 focus-visible:outline-2 focus-visible:outline-primary"
+                aria-label={t('capture.flip')}
+              >
+                <SwitchCamera className="h-6 w-6 text-text-secondary" />
+              </button>
+              <button
+                type="button"
+                onClick={() => void capture()}
+                disabled={cameraState !== 'ready' || analyzing}
+                className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-primary bg-primary/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+                aria-label={t('capture.capture')}
+              >
+                <Camera className="h-8 w-8 text-primary" />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={analyzing}
+                className="glass-panel rounded-full p-3 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+                aria-label={t('capture.uploadPhoto')}
+              >
+                <Upload className="h-6 w-6 text-text-secondary" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={analyzing}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+              aria-label={t('capture.uploadPhoto')}
+            >
+              <ImagePlus className="h-5 w-5" />
+              {t('capture.uploadPhoto')}
+            </button>
+          </section>
+        ) : (
+          <section className="glass-panel space-y-4 rounded-2xl p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-heading-md">{t('capture.describeProblem')}</h1>
+              <button
+                type="button"
+                onClick={clearPhoto}
+                className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {t('capture.retakePhoto')}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              aria-label={t('capture.chooseAnotherPhoto')}
+            >
+              {t('capture.chooseAnotherPhoto')}
+            </button>
+            <label htmlFor="problem-description" className="block text-sm font-medium">
+              {t('capture.descriptionLabel')}
+            </label>
+            <div className="relative">
+              <textarea
+                id="problem-description"
+                value={description}
+                onChange={(event) => {
+                  setDescription(event.target.value)
+                  setDescriptionTouched(true)
+                }}
+                onBlur={() => setDescriptionTouched(true)}
+                rows={4}
+                minLength={MIN_DESCRIPTION_LENGTH}
+                maxLength={MAX_DESCRIPTION_LENGTH}
+                required
+                placeholder={t('capture.descriptionPlaceholder')}
+                aria-describedby="description-counter description-validation"
+                aria-invalid={descriptionTouched && !descriptionValid}
+                className="w-full resize-y rounded-xl border border-border bg-background p-3 pr-14 text-text-primary placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-primary"
+              />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={toggleVoiceInput}
+                  className={`absolute right-3 top-3 rounded-full p-2 transition focus-visible:outline-2 focus-visible:outline-primary ${voiceState === 'listening' ? 'animate-pulse ring-2 ring-teal-400' : ''}`}
+                  aria-label={voiceState === 'listening' ? t('capture.stopListening') : t('capture.startListening')}
+                >
+                  <Mic className="h-5 w-5 text-primary" />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <p id="description-validation" role={descriptionTouched && !descriptionValid ? 'alert' : undefined} className={descriptionTouched && !descriptionValid ? 'text-error' : 'text-text-subtle'}>
+                {descriptionValidation}
+              </p>
+              <p id="description-counter" className="text-text-subtle">
+                {t('capture.characterCount')}: {description.length}/{MAX_DESCRIPTION_LENGTH}
+              </p>
+            </div>
+            {voiceSupported ? (
+              <div aria-live="polite" className="text-sm text-text-secondary">
+                {voiceState === 'listening' && (
+                  <p className="animate-pulse text-primary">{t('capture.listening')}</p>
+                )}
+                {interimTranscript && <p>{interimTranscript}</p>}
+                {voiceState === 'error' && voiceErrorKey && <p role="alert" className="text-error">{t(voiceErrorKey)}</p>}
+              </div>
+            ) : (
+              <p className="text-xs text-text-subtle">{t('capture.voiceUnsupported')}</p>
+            )}
+            {analysisErrorKey && <p role="alert" className="text-sm text-error">{t(analysisErrorKey)}</p>}
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => void analyze()}
+              disabled={!photo || !descriptionValid || analyzing}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+              aria-label={t('capture.analyze')}
+            >
+              {analyzing && <Loader2 className="h-5 w-5 animate-spin" />}
+              {analyzing ? t('capture.analyzing') : t('capture.analyze')}
+            </motion.button>
+          </section>
+        )}
+      </main>
 
       <SafetyBubble
         open={showSafety}
-        message={unsafeWarning ?? ''}
+        message={unsafeWarningKey ? t(unsafeWarningKey) : ''}
         onConfirm={() => {
           setShowSafety(false)
+          setUnsafeWarningKey('')
           void capture()
         }}
         onCancel={() => setShowSafety(false)}
       />
-
-      {/* Camera Diagnostics Tool - helpful for debugging */}
-      {(cameraState === 'permission' || cameraState === 'error') && <CameraDiagnostics />}
     </PageShell>
   )
 }

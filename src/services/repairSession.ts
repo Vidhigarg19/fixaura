@@ -21,14 +21,14 @@ export function saveSession(partial: Partial<RepairSession>) {
 export function setDiagnosis(
   diagnosis: DiagnosisResult,
   imageDataUrl?: string,
-  applianceType?: string
+  description = ''
 ) {
   saveSession({
     diagnosis,
     diagnosisAttemptId: crypto.randomUUID(),
     diagnosisPersistence: undefined,
     imageDataUrl,
-    applianceType,
+    description,
     historySessionId: undefined,
     steps: undefined,
     currentStep: 0,
