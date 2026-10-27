@@ -7,8 +7,9 @@ import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
-import FollowUpChat from '../components/FollowUpChat'
+import { useAssistantContext } from '../components/assistantContext'
 import { estimateSavings, getSession, saveSession } from '../services/repairSession'
+import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { persistCompletedRepair } from '../services/completedRepair'
 import { buildRepairPlan } from '../services/repairPlanner'
@@ -17,7 +18,8 @@ import { t } from '../i18n'
 
 export default function RepairGuide() {
   const navigate = useNavigate()
-  const session = getSession()
+  const session = useMemo(() => getSession(), [])
+  const { setRepairContext } = useAssistantContext()
   const steps = useMemo(
     () => session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
     [session?.diagnosis, session?.steps]
@@ -35,6 +37,16 @@ export default function RepairGuide() {
   const total = steps.length
 
   useEffect(() => {
+    setRepairContext(assistantContextFromSession(
+      session?.diagnosis,
+      session?.description ?? '',
+      steps,
+      index,
+      session?.historySessionId
+    ))
+  }, [session, steps, index, setRepairContext])
+
+  useEffect(() => {
     if (!session?.diagnosis) navigate('/capture')
   }, [session, navigate])
 
@@ -46,6 +58,13 @@ export default function RepairGuide() {
 
   const moveTo = (nextIndex: number) => {
     setIndex(nextIndex)
+    setRepairContext(assistantContextFromSession(
+      session?.diagnosis,
+      session?.description ?? '',
+      steps,
+      nextIndex,
+      session?.historySessionId
+    ))
     saveSession({ currentStep: nextIndex })
     setProgressError('')
     if (session?.historySessionId) {
@@ -200,11 +219,6 @@ export default function RepairGuide() {
           </motion.div>
         </AnimatePresence>
 
-        {session.diagnosis && <FollowUpChat
-          sessionId={session.historySessionId}
-          diagnosis={session.diagnosis}
-          step={step}
-        />}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 py-4">

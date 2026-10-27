@@ -9,16 +9,16 @@ export interface HistorySession {
   user_id: string
   title: string | null
   description: string | null
-  issue_name: string
-  diagnosis: DiagnosisResult
-  steps: RepairStep[]
-  current_step: number
-  status: RepairStatus
+  issue_name: string | null
+  diagnosis: DiagnosisResult | null
+  steps: RepairStep[] | null
+  current_step: number | null
+  status: RepairStatus | null
   image_path: string | null
-  created_at: string
-  updated_at: string
+  created_at: string | null
+  updated_at: string | null
   completed_at: string | null
-  message_count: number
+  message_count: number | null
 }
 
 export interface HistoryMessage {
@@ -30,7 +30,46 @@ export interface HistoryMessage {
   created_at: string
 }
 
-type SessionRow = Omit<HistorySession, 'message_count'>
+type SessionRow = Partial<Omit<HistorySession, 'message_count'>>
+
+export interface ListSessionsResult {
+  sessions: HistorySession[]
+  messageCountWarning: boolean
+}
+
+function normalizeSession(row: SessionRow, messageCount = 0): HistorySession {
+  return {
+    id: row.id ?? '',
+    user_id: row.user_id ?? '',
+    title: row.title ?? null,
+    description: row.description ?? null,
+    issue_name: row.issue_name ?? row.title ?? null,
+    diagnosis: row.diagnosis ?? null,
+    steps: Array.isArray(row.steps) ? row.steps : [],
+    current_step:
+      typeof row.current_step === 'number' && Number.isFinite(row.current_step)
+        ? row.current_step
+        : 0,
+    status: row.status === 'completed' ? 'completed' : 'in_progress',
+    image_path: row.image_path ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
+    completed_at: row.completed_at ?? null,
+    message_count:
+      Number.isFinite(messageCount) && messageCount >= 0 ? messageCount : 0,
+  }
+}
+
+function normalizeMessage(row: Partial<HistoryMessage>): HistoryMessage {
+  return {
+    id: row.id ?? '',
+    session_id: row.session_id ?? '',
+    user_id: row.user_id ?? '',
+    role: row.role === 'user' ? 'user' : 'assistant',
+    content: row.content ?? '',
+    created_at: row.created_at ?? '',
+  }
+}
 
 async function getUserId(): Promise<string | null> {
   if (!supabase) return null
@@ -66,7 +105,7 @@ export async function createSession(
     .select('*')
     .single()
   if (error) throw readableError('Unable to save this repair', error)
-  return { ...(data as SessionRow), message_count: 0 }
+  return normalizeSession(data as SessionRow)
 }
 
 export async function updateProgress(
@@ -83,7 +122,7 @@ export async function updateProgress(
     .select('*')
     .maybeSingle()
   if (error) throw readableError('Unable to save repair progress', error)
-  return data ? { ...(data as SessionRow), message_count: 0 } : null
+  return data ? normalizeSession(data as SessionRow) : null
 }
 
 export async function completeSession(sessionId: string): Promise<HistorySession | null> {
@@ -97,12 +136,12 @@ export async function completeSession(sessionId: string): Promise<HistorySession
     .select('*')
     .maybeSingle()
   if (error) throw readableError('Unable to mark this repair complete', error)
-  return data ? { ...(data as SessionRow), message_count: 0 } : null
+  return data ? normalizeSession(data as SessionRow) : null
 }
 
-export async function listSessions(): Promise<HistorySession[]> {
+export async function listSessions(): Promise<ListSessionsResult> {
   const userId = await getUserId()
-  if (!supabase || !userId) return []
+  if (!supabase || !userId) return { sessions: [], messageCountWarning: false }
   const { data, error } = await supabase
     .from('repair_sessions')
     .select('*')
@@ -111,21 +150,33 @@ export async function listSessions(): Promise<HistorySession[]> {
   if (error) throw readableError('Unable to load repair history', error)
 
   const sessions = (data ?? []) as SessionRow[]
-  if (!sessions.length) return []
-  const { data: messageRows, error: messageError } = await supabase
-    .from('chat_messages')
-    .select('session_id')
-    .eq('user_id', userId)
-    .in('session_id', sessions.map((session) => session.id))
-  if (messageError) throw readableError('Unable to load repair message counts', messageError)
+  if (!sessions.length) return { sessions: [], messageCountWarning: false }
+
   const counts = new Map<string, number>()
-  for (const row of messageRows ?? []) {
-    counts.set(row.session_id, (counts.get(row.session_id) ?? 0) + 1)
+  let messageCountWarning = false
+  try {
+    const { data: messageRows, error: messageError } = await supabase
+      .from('chat_messages')
+      .select('session_id')
+      .eq('user_id', userId)
+      .in('session_id', sessions.map((session) => session.id ?? '').filter(Boolean))
+    if (messageError) throw readableError('Unable to load repair message counts', messageError)
+    for (const row of messageRows ?? []) {
+      if (typeof row.session_id === 'string') {
+        counts.set(row.session_id, (counts.get(row.session_id) ?? 0) + 1)
+      }
+    }
+  } catch (reason) {
+    console.warn('Unable to load repair message counts:', reason)
+    messageCountWarning = true
   }
-  return sessions.map((session) => ({
-    ...session,
-    message_count: counts.get(session.id) ?? 0,
-  }))
+
+  return {
+    sessions: sessions.map((session) =>
+      normalizeSession(session, counts.get(session.id ?? '') ?? 0)
+    ),
+    messageCountWarning,
+  }
 }
 
 export async function getSession(id: string): Promise<HistorySession | null> {
@@ -139,13 +190,19 @@ export async function getSession(id: string): Promise<HistorySession | null> {
     .maybeSingle()
   if (error) throw readableError('Unable to load this repair', error)
   if (!data) return null
-  const { count, error: countError } = await supabase
-    .from('chat_messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('session_id', id)
-    .eq('user_id', userId)
-  if (countError) throw readableError('Unable to load repair messages', countError)
-  return { ...(data as SessionRow), message_count: count ?? 0 }
+  let messageCount = 0
+  try {
+    const { count, error: countError } = await supabase
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('session_id', id)
+      .eq('user_id', userId)
+    if (countError) throw readableError('Unable to load repair message count', countError)
+    messageCount = count ?? 0
+  } catch (reason) {
+    console.warn('Unable to load repair message count:', reason)
+  }
+  return normalizeSession(data as SessionRow, messageCount)
 }
 
 export async function getMessages(sessionId: string): Promise<HistoryMessage[]> {
@@ -158,7 +215,7 @@ export async function getMessages(sessionId: string): Promise<HistoryMessage[]> 
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
   if (error) throw readableError('Unable to load repair messages', error)
-  return (data ?? []) as HistoryMessage[]
+  return ((data ?? []) as HistoryMessage[]).map((message) => normalizeMessage(message))
 }
 
 export async function addMessage(
@@ -174,7 +231,7 @@ export async function addMessage(
     .select('*')
     .single()
   if (error) throw readableError('Unable to save your message', error)
-  return data as HistoryMessage
+  return normalizeMessage(data as HistoryMessage)
 }
 
 export async function deleteSession(id: string): Promise<boolean> {

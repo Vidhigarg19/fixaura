@@ -3,7 +3,14 @@
     "features": "Features",
     "showcase": "Repairs",
     "testimonials": "Stories",
-    "scan": "Scan Problem"
+    "scan": "Scan Problem",
+    "home": "FixAura home",
+    "mainMenu": "Main navigation",
+    "accountMenu": "Open account menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "logIn": "Log in",
+    "signOut": "Sign out"
   },
   "landing": {
     "headline": "Fix anything. Fear nothing.",
@@ -254,6 +261,12 @@
     "languageHI": "हिन्दी",
     "brandName": "FixAura"
   },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "body": "This page ran into an unexpected problem. You can try loading it again or return to the home page.",
+    "tryAgain": "Try again",
+    "goHome": "Go home"
+  },
   "safety": {
     "powerOff": "Turn off power at the breaker before continuing.",
     "waterShutoff": "Shut off water supply before disassembly.",
@@ -307,6 +320,8 @@
     "mockReply": "Mock reply: This is a sample response. Follow the repair steps and safety notes shown above.",
     "back": "Back",
     "loadError": "We couldn't load your repair history.",
+    "messageCountWarning": "Message counts are temporarily unavailable.",
+    "diagnosisMissing": "This repair is missing its diagnosis and can't be continued.",
     "deleteError": "We couldn't delete this repair.",
     "progressError": "We couldn't save your repair progress.",
     "chatError": "We couldn't load or save the repair chat.",
@@ -317,5 +332,59 @@
     "email": "Email address",
     "sendLoginLink": "Email me a sign-in link",
     "loginSent": "Check your email for a sign-in link."
+  },
+  "assistant": {
+    "title": "FixAura Assistant",
+    "demoBadge": "Demo replies",
+    "open": "Open FixAura Assistant",
+    "close": "Close assistant",
+    "newChat": "New chat",
+    "welcome": "Hi! Ask me about repairs, safety, or the step you're working on.",
+    "placeholder": "Ask about your repair...",
+    "inputLabel": "Message the FixAura Assistant",
+    "send": "Send message",
+    "thinking": "FixAura Assistant is thinking",
+    "keyboardHelp": "Press Enter to send. Press Shift and Enter for a new line.",
+    "contextLine": "Helping with: {issue} - Step {step} of {total}",
+    "persistenceWarning": "This chat couldn't be saved or loaded. You can keep chatting here.",
+    "chips": {
+      "general": {
+        "work": "How does FixAura work?",
+        "repairs": "What can I repair?",
+        "safety": "Is it safe to do this myself?"
+      },
+      "repair": {
+        "explain": "Explain this step again",
+        "why": "Why is this step needed?",
+        "safe": "Is this safe?",
+        "troubleshoot": "What if it doesn't work?",
+        "tools": "Which tool do I need?"
+      }
+    },
+    "voice": {
+      "start": "Start voice input",
+      "stop": "Stop voice input",
+      "listening": "Listening...",
+      "unsupported": "Voice input isn't supported in this browser.",
+      "permission": "Microphone permission was denied. Allow access in your browser settings and try again.",
+      "noSpeech": "No speech was detected. Please try speaking again.",
+      "network": "Voice input failed because of a network error. Please try again.",
+      "generic": "Voice input couldn't start. Please try again."
+    },
+    "reply": {
+      "hazard": "Stop work now. Do not touch the appliance, wiring, water, or controls. If you can make the area safe without approaching or touching the hazard, do so; otherwise move away and keep others clear. Call a qualified professional or local emergency service. Do not attempt a DIY repair.",
+      "explain": "Step {step} of {total}: {title}. In plain language, this step asks you to: {instruction}",
+      "why": "This step, “{title},” helps address {issue} safely and correctly. It prepares the repair for what comes next. Safety note: {safety}",
+      "safe": "I can't confirm safety remotely. Follow this step's safety note: {safety} If anything seems unsafe or you are unsure, stop and contact a qualified professional.",
+      "troubleshoot": "If it doesn't work, stop before forcing anything. Check that you followed the instructions and safety checks, then review the diagnosis. If the problem remains or you are unsure, contact a qualified professional.",
+      "tools": "The recommended tools for this repair are: {tools}. Use only tools you can handle safely, and don't substitute a tool if that could damage the appliance or create a hazard.",
+      "how": "FixAura helps you describe or scan a household problem, understand a suggested diagnosis, and follow guided repair steps with safety reminders. You can ask me questions as you work.",
+      "repairs": "FixAura can help plan common household repairs across appliances, plumbing, furniture, electronics, outdoor items, and fixtures. The suggested diagnosis may be uncertain, so use professional help when needed.",
+      "fallback": "I can help explain repair steps, discuss safety notes, and suggest what to check next. Tell me what you are trying to understand, and stop if you notice a safety hazard.",
+      "noTools": "No specific tools were listed for this repair.",
+      "noSafetyNote": "No step-specific safety note was provided.",
+      "noStep": "the current repair step",
+      "currentRepair": "this repair"
+    }
   }
 }

@@ -30,6 +30,7 @@ export default function History() {
   const [sessions, setSessions] = useState<HistorySession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [messageCountWarning, setMessageCountWarning] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<HistorySession | null>(null)
   const [viewing, setViewing] = useState<HistorySession | null>(null)
   const [viewMessages, setViewMessages] = useState<HistoryMessage[]>([])
@@ -43,7 +44,8 @@ export default function History() {
       .then((result) => {
         if (!active) return
         setError('')
-        setSessions(result)
+        setSessions(result.sessions)
+        setMessageCountWarning(result.messageCountWarning)
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : t('history.loadError'))
@@ -69,10 +71,18 @@ export default function History() {
         setError(t('history.sessionMissing'))
         return
       }
+      if (!saved.diagnosis) {
+        setError(t('history.diagnosisMissing'))
+        return
+      }
+      const steps = saved.steps ?? []
       saveSession({
         diagnosis: saved.diagnosis,
-        steps: saved.steps,
-        currentStep: Math.min(saved.current_step, Math.max(saved.steps.length - 1, 0)),
+        steps,
+        currentStep: Math.min(
+          saved.current_step ?? 0,
+          Math.max(steps.length - 1, 0)
+        ),
         historySessionId: saved.id,
         imageDataUrl: undefined,
         completedAt: undefined,
@@ -106,11 +116,17 @@ export default function History() {
     }
   }
 
-  const formattedDate = (date: string) =>
-    new Intl.DateTimeFormat(locale === 'hi' ? 'hi-IN' : 'en-US', {
+  const formattedDate = (date: string | null | undefined) => {
+    if (!date) return '—'
+    const parsedDate = new Date(date)
+    if (Number.isNaN(parsedDate.getTime())) return '—'
+    return new Intl.DateTimeFormat(locale === 'hi' ? 'hi-IN' : 'en-US', {
       dateStyle: 'medium',
       timeStyle: 'short',
-    }).format(new Date(date))
+    }).format(parsedDate)
+  }
+  const sessionList = sessions ?? []
+  const messages = viewMessages ?? []
 
   return (
     <PageShell className="min-h-screen px-4 py-8 sm:py-12">
@@ -127,7 +143,7 @@ export default function History() {
         {latestInProgress && (
           <p className="mt-3 flex items-center gap-2 text-sm text-primary">
             <Clock3 className="h-4 w-4" aria-hidden="true" />
-            {latestInProgress.issue_name}
+            {latestInProgress.issue_name ?? '—'}
           </p>
         )}
 
@@ -140,7 +156,11 @@ export default function History() {
                 setLoading(true)
                 setError('')
                 void load()
-                  .then((result) => setSessions(result))
+                  .then((result) => {
+                    setSessions(result.sessions)
+                    setMessageCountWarning(result.messageCountWarning)
+                    setError('')
+                  })
                   .catch((reason: unknown) => {
                     setError(reason instanceof Error ? reason.message : t('history.loadError'))
                   })
@@ -153,13 +173,19 @@ export default function History() {
           </div>
         )}
 
+        {messageCountWarning && !loading && (
+          <p role="status" className="mt-4 text-sm text-text-subtle">
+            {t('history.messageCountWarning')}
+          </p>
+        )}
+
         {loading ? (
           <div className="mt-8 space-y-4" aria-label={t('common.loading')} aria-busy="true">
             {Array.from({ length: 3 }, (_, index) => (
               <div key={index} className="glass-panel h-36 animate-pulse rounded-xl" />
             ))}
           </div>
-        ) : !error && sessions.length === 0 ? (
+        ) : !error && sessionList.length === 0 ? (
           <div className="glass-panel mt-8 rounded-xl p-8 text-center">
             <h2 className="text-heading-md">{t('history.emptyTitle')}</h2>
             <p className="mt-2 text-text-secondary">{t('history.emptyBody')}</p>
@@ -177,7 +203,7 @@ export default function History() {
             animate="visible"
             className="mt-8 space-y-4"
           >
-            {sessions.map((session) => (
+            {sessionList.map((session) => (
               <motion.li
                 key={session.id}
                 variants={cardVariants}
@@ -187,13 +213,13 @@ export default function History() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="break-words text-lg font-semibold">{session.issue_name}</h2>
+                    <h2 className="break-words text-lg font-semibold">{session.issue_name ?? session.title ?? '—'}</h2>
                     <p className="mt-1 text-sm text-text-subtle">{formattedDate(session.updated_at)}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setPendingDelete(session)}
-                    aria-label={`${t('history.delete')} ${session.issue_name}`}
+                    aria-label={`${t('history.delete')} ${session.issue_name ?? session.title ?? '—'}`}
                     className="shrink-0 rounded-lg p-2 text-text-subtle hover:text-warning focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <Trash2 className="h-5 w-5" aria-hidden="true" />
@@ -205,14 +231,14 @@ export default function History() {
                       ? 'bg-primary/10 text-primary'
                       : 'bg-warning/10 text-warning'
                   }`}>
-                    {t(`history.status.${session.status}`)}
+                    {t(`history.status.${session.status ?? 'in_progress'}`)}
                   </span>
                   <span className="text-text-secondary">
-                    {t('history.step')} {Math.min(session.current_step + 1, session.steps.length)} {t('history.of')} {session.steps.length}
+                    {t('history.step')} {Math.min((session.current_step ?? 0) + 1, session.steps?.length ?? 0)} {t('history.of')} {session.steps?.length ?? 0}
                   </span>
                   <span className="inline-flex items-center gap-1 text-text-secondary">
                     <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                    {session.message_count} {t('history.messages')}
+                    {session.message_count ?? 0} {t('history.messages')}
                   </span>
                 </div>
                 <button
@@ -222,7 +248,7 @@ export default function History() {
                     : void continueSession(session.id)}
                   className="mt-4 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary sm:w-auto"
                 >
-                  {session.status === 'completed' ? t('history.view') : t('history.continue')}
+                  {(session.status ?? 'in_progress') === 'completed' ? t('history.view') : t('history.continue')}
                 </button>
               </motion.li>
             ))}
@@ -243,7 +269,7 @@ export default function History() {
               className="glass-panel w-full max-w-sm rounded-xl p-6"
             >
               <h2 id="delete-title" className="text-heading-md">{t('history.confirmDelete')}</h2>
-              <p className="mt-2 text-sm text-text-secondary">{pendingDelete.issue_name}</p>
+              <p className="mt-2 text-sm text-text-secondary">{pendingDelete.issue_name ?? pendingDelete.title ?? '—'}</p>
               <div className="mt-6 flex gap-3">
                 <button type="button" onClick={() => setPendingDelete(null)} className="flex-1 rounded-lg border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary">
                   {t('common.cancel')}
@@ -267,7 +293,7 @@ export default function History() {
               className="glass-panel max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl p-5 sm:p-6"
             >
               <div className="flex items-start justify-between gap-4">
-                <h2 id="summary-title" className="text-heading-md">{viewing.issue_name}</h2>
+                <h2 id="summary-title" className="text-heading-md">{viewing.issue_name ?? viewing.title ?? '—'}</h2>
                 <button
                   type="button"
                   aria-label={t('history.close')}
@@ -280,13 +306,13 @@ export default function History() {
               <p className="mt-1 text-sm text-text-subtle">{formattedDate(viewing.created_at)}</p>
               <section className="mt-5 space-y-3">
                 <h3 className="font-semibold">{t('history.diagnosis')}</h3>
-                <p className="text-sm text-text-secondary">{viewing.diagnosis.summary}</p>
-                <p className="text-sm text-text-secondary">{viewing.diagnosis.recommendedFix}</p>
+                <p className="text-sm text-text-secondary">{viewing.diagnosis?.summary ?? '—'}</p>
+                <p className="text-sm text-text-secondary">{viewing.diagnosis?.recommendedFix ?? '—'}</p>
                 <h3 className="pt-2 font-semibold">{t('history.savedChat')}</h3>
                 {viewError && <p role="alert" className="text-sm text-warning">{viewError}</p>}
-                {!viewMessages.length && !viewError && <p className="text-sm text-text-subtle">{t('history.chatEmpty')}</p>}
+                {!messages.length && !viewError && <p className="text-sm text-text-subtle">{t('history.chatEmpty')}</p>}
                 <div className="space-y-2">
-                  {viewMessages.map((message) => (
+                  {messages.map((message) => (
                     <p key={message.id} className="rounded-lg bg-surface-high p-3 text-sm">
                       <span className="font-semibold">{t(`history.${message.role}`)}: </span>
                       {message.content}

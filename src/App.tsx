@@ -2,6 +2,9 @@ import { Suspense, lazy, useEffect, useState, useSyncExternalStore, type ReactNo
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Wrench } from 'lucide-react'
+import ErrorBoundary from './components/ErrorBoundary'
+import AssistantProvider from './components/AssistantProvider'
+import AssistantWidget from './components/AssistantWidget'
 import { getLocale, subscribeLocale } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
 import { supabase } from './services/supabase'
@@ -57,7 +60,7 @@ function AnimatedRoutes() {
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
             <Route path="/completed" element={<Completion />} />
-            <Route path="/history" element={<ProtectedHistory />} />
+            <Route path="/history" element={<ErrorBoundary><ProtectedHistory /></ErrorBoundary>} />
             <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -130,7 +133,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <LocaleSync />
-      <AnimatedRoutes />
+      <AssistantProvider>
+        <ErrorBoundary>
+          <AnimatedRoutes />
+          <AssistantWidget />
+        </ErrorBoundary>
+      </AssistantProvider>
     </BrowserRouter>
   )
 }
