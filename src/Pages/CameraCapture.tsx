@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react'
 import PageShell from '../components/PageShell'
+import Navbar from '../components/Navbar'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
@@ -366,6 +367,7 @@ export default function CameraCapture() {
 
   return (
     <PageShell className="relative flex min-h-screen flex-col">
+      <Navbar />
       <canvas ref={canvasRef} className="hidden" />
       <input
         ref={fileInputRef}

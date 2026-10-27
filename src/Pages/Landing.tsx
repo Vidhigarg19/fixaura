@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import type { User } from '@supabase/supabase-js'
+import React from 'react'
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
@@ -10,7 +9,6 @@ import {
   Zap,
   Star,
   Play,
-  ChevronRight,
   BadgeCheck,
   CheckCircle2,
   Sparkles,
@@ -22,10 +20,9 @@ import {
   Sofa,
   GlassWater,
 } from "lucide-react";
-import LanguageToggle from "../components/LanguageToggle";
+import Navbar from "../components/Navbar";
 import ConfidenceMeter from "../components/ConfidenceMeter";
-import { t, subscribeLocale } from '../i18n'
-import { supabase } from '../services/supabase'
+import { t } from '../i18n'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -126,121 +123,13 @@ const testimonials = [
 ];
 
 export default function Landing() {
-  const [, forceUpdate] = useState(0)
-  const [authUser, setAuthUser] = useState<User | null>(null)
-  useEffect(() => {
-  const unsubscribe = subscribeLocale(() => forceUpdate(n => n + 1))
-  return () => { unsubscribe() }
-}, [])
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthUser(session?.user ?? null)
-    })
-
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error('Unable to check sign-in status:', error)
-        return
-      }
-      if (active) setAuthUser(data.session?.user ?? null)
-    })
-
-    return () => {
-      active = false
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  async function handleSignOut() {
-    if (!supabase) return
-    const { error } = await supabase.auth.signOut()
-    if (error) console.error('Sign out failed:', error)
-  }
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
       <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[72px_72px]" />
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
-      <motion.header
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 glass-panel border-b border-border/80 backdrop-blur-xl"
-      >
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-4">
-          <motion.div
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-3"
-          >
-            <img
-              src="/logo.png"
-              alt="FixAura Logo"
-              className="h-10 w-10 rounded-2xl object-contain"
-            />
-                <div className="leading-none">
-              <span className="block font-bold text-[18px] tracking-tight text-text-primary">
-                {t("common.brandName")}
-              </span>
-              <span className="block text-[11px] uppercase tracking-[0.26em] text-text-subtle mt-1">
-                {t("landing.footerTagline")}
-              </span>
-            </div>
-          </motion.div>
-
-          <nav className="hidden md:flex items-center gap-8 text-sm text-text-secondary">
-            <a href="#features" className="hover:text-primary transition-colors">
-              {t("nav.features")}
-            </a>
-            <a href="#showcase" className="hover:text-primary transition-colors">
-              {t("nav.showcase")}
-            </a>
-            <a href="#testimonials" className="hover:text-primary transition-colors">
-              {t("nav.testimonials")}
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {authUser && (
-              <Link
-                to="/history"
-                className="rounded-lg px-2 py-2 text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
-              >
-                {t('history.navHistory')}
-              </Link>
-            )}
-            <LanguageToggle />
-            {authUser ? (
-              <button
-                type="button"
-                onClick={() => void handleSignOut()}
-                className="rounded-full border border-border-default/90 px-4 py-2.5 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
-              >
-                Sign out
-              </button>
-            ) : (
-              <Link
-                to="/auth"
-                className="rounded-full border border-border-default/90 px-4 py-2.5 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
-              >
-                Sign In
-              </Link>
-            )}
-            <Link to="/capture">
-              <motion.span
-                whileHover={{ scale: 1.03, boxShadow: "0 0 32px rgba(0,245,212,0.45)" }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)]"
-              >
-                {t("nav.scan")}
-                <ChevronRight className="h-4 w-4" />
-              </motion.span>
-            </Link>
-          </div>
-        </div>
-      </motion.header>
+      <Navbar />
 
       <main className="relative">
         <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
