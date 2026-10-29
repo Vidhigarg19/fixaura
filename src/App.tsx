@@ -16,6 +16,7 @@ const Diagnosis = lazy(() => import('./Pages/Diagnosis'))
 const DiagnosisHistory = lazy(() => import('./Pages/DiagnosisHistory'))
 const ToolChecklist = lazy(() => import('./Pages/ToolChecklist'))
 const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
+const Verify = lazy(() => import('./Pages/Verify'))
 const Completion = lazy(() => import('./Pages/Completion'))
 const History = lazy(() => import('./Pages/History'))
 const Login = lazy(() => import('./Pages/Login'))
@@ -56,6 +57,7 @@ function AnimatedRoutes() {
             <Route path="/diagnosis" element={<Diagnosis />} />
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
+            <Route path="/verify" element={<Verify />} />
             <Route path="/completed" element={<Completion />} />
             <Route path="/history" element={<ErrorBoundary><ProtectedHistory /></ErrorBoundary>} />
             <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />

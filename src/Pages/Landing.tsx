@@ -7,7 +7,7 @@ import {
   Shield,
   Wrench,
   Zap,
-  Star,
+  Languages,
   Play,
   BadgeCheck,
   CheckCircle2,
@@ -105,21 +105,27 @@ const categories = [
     image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&q=80" },
 ]
 
-const testimonials = [
+const whyFixaura = [
   {
-    nameKey: "landing.testimonials.maya.name",
-    roleKey: "landing.testimonials.maya.role",
-    quoteKey: "landing.testimonials.maya.quote",
+    key: "safety",
+    icon: Shield,
+    tagKey: "landing.why.safety.tag",
+    titleKey: "landing.why.safety.title",
+    descriptionKey: "landing.why.safety.description",
   },
   {
-    nameKey: "landing.testimonials.james.name",
-    roleKey: "landing.testimonials.james.role",
-    quoteKey: "landing.testimonials.james.quote",
+    key: "language",
+    icon: Languages,
+    tagKey: "landing.why.language.tag",
+    titleKey: "landing.why.language.title",
+    descriptionKey: "landing.why.language.description",
   },
   {
-    nameKey: "landing.testimonials.priya.name",
-    roleKey: "landing.testimonials.priya.role",
-    quoteKey: "landing.testimonials.priya.quote",
+    key: "assistant",
+    icon: Sparkles,
+    tagKey: "landing.why.assistant.tag",
+    titleKey: "landing.why.assistant.title",
+    descriptionKey: "landing.why.assistant.description",
   },
 ];
 
@@ -178,9 +184,13 @@ export default function Landing() {
 
                 <motion.a
                   href="#preview"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    document.getElementById('preview')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-border-default/90 bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full border border-border-default/90 bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors cursor-pointer"
                 >
                   <Play className="h-5 w-5" />
                   {t("landing.ctaSecondary")}
@@ -188,21 +198,9 @@ export default function Landing() {
               </motion.div>
 
               <motion.div variants={fadeUp} className="mt-8 flex items-center gap-4 text-sm text-text-subtle">
-                <div className="flex -space-x-2">
-                  {[
-                    "https://randomuser.me/api/portraits/women/44.jpg",
-                    "https://randomuser.me/api/portraits/men/32.jpg",
-                    "https://randomuser.me/api/portraits/women/68.jpg",
-                    "https://randomuser.me/api/portraits/men/75.jpg",
-                    ].map((src, i) => (
-                      <img
-                        key={i}
-                        src={src}
-                        alt="user"
-                        className="h-9 w-9 rounded-full border-2 border-primary/30 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
-                     />
-                    ))}
-                  </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary shadow-[0_0_20px_rgba(0,245,212,0.18)]">
+                  <Sparkles className="h-5 w-5" aria-hidden="true" />
+                </div>
                 <div>
                   <p className="text-text-primary font-semibold">{t("landing.trustStat")}</p>
                   <p className="text-text-subtle">{t("landing.trustSubtitle")}</p>
@@ -392,56 +390,49 @@ export default function Landing() {
           </motion.div>
         </RevealSection>
 
-        <RevealSection id="testimonials" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
+        <RevealSection id="why-fixaura" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
           <motion.div variants={fadeUp} className="text-center mb-12">
             <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
-              {t("landing.testimonialsKicker")}
+              {t("landing.whyKicker")}
             </p>
             <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
-              {t("landing.testimonialsTitle")}
+              {t("landing.whyTitle")}
             </h2>
+            <div className="w-24 h-1 bg-primary mx-auto rounded-full mt-5 shadow-[0_0_16px_rgba(0,245,212,0.28)]" />
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-5">
-            {testimonials.map((item) => (
-              <motion.blockquote
-                key={item.nameKey}
-                variants={fadeUp}
-                whileHover={{ y: -5 }}
-                className="glass-panel rounded-3xl p-6 border border-white/10 relative overflow-hidden"
-              >
-                <div className="absolute top-4 right-4 text-primary/10">
-                  <Star className="h-14 w-14 fill-current" />
-                </div>
-                <div className="flex text-primary mb-4">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="text-[15px] leading-[1.7] text-text-secondary mb-5">
-                  “{t(item.quoteKey)}”
-                </p>
-                <div className="flex items-center gap-3">
-                  <img
-                      src={`https://randomuser.me/api/portraits/${
-                        item.nameKey.includes("maya") ? "women/44" :
-                        item.nameKey.includes("james") ? "men/32" :
-                        "women/68"
-                      }.jpg`}
-                      alt={t(item.nameKey)}
-                      className="h-11 w-11 rounded-full border-2 border-primary/30 object-cover"
-                    />
-                  <div>
-                    <cite className="block text-[14px] font-semibold not-italic text-text-primary">
-                      {t(item.nameKey)}
-                    </cite>
-                    <span className="block text-[12px] uppercase tracking-[0.16em] text-text-subtle mt-1">
-                      {t(item.roleKey)}
-                    </span>
+            {whyFixaura.map((item) => {
+              const Icon = item.icon
+              return (
+                <motion.div
+                  key={item.key}
+                  variants={fadeUp}
+                  whileHover={{ y: -5 }}
+                  className="glass-panel rounded-3xl p-6 border border-white/10 relative overflow-hidden flex flex-col justify-between"
+                >
+                  <div className="absolute top-4 right-4 text-primary/10" aria-hidden="true">
+                    <Icon className="h-16 w-16" />
                   </div>
-                </div>
-              </motion.blockquote>
-            ))}
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center border border-primary/30 text-primary">
+                        <Icon className="h-6 w-6" aria-hidden="true" />
+                      </div>
+                      <span className="text-[12px] uppercase tracking-[0.18em] font-semibold text-primary">
+                        {t(item.tagKey)}
+                      </span>
+                    </div>
+                    <h3 className="text-[20px] font-bold text-text-primary mb-3">
+                      {t(item.titleKey)}
+                    </h3>
+                    <p className="text-[15px] leading-[1.7] text-text-secondary">
+                      {t(item.descriptionKey)}
+                    </p>
+                  </div>
+                </motion.div>
+              )
+            })}
           </div>
         </RevealSection>
 
@@ -516,8 +507,8 @@ export default function Landing() {
                 </a>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#testimonials">
-                  {t("landing.footerProductStatus")}
+                <a className="hover:text-primary transition-colors" href="#why-fixaura">
+                  {t("nav.whyFixaura")}
                 </a>
               </li>
             </ul>

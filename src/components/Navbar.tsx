@@ -8,12 +8,12 @@ import { supabase } from '../services/supabase'
 import LanguageToggle from './LanguageToggle'
 import Logo from './Logo'
 
-type SectionId = 'features' | 'showcase' | 'testimonials'
+type SectionId = 'features' | 'showcase' | 'why-fixaura'
 
 const sectionLinks: Array<{ id: SectionId; label: string }> = [
   { id: 'features', label: 'nav.features' },
   { id: 'showcase', label: 'nav.showcase' },
-  { id: 'testimonials', label: 'nav.testimonials' },
+  { id: 'why-fixaura', label: 'nav.whyFixaura' },
 ]
 
 function sectionHref(id: SectionId, isLandingPage: boolean) {

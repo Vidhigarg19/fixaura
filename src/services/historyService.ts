@@ -125,12 +125,22 @@ export async function updateProgress(
   return data ? normalizeSession(data as SessionRow) : null
 }
 
-export async function completeSession(sessionId: string): Promise<HistorySession | null> {
+export async function completeSession(
+  sessionId: string,
+  updatedDiagnosis?: DiagnosisResult
+): Promise<HistorySession | null> {
   const userId = await getUserId()
   if (!supabase || !userId) return null
+  const payload: Record<string, unknown> = {
+    status: 'completed',
+    completed_at: new Date().toISOString(),
+  }
+  if (updatedDiagnosis) {
+    payload.diagnosis = updatedDiagnosis
+  }
   const { data, error } = await supabase
     .from('repair_sessions')
-    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .update(payload)
     .eq('id', sessionId)
     .eq('user_id', userId)
     .select('*')
