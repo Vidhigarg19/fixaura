@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import ConfidenceMeter from "../components/ConfidenceMeter";
+import Logo from "../components/Logo";
 import { t } from '../i18n'
 
 const fadeUp = {
@@ -482,13 +483,8 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-4 text-sm">
           <div className="md:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <img
-                src="/logo.png"
-                alt="FixAura Logo"
-                className="h-10 w-10 rounded-2xl object-contain"
-              />
+              <Logo size={112} alt="FixAura logo" />
               <div>
-                <span className="block text-[18px] font-bold text-text-primary">{t("common.brandName")}</span>
                 <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
                   {t("landing.footerSurgicalTagline")}
                 </span>
