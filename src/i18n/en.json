@@ -2,7 +2,8 @@
   "nav": {
     "features": "Features",
     "showcase": "Repairs",
-    "testimonials": "Stories",
+    "testimonials": "Why FixAura",
+    "whyFixaura": "Why FixAura",
     "scan": "Scan Problem",
     "home": "FixAura home",
     "mainMenu": "Main navigation",
@@ -16,13 +17,13 @@
     "headline": "Fix anything. Fear nothing.",
     "subheadline": "Point your camera at any broken household object — get instant diagnosis, AR-guided steps, and safety-first confirmations.",
     "ctaPrimary": "Scan Problem",
-    "ctaSecondary": "Watch Demo",
+    "ctaSecondary": "See how it works",
     "confidenceLabel": "Diagnosis confidence",
 
     "badge": "Precision engineered",
     "heroLine1": "Fix anything.",
     "heroLine2": "Fear nothing.",
-    "trustStat": "50k+ DIYers trust FixAura",
+    "trustStat": "Built for BUILD-VERSE 2026",
     "trustSubtitle": "Safety-first repairs with clear AR guidance.",
 
     "featuresTitle": "Repair intelligence, built in",
@@ -31,8 +32,26 @@
     "showcaseKicker": "Pro Mode",
     "showcaseTitle": "Works on everyday fixes",
 
-    "testimonialsKicker": "Real user trust",
-    "testimonialsTitle": "Trusted by DIY makers",
+    "whyKicker": "Why FixAura",
+    "whyTitle": "Built with safety and clarity at the core",
+
+    "why": {
+      "safety": {
+        "tag": "Safety First",
+        "title": "Safety-First Guidance",
+        "description": "Critical repair steps are gated behind confirmation checks, hazard alerts, and professional disclaimers so you never take unsafe risks."
+      },
+      "language": {
+        "tag": "Bilingual",
+        "title": "Hindi + English Support",
+        "description": "Full bilingual interface with natural Hindi translations and voice input tailored for Indian households and makers."
+      },
+      "assistant": {
+        "tag": "AI Guidance",
+        "title": "Step-by-Step AI Assistant",
+        "description": "Visual AR cues, clear tool checklists, and an on-demand AI assistant that explains instructions at your own pace."
+      }
+    },
 
     "ctaBannerKicker": "Get FixAura free",
     "ctaBannerTitle": "Ready to fix it yourself?",
@@ -46,7 +65,7 @@
     "footerProductFeatures": "Features",
     "footerProductProMode": "Pro Mode",
     "footerProductSafetyFirst": "Safety First",
-    "footerProductStatus": "Status",
+    "footerProductStatus": "Why FixAura",
 
     "footerLegalHeading": "Legal",
     "footerLegalPrivacyPolicy": "Privacy Policy",
@@ -87,24 +106,6 @@
       "electronics": "Electronics",
       "outdoor": "Outdoor",
       "fixtures": "Fixtures"
-    },
-
-    "testimonials": {
-      "maya": {
-        "name": "Maya R.",
-        "role": "DIY Homeowner",
-        "quote": "Fixed our dryer in one evening — saved a $200 service call."
-      },
-      "james": {
-        "name": "James K.",
-        "role": "Product Designer",
-        "quote": "The AR arrows made a scary repair feel manageable."
-      },
-      "priya": {
-        "name": "Priya S.",
-        "role": "Software Engineer",
-        "quote": "Confidence meter told me when to retake the photo. Smart."
-      }
     },
 
     "preview": {
@@ -232,7 +233,8 @@
     "repairSummary": "Saved repair summary",
     "completedAt": "Completed",
     "noSummary": "No repair summary was stored.",
-    "savingsUnavailable": "Financial savings are unavailable because no verified cost comparison was recorded.",
+    "savingsUnavailable": "Estimated financial savings are unavailable because no verified cost comparison was recorded.",
+    "estimatedSavings": "Estimated savings",
     "sessionMissing": "The repair session or diagnosis is missing. Return to diagnosis and try again.",
     "authRequired": "Sign in again before saving the completed repair.",
     "sessionUnavailable": "This repair session or diagnosis could not be verified for your account.",
@@ -255,6 +257,7 @@
     "continue": "Continue",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "estimated": "estimated",
     "language": "Language",
     "toggleLanguageAria": "Toggle language",
     "languageEN": "EN",
@@ -386,5 +389,40 @@
       "noStep": "the current repair step",
       "currentRepair": "this repair"
     }
+  },
+  "verify": {
+    "title": "Repair Verification",
+    "subtitle": "Compare before & after photos to confirm the fix before marking complete.",
+    "beforePhoto": "Before repair",
+    "beforePhotoAlt": "Initial problem photo",
+    "beforeMissing": "No initial photo captured",
+    "afterPhoto": "After repair photo",
+    "afterPhotoAlt": "After repair photo preview",
+    "uploadAfter": "Upload after photo",
+    "captureAfter": "Capture after photo",
+    "capture": "Capture",
+    "retakeAfter": "Retake photo",
+    "notesLabel": "Repair notes (optional)",
+    "notesPlaceholder": "E.g. replaced worn screws, tested switch, no leaks observed...",
+    "submit": "Verify my repair",
+    "verifying": "Verifying repair with AI...",
+    "skip": "Skip for now",
+    "demoBadge": "Demo result",
+    "status": {
+      "resolved": "Looks resolved",
+      "monitor": "Monitor for 24 hours",
+      "unresolved": "Still unresolved",
+      "professional": "Professional inspection recommended"
+    },
+    "checksTitle": "Visual checks",
+    "checkPassed": "Passed",
+    "checkFailed": "Needs attention",
+    "nextAdvice": "Recommended next step",
+    "safetyMessage": "Safety Warning: A certified professional inspection is strongly recommended. For your safety, do not attempt further DIY repairs on this appliance or fixture. Disconnect the power or main supply if safe to do so.",
+    "finish": "Complete & save repair",
+    "completing": "Saving repair...",
+    "reverify": "Retake photo & re-verify",
+    "error": "Unable to verify repair at this time.",
+    "photoRequired": "Please capture or upload an after-repair photo first."
   }
 }
