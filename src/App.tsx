@@ -19,6 +19,7 @@ const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
 const Completion = lazy(() => import('./Pages/Completion'))
 const History = lazy(() => import('./Pages/History'))
 const Login = lazy(() => import('./Pages/Login'))
+const NearbyShops = lazy(() => import('./Pages/NearbyShops'))
 
 function PageLoader() {
   return (
@@ -57,6 +58,7 @@ function AnimatedRoutes() {
             <Route path="/diagnosis-history" element={<DiagnosisHistory />} />
             <Route path="/capture" element={<CameraCapture />} />
             <Route path="/diagnosis" element={<Diagnosis />} />
+            <Route path="/nearby-shops" element={<NearbyShops />} />
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
             <Route path="/completed" element={<Completion />} />

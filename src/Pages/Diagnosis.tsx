@@ -391,6 +391,15 @@ export default function Diagnosis() {
             </motion.span>
           </Link>
         </div>
+        <button
+          type="button"
+          onClick={() =>
+            navigate(`/nearby-shops?appliance=${encodeURIComponent(d.issueName)}`)
+          }
+          className="mt-3 w-full rounded-xl border border-primary/50 py-3 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {t('nearby.findShops')}
+        </button>
         {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>
