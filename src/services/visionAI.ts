@@ -1,25 +1,29 @@
 import type { DiagnosisResult, RiskLevel } from '../types/repair'
 import { supabase } from './supabase'
 
-const MOCK_DIAGNOSIS: DiagnosisResult = {
-  issueName: 'Loose mounting bracket',
-  confidence: 82,
-  summary:
-    'The fastener assembly appears strained with visible gap at the joint. Likely caused by vibration or overtightening.',
-  severity: 'medium',
-  recommendedFix:
-    'Power off the unit, remove the cover panel, replace worn bracket screws, and re-seat the bracket with thread-locker.',
-  recommendedTools: [
-    'Adjustable wrench',
-    'Pliers',
-    'Thread-locker',
-    'Work gloves',
-    'Bucket',
-  ],
-  nextStepAdvice: 'Gather tools and shut off power before opening the housing.',
-  safetyWarning: 'Disconnect power at the breaker before any disassembly.',
-  explanation:
-    'Visual cues match a common fastener fatigue pattern on household appliances and fixtures.',
+const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+async function invocationErrorMessage(error: unknown): Promise<string> {
+  if (isRecord(error) && error.context instanceof Response) {
+    const response = error.context
+    try {
+      const body: unknown = await response.json()
+      if (isRecord(body) && typeof body.error === 'string') {
+        return body.error.slice(0, 300)
+      }
+    } catch {
+      // Use the status-only fallback below when the response isn't JSON.
+    }
+    return `The diagnosis service returned an error (HTTP ${response.status}).`
+  }
+  if (isRecord(error) && error.name === 'FunctionsFetchError') {
+    return 'Could not reach the diagnosis service. Check your connection and try again.'
+  }
+  return 'The diagnosis service could not complete the request. Please try again.'
 }
 
 function parseRiskLevel(value: unknown): RiskLevel {
@@ -38,7 +42,7 @@ function normalizeDiagnosis(raw: Record<string, unknown>): DiagnosisResult {
     recommendedFix: String(raw.recommendedFix ?? raw.recommended_fix ?? ''),
     recommendedTools: Array.isArray(tools)
       ? tools.map(String)
-      : MOCK_DIAGNOSIS.recommendedTools,
+      : [],
     nextStepAdvice: String(raw.nextStepAdvice ?? raw.next_step_advice ?? ''),
     safetyWarning: String(raw.safetyWarning ?? raw.safety_warning ?? ''),
     explanation: String(raw.explanation ?? ''),
@@ -46,10 +50,18 @@ function normalizeDiagnosis(raw: Record<string, unknown>): DiagnosisResult {
 }
 
 export async function imageToBase64(blob: Blob): Promise<string> {
+  if (blob.size === 0) throw new Error('The selected image is empty.')
+  if (!supportedImageTypes.has(blob.type.toLowerCase())) {
+    throw new Error('Use a JPEG, PNG, or WebP image.')
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => {
-      const result = reader.result as string
+      if (typeof reader.result !== 'string') {
+        reject(new Error('The selected image could not be read.'))
+        return
+      }
+      const result = reader.result
       const base64 = result.includes(',') ? result.split(',')[1] : result
       resolve(base64)
     }
@@ -60,35 +72,23 @@ export async function imageToBase64(blob: Blob): Promise<string> {
 
 export async function analyzeImage(
   imageBlob: Blob,
-  description: string,
-  mediaType = 'image/jpeg'
+  description: string
 ): Promise<DiagnosisResult> {
   if (!supabase) {
-    await delay(1200)
-    return { ...MOCK_DIAGNOSIS, confidence: 72 + Math.floor(Math.random() * 20) }
+    throw new Error('Image analysis is unavailable because Supabase is not configured.')
+  }
+  if (!description.trim() || description.length > 500) {
+    throw new Error('Enter a problem description of 500 characters or fewer.')
   }
 
   const base64 = await imageToBase64(imageBlob)
-  try {
-    const { data, error } = await supabase.functions.invoke('analyze-image', {
-      body: { imageBase64: base64, mediaType, description },
-    })
-    if (error) throw error
-    if (!data || typeof data !== 'object') {
-      throw new Error('The analysis service returned an invalid response.')
-    }
-    return normalizeDiagnosis(data as Record<string, unknown>)
-  } catch (error) {
-    console.error('Image analysis service failed; using mock diagnosis:', error)
-    await delay(800)
-    return {
-      ...MOCK_DIAGNOSIS,
-      confidence: 58,
-      summary: 'Analysis fallback — image processed with limited certainty.',
-    }
+  const mediaType = imageBlob.type.toLowerCase()
+  const { data, error } = await supabase.functions.invoke('analyze-image', {
+    body: { imageBase64: base64, mediaType, description },
+  })
+  if (error) throw new Error(await invocationErrorMessage(error))
+  if (!data || typeof data !== 'object') {
+    throw new Error('The analysis service returned an invalid response.')
   }
-}
-
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
+  return normalizeDiagnosis(data as Record<string, unknown>)
 }

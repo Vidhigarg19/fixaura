@@ -1,7 +1,8 @@
 {
-  "name": "fixaura",
+  "name": "garudeye",
   "private": true,
   "version": "0.0.0",
+  "description": "GarudEye — See the Problem. Know the Solution.",
   "type": "module",
   "scripts": {
     "dev": "vite",

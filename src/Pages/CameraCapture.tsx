@@ -11,12 +11,16 @@ import {
   Upload,
 } from 'lucide-react'
 import PageShell from '../components/PageShell'
-import Navbar from '../components/Navbar'
+import { useAuth } from '../components/authContext'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
 import { analyzeImage } from '../services/visionAI'
-import { setDiagnosis } from '../services/repairSession'
+import {
+  clearSession,
+  isValidDiagnosisResult,
+  setDiagnosis,
+} from '../services/repairSession'
 import { getLocale, subscribeLocale, t } from '../i18n'
 
 type CameraState = 'loading' | 'ready' | 'error'
@@ -49,6 +53,7 @@ function imageDimensions(width: number, height: number) {
 
 export default function CameraCapture() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   useSyncExternalStore(subscribeLocale, getLocale)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -66,7 +71,7 @@ export default function CameraCapture() {
   const [description, setDescription] = useState('')
   const [descriptionTouched, setDescriptionTouched] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysisErrorKey, setAnalysisErrorKey] = useState('')
+  const [analysisError, setAnalysisError] = useState('')
   const [unsafeWarningKey, setUnsafeWarningKey] = useState('')
   const [showSafety, setShowSafety] = useState(false)
   const [voiceSupported] = useState(
@@ -77,6 +82,10 @@ export default function CameraCapture() {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [voiceErrorKey, setVoiceErrorKey] = useState('')
   const [interimTranscript, setInterimTranscript] = useState('')
+
+  useEffect(() => {
+    clearSession()
+  }, [])
 
   const descriptionLength = description.trim().length
   const descriptionValid =
@@ -218,7 +227,7 @@ export default function CameraCapture() {
   const savePhoto = async (canvas: HTMLCanvasElement) => {
     const blob = await createImageBlob(canvas)
     setPhoto({ blob, dataUrl: canvas.toDataURL('image/jpeg', 0.85) })
-    setAnalysisErrorKey('')
+    setAnalysisError('')
     setDescriptionTouched(false)
   }
 
@@ -241,7 +250,7 @@ export default function CameraCapture() {
       await savePhoto(canvas)
     } catch (error) {
       console.error('Unable to process the captured photo:', error)
-      setAnalysisErrorKey('capture.photoProcessingError')
+      setAnalysisError(t('capture.photoProcessingError'))
     }
   }
 
@@ -249,6 +258,10 @@ export default function CameraCapture() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file || analyzing) return
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type.toLowerCase())) {
+      setAnalysisError(t('capture.unsupportedImage'))
+      return
+    }
     const canvas = canvasRef.current
     if (!canvas) return
     const url = URL.createObjectURL(file)
@@ -268,7 +281,7 @@ export default function CameraCapture() {
       await savePhoto(canvas)
     } catch (error) {
       console.error('Unable to process the uploaded photo:', error)
-      setAnalysisErrorKey('capture.photoProcessingError')
+      setAnalysisError(t('capture.photoProcessingError'))
     } finally {
       URL.revokeObjectURL(url)
     }
@@ -278,14 +291,20 @@ export default function CameraCapture() {
     setDescriptionTouched(true)
     if (!photo || !descriptionValid || analyzing) return
     setAnalyzing(true)
-    setAnalysisErrorKey('')
+    setAnalysisError('')
     try {
       const diagnosis = await analyzeImage(photo.blob, description.trim())
-      setDiagnosis(diagnosis, photo.dataUrl, description.trim())
+      if (!isValidDiagnosisResult(diagnosis)) {
+        throw new Error('The analysis service did not return a complete diagnosis.')
+      }
+      if (!user) throw new Error('Please sign in again before analyzing this image.')
+      setDiagnosis(diagnosis, photo.dataUrl, description.trim(), user.id)
       navigate('/diagnosis')
     } catch (error) {
       console.error('Image analysis failed:', error)
-      setAnalysisErrorKey('capture.analysisError')
+      setAnalysisError(
+        error instanceof Error ? error.message : t('capture.analysisError')
+      )
     } finally {
       setAnalyzing(false)
     }
@@ -362,12 +381,11 @@ export default function CameraCapture() {
     setPhoto(null)
     setDescription('')
     setDescriptionTouched(false)
-    setAnalysisErrorKey('')
+    setAnalysisError('')
   }
 
   return (
     <PageShell className="relative flex min-h-screen flex-col">
-      <Navbar />
       <canvas ref={canvasRef} className="hidden" />
       <input
         ref={fileInputRef}
@@ -565,7 +583,7 @@ export default function CameraCapture() {
             ) : (
               <p className="text-xs text-text-subtle">{t('capture.voiceUnsupported')}</p>
             )}
-            {analysisErrorKey && <p role="alert" className="text-sm text-error">{t(analysisErrorKey)}</p>}
+            {analysisError && <p role="alert" className="text-sm text-error">{analysisError}</p>}
             <motion.button
               type="button"
               whileTap={{ scale: 0.98 }}

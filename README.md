@@ -1,11 +1,12 @@
 <p align="center">
-  <img src="public/fixaura-logo.png" alt="FixAura Logo" width="80" />
+  <img src="public/logo.png" alt="GarudEye" width="80" />
 </p>
 
-<h1 align="center">FixAura</h1>
+<h1 align="center">GarudEye</h1>
 
 <p align="center">
-  <strong>AR-powered AI repair assistant</strong><br/>
+  <strong>See the Problem. Know the Solution.</strong><br/>
+  AI-powered home repair and safety assistant<br/>
   Scan a broken item → get instant AI diagnosis → gather tools → follow AR-guided step-by-step repair
 </p>
 
@@ -20,7 +21,7 @@
 
 ## Overview
 
-FixAura empowers everyday people to diagnose and repair broken household items using AI vision analysis and AR-guided instructions. Users point their camera at a broken object, receive an instant AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
+GarudEye empowers everyday people to diagnose and repair broken household items using AI vision analysis and AR-guided instructions. Users point their camera at a broken object, receive an AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
 
 ### Key Features
 
@@ -738,6 +739,6 @@ This project is private. All rights reserved.
 ---
 
 <p align="center">
-  <strong>FixAura</strong> — Fix anything. Fear nothing.<br/>
+  <strong>GarudEye</strong> — See the Problem. Know the Solution.<br/>
   Built with ❤️ using React, Supabase, and AWS
 </p>

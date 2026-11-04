@@ -93,8 +93,8 @@ Then refresh the page
 ### Test in Another Website:
 1. Go to: https://webcamtests.com/
 2. Click "Test my cam"
-3. If it works there but not in FixAura:
-   - Problem is FixAura-specific permissions
+3. If it works there but not in GarudEye:
+   - Problem is GarudEye-specific permissions
    - Follow reset steps above
 4. If it doesn't work there either:
    - Problem is system-level

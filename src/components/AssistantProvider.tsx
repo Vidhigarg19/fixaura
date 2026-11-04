@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { User } from '@supabase/supabase-js'
-import { supabase } from '../services/supabase'
-import { getSession } from '../services/repairSession'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useAuth } from './authContext'
+import { clearSession, getSession } from '../services/repairSession'
 import { buildRepairPlan } from '../services/repairPlanner'
 import {
   assistantContextFromSession,
@@ -25,13 +24,14 @@ function initialRepairContext() {
 }
 
 export default function AssistantProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<AssistantMessage[]>([])
   const [mockMode, setMockMode] = useState(true)
   const [repairContext, setRepairContext] = useState<RepairAssistantContext | null>(
     initialRepairContext
   )
-  const [user, setUser] = useState<User | null>(null)
+  const previousUserId = useRef<string | null>(null)
 
   const appendMessage = useCallback(
     (role: ChatRole, content: string) => {
@@ -50,29 +50,19 @@ export default function AssistantProvider({ children }: { children: ReactNode })
   const clearMessages = useCallback(() => setMessages([]), [])
 
   useEffect(() => {
-    if (!supabase) return
-    let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (!session) {
+    if (authLoading) return
+    const userId = user?.id ?? null
+    if (previousUserId.current !== userId) {
+      if (previousUserId.current || !userId) {
+        clearSession()
         setIsOpen(false)
         setMessages([])
         setMockMode(true)
         setRepairContext(null)
       }
-    })
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error('Unable to check assistant sign-in status:', error)
-        return
-      }
-      if (active) setUser(data.session?.user ?? null)
-    })
-    return () => {
-      active = false
-      subscription.unsubscribe()
+      previousUserId.current = userId
     }
-  }, [])
+  }, [authLoading, user?.id])
 
   const value = useMemo<AssistantState>(() => ({
     isOpen,
