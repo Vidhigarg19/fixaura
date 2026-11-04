@@ -1,5 +1,15 @@
 export type RiskLevel = 'low' | 'medium' | 'high'
 
+export type VerificationStatus = 'resolved' | 'monitor' | 'unresolved' | 'professional'
+
+export interface RepairVerification {
+  status: VerificationStatus
+  summary: string
+  checks: Array<{ label: string; passed: boolean }>
+  nextAdvice: string
+  mock: boolean
+}
+
 export interface DiagnosisResult {
   issueName: string
   confidence: number
@@ -10,6 +20,7 @@ export interface DiagnosisResult {
   nextStepAdvice: string
   safetyWarning: string
   explanation?: string
+  verification?: RepairVerification
 }
 
 export interface RepairStep {

@@ -233,6 +233,19 @@ export default function History() {
                   }`}>
                     {t(`history.status.${session.status ?? 'in_progress'}`)}
                   </span>
+                  {session.diagnosis?.verification?.status && (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                        session.diagnosis.verification.status === 'resolved'
+                          ? 'border-teal-500/40 bg-teal-500/15 text-teal-300'
+                          : session.diagnosis.verification.status === 'monitor'
+                            ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                            : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                      }`}
+                    >
+                      {t(`verify.status.${session.diagnosis.verification.status}`)}
+                    </span>
+                  )}
                   <span className="text-text-secondary">
                     {t('history.step')} {Math.min((session.current_step ?? 0) + 1, session.steps?.length ?? 0)} {t('history.of')} {session.steps?.length ?? 0}
                   </span>
@@ -308,6 +321,30 @@ export default function History() {
                 <h3 className="font-semibold">{t('history.diagnosis')}</h3>
                 <p className="text-sm text-text-secondary">{viewing.diagnosis?.summary ?? '—'}</p>
                 <p className="text-sm text-text-secondary">{viewing.diagnosis?.recommendedFix ?? '—'}</p>
+                {viewing.diagnosis?.verification && (
+                  <div className="rounded-xl border border-border/70 bg-surface/50 p-3.5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-text-subtle">
+                        {t('verify.title')}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                          viewing.diagnosis.verification.status === 'resolved'
+                            ? 'border-teal-500/40 bg-teal-500/15 text-teal-300'
+                            : viewing.diagnosis.verification.status === 'monitor'
+                              ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
+                              : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                        }`}
+                      >
+                        {t(`verify.status.${viewing.diagnosis.verification.status}`)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-text-primary">{viewing.diagnosis.verification.summary}</p>
+                    {viewing.diagnosis.verification.nextAdvice && (
+                      <p className="text-xs text-text-secondary">{viewing.diagnosis.verification.nextAdvice}</p>
+                    )}
+                  </div>
+                )}
                 <h3 className="pt-2 font-semibold">{t('history.savedChat')}</h3>
                 {viewError && <p role="alert" className="text-sm text-warning">{viewError}</p>}
                 {!messages.length && !viewError && <p className="text-sm text-text-subtle">{t('history.chatEmpty')}</p>}

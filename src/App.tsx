@@ -1,10 +1,10 @@
 import { Suspense, lazy, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Wrench } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
 import AssistantProvider from './components/AssistantProvider'
 import AssistantWidget from './components/AssistantWidget'
+import Logo from './components/Logo'
 import { getLocale, subscribeLocale } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
 import { supabase } from './services/supabase'
@@ -16,6 +16,7 @@ const Diagnosis = lazy(() => import('./Pages/Diagnosis'))
 const DiagnosisHistory = lazy(() => import('./Pages/DiagnosisHistory'))
 const ToolChecklist = lazy(() => import('./Pages/ToolChecklist'))
 const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
+const Verify = lazy(() => import('./Pages/Verify'))
 const Completion = lazy(() => import('./Pages/Completion'))
 const History = lazy(() => import('./Pages/History'))
 const Login = lazy(() => import('./Pages/Login'))
@@ -26,13 +27,10 @@ function PageLoader() {
       <div className="relative flex items-center justify-center">
         <div className="h-20 w-20 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
         <div className="absolute h-14 w-14 rounded-full border border-primary/10 border-t-primary/40 animate-[spin_1.5s_linear_infinite_reverse]" />
-        <div className="absolute h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center shadow-[0_0_24px_rgba(0,245,212,0.3)]">
-          <Wrench className="h-5 w-5 text-primary" />
+        <div className="absolute flex h-10 w-10 items-center justify-center">
+          <Logo size={40} alt="FixAura logo" />
         </div>
       </div>
-      <p className="text-[12px] uppercase tracking-[0.26em] text-primary/60 font-semibold animate-pulse">
-        FixAura
-      </p>
     </div>
   )
 }
@@ -59,6 +57,7 @@ function AnimatedRoutes() {
             <Route path="/diagnosis" element={<Diagnosis />} />
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
+            <Route path="/verify" element={<Verify />} />
             <Route path="/completed" element={<Completion />} />
             <Route path="/history" element={<ErrorBoundary><ProtectedHistory /></ErrorBoundary>} />
             <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />

@@ -8,12 +8,11 @@ import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
 import { useAssistantContext } from '../components/assistantContext'
-import { estimateSavings, getSession, saveSession } from '../services/repairSession'
+import { getSession, saveSession } from '../services/repairSession'
 import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
-import { persistCompletedRepair } from '../services/completedRepair'
 import { buildRepairPlan } from '../services/repairPlanner'
-import { completeSession, updateProgress } from '../services/historyService'
+import { updateProgress } from '../services/historyService'
 import { t } from '../i18n'
 
 export default function RepairGuide() {
@@ -30,7 +29,6 @@ export default function RepairGuide() {
   const [safetyConfirmed, setSafetyConfirmed] = useState<Record<string, boolean>>({})
   const [savingProgress, setSavingProgress] = useState(false)
   const [progressError, setProgressError] = useState('')
-  const [completionError, setCompletionError] = useState('')
   const saveInFlight = useRef(false)
 
   const step = steps[index]
@@ -74,29 +72,6 @@ export default function RepairGuide() {
     }
   }
 
-  const finish = async () => {
-    if (!session?.diagnosis) return
-    setCompletionError('')
-    try {
-      const completedRepair = await persistCompletedRepair(
-        session.diagnosisPersistence?.repairSessionId,
-        session.diagnosisPersistence?.diagnosisId
-      )
-      if (session.historySessionId) await completeSession(session.historySessionId)
-      const savings = estimateSavings(session.diagnosis)
-      saveSession({
-        completedRepair,
-        ...savings,
-        completedAt: completedRepair.completedAt,
-      })
-      navigate('/completed')
-    } catch (error) {
-      setCompletionError(
-        error instanceof Error ? error.message : t('completion.saveError')
-      )
-    }
-  }
-
   const next = async () => {
     if (!step || saveInFlight.current) return
     if (step.requiresConfirmation && !safetyConfirmed[step.id]) {
@@ -107,7 +82,6 @@ export default function RepairGuide() {
     saveInFlight.current = true
     setSavingProgress(true)
     setProgressError('')
-    setCompletionError('')
 
     try {
       await saveCompletedRepairStep(session?.diagnosisPersistence?.repairSessionId, step.id)
@@ -115,7 +89,8 @@ export default function RepairGuide() {
       if (index < total - 1) {
         moveTo(index + 1)
       } else {
-        await finish()
+        saveSession({ currentStep: total - 1 })
+        navigate('/verify')
       }
     } catch (error) {
       setProgressError(
@@ -156,11 +131,6 @@ export default function RepairGuide() {
       {progressError && (
         <p role="alert" className="mx-auto mt-3 px-4 text-sm text-error">
           {progressError}
-        </p>
-      )}
-      {completionError && (
-        <p role="alert" className="mx-auto mt-3 px-4 text-sm text-error">
-          {completionError}
         </p>
       )}
 
