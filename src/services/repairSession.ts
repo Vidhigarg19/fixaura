@@ -18,13 +18,53 @@ export function saveSession(partial: Partial<RepairSession>) {
   sessionStorage.setItem(KEY, JSON.stringify(next))
 }
 
+export function isValidDiagnosisResult(value: unknown): value is DiagnosisResult {
+  if (!value || typeof value !== 'object') return false
+  const diagnosis = value as Partial<DiagnosisResult>
+  return (
+    typeof diagnosis.issueName === 'string' &&
+    diagnosis.issueName.trim().length > 0 &&
+    diagnosis.issueName.trim().toLowerCase() !== 'unknown issue' &&
+    typeof diagnosis.summary === 'string' &&
+    diagnosis.summary.trim().length > 0 &&
+    typeof diagnosis.recommendedFix === 'string' &&
+    diagnosis.recommendedFix.trim().length > 0 &&
+    typeof diagnosis.confidence === 'number' &&
+    Number.isFinite(diagnosis.confidence) &&
+    diagnosis.confidence >= 0 &&
+    diagnosis.confidence <= 100 &&
+    (diagnosis.severity === 'low' ||
+      diagnosis.severity === 'medium' ||
+      diagnosis.severity === 'high') &&
+    Array.isArray(diagnosis.recommendedTools)
+  )
+}
+
+export function isValidDiagnosisSession(
+  session: RepairSession | null,
+  userId: string | null | undefined
+): session is RepairSession {
+  return Boolean(
+    session &&
+    userId &&
+    session.ownerUserId === userId &&
+    typeof session.diagnosisAttemptId === 'string' &&
+    session.diagnosisAttemptId.length > 0 &&
+    typeof session.imageDataUrl === 'string' &&
+    session.imageDataUrl.startsWith('data:image/') &&
+    isValidDiagnosisResult(session.diagnosis)
+  )
+}
+
 export function setDiagnosis(
   diagnosis: DiagnosisResult,
-  imageDataUrl?: string,
-  description = ''
+  imageDataUrl: string,
+  description: string,
+  ownerUserId: string
 ) {
   saveSession({
     diagnosis,
+    ownerUserId,
     diagnosisAttemptId: crypto.randomUUID(),
     diagnosisPersistence: undefined,
     imageDataUrl,

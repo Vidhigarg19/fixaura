@@ -18,7 +18,7 @@
 ## Post-Deployment Testing
 
 ### Desktop Testing
-- [ ] Access site via HTTPS URL (e.g., `https://fixaura.vercel.app`)
+- [ ] Access site via its configured HTTPS deployment URL
 - [ ] Test camera capture on Chrome
 - [ ] Test camera capture on Safari
 - [ ] Test camera capture on Edge

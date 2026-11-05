@@ -35,6 +35,7 @@ export interface RepairStep {
 
 export interface RepairSession {
   diagnosis: DiagnosisResult
+  ownerUserId?: string
   diagnosisAttemptId?: string
   diagnosisPersistence?: {
     userId: string

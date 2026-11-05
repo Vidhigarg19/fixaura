@@ -20,7 +20,6 @@ import {
   Sofa,
   GlassWater,
 } from "lucide-react";
-import Navbar from "../components/Navbar";
 import ConfidenceMeter from "../components/ConfidenceMeter";
 import Logo from "../components/Logo";
 import { t } from '../i18n'
@@ -136,7 +135,6 @@ export default function Landing() {
       <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[72px_72px]" />
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
-      <Navbar />
 
       <main className="relative">
         <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
@@ -474,7 +472,15 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-4 text-sm">
           <div className="md:col-span-1">
             <div className="flex items-center gap-3 mb-4">
+<<<<<<< HEAD
               <Logo size={112} alt="FixAura logo" />
+=======
+              <img
+                src="/homegenie-mark.svg"
+                alt="HomeGenie"
+                className="h-10 w-10 rounded-2xl object-contain"
+              />
+>>>>>>> teammate/main
               <div>
                 <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
                   {t("landing.footerSurgicalTagline")}

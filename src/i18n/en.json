@@ -5,12 +5,13 @@
     "testimonials": "Why FixAura",
     "whyFixaura": "Why FixAura",
     "scan": "Scan Problem",
-    "home": "FixAura home",
+    "home": "HomeGenie home",
     "mainMenu": "Main navigation",
     "accountMenu": "Open account menu",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "logIn": "Log in",
+    "dashboard": "Dashboard",
     "signOut": "Sign out"
   },
   "nearby": {
@@ -77,7 +78,7 @@
     "findShops": "Find nearby repair / buy shops"
   },
   "landing": {
-    "headline": "Fix anything. Fear nothing.",
+    "headline": "Your Home. Our Intelligence.",
     "subheadline": "Point your camera at any broken household object — get instant diagnosis, AR-guided steps, and safety-first confirmations.",
     "ctaPrimary": "Scan Problem",
     "ctaSecondary": "See how it works",
@@ -86,7 +87,7 @@
     "badge": "Precision engineered",
     "heroLine1": "Fix anything.",
     "heroLine2": "Fear nothing.",
-    "trustStat": "Built for BUILD-VERSE 2026",
+    "trustStat": "50k+ DIYers trust FixAura",
     "trustSubtitle": "Safety-first repairs with clear AR guidance.",
 
     "featuresTitle": "Repair intelligence, built in",
@@ -116,13 +117,13 @@
       }
     },
 
-    "ctaBannerKicker": "Get FixAura free",
+    "ctaBannerKicker": "Meet HomeGenie",
     "ctaBannerTitle": "Ready to fix it yourself?",
     "ctaBannerSubtitle": "Download the app today and get your first 3 repairs completely free. No subscription required.",
 
-    "footerTagline": "AR-powered repair assistant",
-    "footerSurgicalTagline": "Surgical precision for every repair.",
-    "footerDescription": "FixAura helps everyday people diagnose, plan, and complete repairs with confidence, safety, and clarity.",
+    "footerTagline": "Your Home. Our Intelligence.",
+    "footerSurgicalTagline": "Your Home. Our Intelligence.",
+    "footerDescription": "HomeGenie helps you identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals.",
 
     "footerProductHeading": "Product",
     "footerProductFeatures": "Features",
@@ -146,7 +147,7 @@
     "feature": {
       "aiVisionScan": {
         "title": "AI vision scan",
-        "description": "Point your phone camera at any broken household object and FixAura detects the likely issue instantly."
+        "description": "Point your phone camera at a household problem and HomeGenie helps identify the likely issue."
       },
       "safetyGuidance": {
         "title": "Safety-first guidance",
@@ -190,7 +191,7 @@
     "flip": "Flip camera",
     "analyzing": "Analyzing with AI…",
     "permissionTitle": "Camera access needed",
-    "permissionBody": "Allow camera access so FixAura can scan and diagnose your repair.",
+    "permissionBody": "Allow camera access so HomeGenie can scan and diagnose your repair.",
     "permissionRetry": "Try again",
     "errorTitle": "Camera unavailable",
     "errorBody": "We couldn't access your camera. Check permissions or try another device.",
@@ -218,6 +219,7 @@
     "chooseAnotherPhoto": "Choose another photo",
     "analyze": "Analyze problem",
     "photoProcessingError": "We couldn't process that photo. Please try another image.",
+    "unsupportedImage": "Use a JPEG, PNG, or WebP image.",
     "analysisError": "AI analysis failed. Check your connection and try again.",
     "startListening": "Start voice input",
     "stopListening": "Stop voice input",
@@ -244,7 +246,7 @@
     "issueNameMissing": "The diagnosis issue name is missing."
   },
   "auth": {
-    "createTitle": "Create your FixAura account",
+    "createTitle": "Create your HomeGenie account",
     "welcomeTitle": "Welcome back",
     "signupBody": "Sign up to save your diagnoses and repair progress.",
     "loginBody": "Log in to continue your repairs.",
@@ -257,8 +259,19 @@
     "switchToLogin": "Already have an account? Log in",
     "switchToSignup": "Don't have an account? Sign up",
     "backHome": "Back to home",
-    "confirmEmail": "Check your email to confirm your account. You'll be taken to the home page after confirmation.",
-    "continueWithGoogle": "Continue with Google"
+    "confirmEmail": "Check your email to confirm your account. After confirmation, you can continue to your requested page.",
+    "continueWithGoogle": "Continue with Google",
+    "notConfigured": "Authentication is unavailable because Supabase is not configured.",
+    "sessionCheckFailed": "Unable to verify your session"
+  },
+  "dashboard": {
+    "eyebrow": "Your HomeGenie workspace",
+    "title": "Welcome to your dashboard",
+    "signedInAs": "Signed in as",
+    "startDiagnosis": "Start an AI diagnosis",
+    "repairHistory": "Repair history",
+    "diagnosisHistory": "Saved diagnoses",
+    "nearbyShops": "Nearby shops"
   },
   "tools": {
     "title": "Gather your tools",
@@ -303,13 +316,13 @@
     "sessionUnavailable": "This repair session or diagnosis could not be verified for your account.",
     "saveError": "Could not save the completed repair. Check your connection and retry.",
     "share": "Share result",
-    "shareTitle": "FixAura",
-    "sharePrefix": "I completed a repair with FixAura: ",
+    "shareTitle": "HomeGenie",
+    "sharePrefix": "I completed a repair with HomeGenie: ",
     "shareMiddle": "",
     "shareSuffix": "",
     "rateAria": "Rate this repair",
     "startAnother": "Start another repair",
-    "rating": "How helpful was FixAura?",
+    "rating": "How helpful was HomeGenie?",
     "thanks": "Thanks for your feedback!"
   },
   "common": {
@@ -325,7 +338,7 @@
     "toggleLanguageAria": "Toggle language",
     "languageEN": "EN",
     "languageHI": "हिन्दी",
-    "brandName": "FixAura"
+    "brandName": "HomeGenie"
   },
   "errorBoundary": {
     "title": "Something went wrong",
@@ -378,7 +391,7 @@
     "diagnosis": "Diagnosis",
     "savedChat": "Saved chat",
     "user": "You",
-    "assistant": "FixAura",
+    "assistant": "HomeGenie",
     "chatTitle": "Ask about this repair",
     "chatEmpty": "Ask a question to get repair guidance.",
     "chatPlaceholder": "Ask a follow-up question",
@@ -393,29 +406,29 @@
     "chatError": "We couldn't load or save the repair chat.",
     "saveError": "We couldn't save your repair.",
     "sessionMissing": "This repair could not be found. Refresh your history and try again.",
-    "loginTitle": "Sign in to FixAura",
+    "loginTitle": "Sign in to HomeGenie",
     "loginBody": "Enter your email and we'll send you a secure sign-in link.",
     "email": "Email address",
     "sendLoginLink": "Email me a sign-in link",
     "loginSent": "Check your email for a sign-in link."
   },
   "assistant": {
-    "title": "FixAura Assistant",
+    "title": "HomeGenie Assistant",
     "demoBadge": "Demo replies",
-    "open": "Open FixAura Assistant",
+    "open": "Open HomeGenie Assistant",
     "close": "Close assistant",
     "newChat": "New chat",
     "welcome": "Hi! Ask me about repairs, safety, or the step you're working on.",
     "placeholder": "Ask about your repair...",
-    "inputLabel": "Message the FixAura Assistant",
+    "inputLabel": "Message the HomeGenie Assistant",
     "send": "Send message",
-    "thinking": "FixAura Assistant is thinking",
+    "thinking": "HomeGenie Assistant is thinking",
     "keyboardHelp": "Press Enter to send. Press Shift and Enter for a new line.",
     "contextLine": "Helping with: {issue} - Step {step} of {total}",
     "persistenceWarning": "This chat couldn't be saved or loaded. You can keep chatting here.",
     "chips": {
       "general": {
-        "work": "How does FixAura work?",
+        "work": "How does HomeGenie work?",
         "repairs": "What can I repair?",
         "safety": "Is it safe to do this myself?"
       },
@@ -444,8 +457,8 @@
       "safe": "I can't confirm safety remotely. Follow this step's safety note: {safety} If anything seems unsafe or you are unsure, stop and contact a qualified professional.",
       "troubleshoot": "If it doesn't work, stop before forcing anything. Check that you followed the instructions and safety checks, then review the diagnosis. If the problem remains or you are unsure, contact a qualified professional.",
       "tools": "The recommended tools for this repair are: {tools}. Use only tools you can handle safely, and don't substitute a tool if that could damage the appliance or create a hazard.",
-      "how": "FixAura helps you describe or scan a household problem, understand a suggested diagnosis, and follow guided repair steps with safety reminders. You can ask me questions as you work.",
-      "repairs": "FixAura can help plan common household repairs across appliances, plumbing, furniture, electronics, outdoor items, and fixtures. The suggested diagnosis may be uncertain, so use professional help when needed.",
+      "how": "HomeGenie helps you describe or scan a household problem, understand a suggested diagnosis, and follow guided repair steps with safety reminders. You can ask me questions as you work.",
+      "repairs": "HomeGenie can help plan common household repairs across appliances, plumbing, furniture, electronics, outdoor items, and fixtures. The suggested diagnosis may be uncertain, so use professional help when needed.",
       "fallback": "I can help explain repair steps, discuss safety notes, and suggest what to check next. Tell me what you are trying to understand, and stop if you notice a safety hazard.",
       "noTools": "No specific tools were listed for this repair.",
       "noSafetyNote": "No step-specific safety note was provided.",

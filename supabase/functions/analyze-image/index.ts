@@ -9,12 +9,96 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const MAX_BASE64_LENGTH = 7_000_000
+const ANTHROPIC_MODEL = 'claude-sonnet-5-5'
+
+function providerErrorMessage(status: number) {
+  if (status === 401 || status === 403) {
+    return 'The AI service credentials are not accepted. Please contact support.'
+  }
+  if (status === 429) {
+    return 'The AI service is busy or has reached its usage limit. Please try again later.'
+  }
+  if (status === 400) {
+    return 'The AI service rejected the image or request. Please try another image.'
+  }
+  return 'The AI service is temporarily unavailable. Please try again later.'
+}
+
+function safeProviderError(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return { type: 'unknown_error', message: 'No structured error was returned.' }
+  }
+  const error = (payload as {
+    error?: { type?: unknown; message?: unknown }
+  }).error
+  const type =
+    typeof error?.type === 'string' ? error.type.slice(0, 80) : 'unknown_error'
+  const message =
+    typeof error?.message === 'string'
+      ? error.message
+          .replace(/[\r\n\t]+/g, ' ')
+          .replace(/sk-ant-[A-Za-z0-9_-]+/g, '[redacted]')
+          .slice(0, 240)
+      : 'No provider message was returned.'
+  return { type, message }
+}
+
+function isValidBase64Image(value: string) {
+  if (
+    value.length === 0 ||
+    value.length > MAX_BASE64_LENGTH ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ) {
+    return false
+  }
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0
+  return (value.length / 4) * 3 - padding <= MAX_IMAGE_BYTES
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
   if (request.method !== 'POST') {
     return Response.json({ error: 'Method not allowed.' }, { status: 405, headers: corsHeaders })
+  }
+
+  const authorization = request.headers.get('Authorization')
+  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseKey =
+    Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')
+  if (!token) {
+    return Response.json({ error: 'Authentication is required.' }, { status: 401, headers: corsHeaders })
+  }
+  if (!supabaseUrl || !supabaseKey) {
+    return Response.json(
+      { error: 'The authentication service is not configured.' },
+      { status: 503, headers: corsHeaders }
+    )
+  }
+
+  try {
+    const userResponse = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (!userResponse.ok) {
+      return Response.json(
+        { error: userResponse.status >= 500 ? 'Unable to verify your session.' : 'Your session is invalid or expired.' },
+        { status: userResponse.status >= 500 ? 503 : 401, headers: corsHeaders }
+      )
+    }
+  } catch (error) {
+    console.error('Analysis authentication verification failed:', error)
+    return Response.json(
+      { error: 'Unable to verify your session.' },
+      { status: 503, headers: corsHeaders }
+    )
   }
 
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
@@ -35,175 +119,7 @@ Deno.serve(async (request) => {
       imageBase64?: unknown
       mediaType?: unknown
       description?: unknown
-      afterImageBase64?: unknown
-      afterMediaType?: unknown
-      beforeImageBase64?: unknown
-      beforeMediaType?: unknown
-      issueName?: unknown
-      stepsSummary?: unknown
-      locale?: unknown
-      note?: unknown
     }
-
-    if (input.mode === 'verify') {
-      const rawAfter = typeof input.afterImageBase64 === 'string'
-        ? input.afterImageBase64
-        : typeof input.imageBase64 === 'string'
-          ? input.imageBase64
-          : ''
-      const cleanAfter = rawAfter.includes(',') ? rawAfter.split(',')[1] : rawAfter
-      if (!cleanAfter) {
-        return Response.json(
-          { error: 'An after-repair photo is required for verification.' },
-          { status: 400, headers: corsHeaders }
-        )
-      }
-
-      const rawBefore = typeof input.beforeImageBase64 === 'string' ? input.beforeImageBase64 : ''
-      const cleanBefore = rawBefore.includes(',') ? rawBefore.split(',')[1] : rawBefore
-      const issueName = typeof input.issueName === 'string' && input.issueName.trim()
-        ? input.issueName.trim()
-        : 'Household repair'
-      const description = typeof input.description === 'string' ? input.description.trim() : ''
-      const stepsSummary = typeof input.stepsSummary === 'string' ? input.stepsSummary.trim() : ''
-      const note = typeof input.note === 'string' ? input.note.trim() : ''
-      const locale = input.locale === 'hi' ? 'hi' : 'en'
-
-      const afterMediaType =
-        input.afterMediaType === 'image/png' || input.afterMediaType === 'image/webp'
-          ? input.afterMediaType
-          : input.mediaType === 'image/png' || input.mediaType === 'image/webp'
-            ? input.mediaType
-            : 'image/jpeg'
-
-      const beforeMediaType =
-        input.beforeMediaType === 'image/png' || input.beforeMediaType === 'image/webp'
-          ? input.beforeMediaType
-          : 'image/jpeg'
-
-      const content: Array<Record<string, unknown>> = []
-
-      if (cleanBefore) {
-        content.push({ type: 'text', text: 'BEFORE REPAIR PHOTO:' })
-        content.push({
-          type: 'image',
-          source: { type: 'base64', media_type: beforeMediaType, data: cleanBefore },
-        })
-      }
-
-      content.push({ type: 'text', text: 'AFTER REPAIR PHOTO:' })
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: afterMediaType, data: cleanAfter },
-      })
-
-      const langInstruction = locale === 'hi'
-        ? 'All textual fields (summary, checks labels, nextAdvice) MUST be written in natural, clear Hindi.'
-        : 'All textual fields (summary, checks labels, nextAdvice) must be written in clear English.'
-
-      const prompt = `You are FixAura, an AI household repair verification assistant.
-You are evaluating whether a household repair was successfully and safely completed.
-
-CONTEXT:
-- Issue Name: ${issueName}
-- Problem Description: ${description || 'Not provided'}
-- Steps Completed: ${stepsSummary || 'Standard guided repair steps'}
-${note ? `- User Repair Notes: ${note}` : ''}
-
-EVALUATION CRITERIA:
-1. Examine the after-repair photo ${cleanBefore ? 'and compare it with the before-repair photo' : 'carefully'}.
-2. Check for alignment, secure fastening, absence of leaks/gaps/exposed wiring/hazards, and clean reassembly.
-3. Categorize into EXACTLY one of these four status strings:
-   - "resolved": Repair appears successful, secure, and properly aligned.
-   - "monitor": Repair is functional but should be monitored for 24 hours (e.g. slight play, testing under load, observing for moisture).
-   - "unresolved": Visual cues show the original issue persists or the repair is incomplete.
-   - "professional": Structural, electrical, high-pressure gas/water, or safety hazard detected. When status is "professional", recommend professional inspection and include a prominent safety warning in nextAdvice.
-4. Provide 2 to 4 visual checks in the "checks" array with descriptive "label" and boolean "passed".
-5. Provide practical, concise next steps in "nextAdvice".
-6. ${langInstruction}
-
-Respond with ONLY valid JSON (no markdown formatting, no code fences):
-{
-  "status": "resolved" | "monitor" | "unresolved" | "professional",
-  "summary": string,
-  "checks": [
-    { "label": string, "passed": boolean }
-  ],
-  "nextAdvice": string
-}`
-
-      content.push({ type: 'text', text: prompt })
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          messages: [{ role: 'user', content }],
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Analysis provider returned ${response.status}.`)
-      }
-
-      const result: unknown = await response.json()
-      if (!result || typeof result !== 'object') {
-        throw new Error('Analysis provider returned an invalid response.')
-      }
-      const rawContent = (result as {
-        content?: { type?: string; text?: string }[]
-      }).content
-      const responseText = rawContent?.find((item) => item.type === 'text')?.text ?? ''
-      const match = responseText.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('Analysis provider did not return verification output.')
-
-      const parsed: unknown = JSON.parse(match[0])
-      if (!parsed || typeof parsed !== 'object') {
-        throw new Error('Analysis provider returned an invalid verification object.')
-      }
-
-      const parsedRecord = parsed as Record<string, unknown>
-      const rawStatus = String(parsedRecord.status ?? 'monitor').toLowerCase()
-      const status =
-        rawStatus === 'resolved' || rawStatus === 'monitor' || rawStatus === 'unresolved' || rawStatus === 'professional'
-          ? rawStatus
-          : 'monitor'
-
-      const summary = typeof parsedRecord.summary === 'string' && parsedRecord.summary.trim()
-        ? parsedRecord.summary.trim()
-        : 'Repair verification completed.'
-
-      const rawChecks = Array.isArray(parsedRecord.checks) ? parsedRecord.checks : []
-      const checks = rawChecks.map((item) => {
-        const itemRecord = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {}
-        return {
-          label: String(itemRecord.label ?? 'Visual inspection'),
-          passed: Boolean(itemRecord.passed),
-        }
-      })
-
-      const nextAdvice = typeof parsedRecord.nextAdvice === 'string' && parsedRecord.nextAdvice.trim()
-        ? parsedRecord.nextAdvice.trim()
-        : 'Continue observing operation over the next 24 hours.'
-
-      return Response.json(
-        {
-          status,
-          summary,
-          checks,
-          nextAdvice,
-          mock: false,
-        },
-        { headers: corsHeaders }
-      )
-    }
-
     if (
       typeof input.imageBase64 !== 'string' ||
       typeof input.description !== 'string' ||
@@ -211,15 +127,22 @@ Respond with ONLY valid JSON (no markdown formatting, no code fences):
       input.description.length > 500
     ) {
       return Response.json(
-        { error: 'A photo and a valid problem description are required.' },
+        { error: 'Enter a problem description of 500 characters or fewer.', code: 'invalid_description' },
         { status: 400, headers: corsHeaders }
       )
     }
-    const mediaType =
-      input.mediaType === 'image/png' || input.mediaType === 'image/webp'
-        ? input.mediaType
-        : 'image/jpeg'
-    const prompt = `You are FixAura, a household repair vision assistant. Analyze the image together with the user's problem description. User's description of the problem: ${input.description.trim()}. Respond with ONLY valid JSON (no markdown) using this schema:
+    if (
+      input.mediaType !== 'image/jpeg' &&
+      input.mediaType !== 'image/png' &&
+      input.mediaType !== 'image/webp'
+    ) {
+      return Response.json(
+        { error: 'Use a JPEG, PNG, or WebP image.', code: 'invalid_image_type' },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+    const mediaType = input.mediaType
+    const prompt = `You are HomeGenie, a household repair vision assistant. Analyze the image together with the user's problem description. User's description of the problem: ${input.description.trim()}. Respond with ONLY valid JSON (no markdown) using this schema:
 {
   "issueName": string,
   "confidence": number 0-100,
@@ -232,30 +155,66 @@ Respond with ONLY valid JSON (no markdown formatting, no code fences):
   "explanation": string
 }`
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: mediaType, data: input.imageBase64 },
-            },
-            { type: 'text', text: prompt },
-          ],
-        }],
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60_000)
+    let response: Response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 1536,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: mediaType, data: input.imageBase64 },
+              },
+              { type: 'text', text: prompt },
+            ],
+          }],
+        }),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      if (controller.signal.aborted) {
+        console.error('Anthropic request timed out after 60000 ms.')
+        return Response.json(
+          { error: 'The AI service took too long to respond. Please try again.', code: 'provider_timeout' },
+          { status: 504, headers: corsHeaders }
+        )
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+    }
     if (!response.ok) {
-      throw new Error(`Analysis provider returned ${response.status}.`)
+      let payload: unknown
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
+      const providerError = safeProviderError(payload)
+      console.error('Anthropic request failed:', {
+        status: response.status,
+        type: providerError.type,
+        message: providerError.message,
+      })
+      return Response.json(
+        {
+          error: providerErrorMessage(response.status),
+          code: 'provider_error',
+          status: response.status,
+        },
+        { status: 502, headers: corsHeaders }
+      )
     }
 
     const result: unknown = await response.json()
@@ -268,15 +227,38 @@ Respond with ONLY valid JSON (no markdown formatting, no code fences):
     const text = content?.find((item) => item.type === 'text')?.text ?? ''
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) throw new Error('Analysis provider did not return a diagnosis.')
-    const diagnosis: unknown = JSON.parse(match[0])
-    if (!diagnosis || typeof diagnosis !== 'object') {
+    let diagnosis: unknown
+    try {
+      diagnosis = JSON.parse(match[0])
+    } catch {
+      throw new Error('Analysis provider returned malformed diagnosis JSON.')
+    }
+    if (
+      !diagnosis ||
+      typeof diagnosis !== 'object' ||
+      typeof (diagnosis as Record<string, unknown>).issueName !== 'string' ||
+      typeof (diagnosis as Record<string, unknown>).summary !== 'string' ||
+      typeof (diagnosis as Record<string, unknown>).recommendedFix !== 'string' ||
+      typeof (diagnosis as Record<string, unknown>).confidence !== 'number' ||
+      !Array.isArray((diagnosis as Record<string, unknown>).recommendedTools)
+    ) {
+      throw new Error('Analysis provider returned an invalid diagnosis.')
+    }
+    const value = diagnosis as Record<string, unknown>
+    if (
+      !['low', 'medium', 'high'].includes(String(value.severity)) ||
+      !Number.isFinite(value.confidence) ||
+      Number(value.confidence) < 0 ||
+      Number(value.confidence) > 100
+    ) {
       throw new Error('Analysis provider returned an invalid diagnosis.')
     }
     return Response.json(diagnosis, { headers: corsHeaders })
   } catch (error) {
-    console.error('Image analysis failed:', error)
+    const message = error instanceof Error ? error.message : 'Image analysis failed.'
+    console.error('Image analysis processing failed:', message)
     return Response.json(
-      { error: error instanceof Error ? error.message : 'Image analysis failed.' },
+      { error: 'The AI service returned an invalid diagnosis. Please try again.', code: 'invalid_provider_response' },
       { status: 502, headers: corsHeaders }
     )
   }

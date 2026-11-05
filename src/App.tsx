@@ -1,15 +1,18 @@
 import { Suspense, lazy, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Wrench } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
+import { AuthProvider } from './components/AuthProvider'
+import { useAuth } from './components/authContext'
 import AssistantProvider from './components/AssistantProvider'
 import AssistantWidget from './components/AssistantWidget'
-import Logo from './components/Logo'
 import { getLocale, subscribeLocale } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
-import { supabase } from './services/supabase'
+import { getSession as getRepairSession, isValidDiagnosisSession } from './services/repairSession'
 
 const Landing = lazy(() => import('./Pages/Landing'))
+const Dashboard = lazy(() => import('./Pages/Dashboard'))
 const CameraCapture = lazy(() => import('./Pages/CameraCapture'))
 const Auth = lazy(() => import('./Pages/Auth'))
 const Diagnosis = lazy(() => import('./Pages/Diagnosis'))
@@ -19,7 +22,6 @@ const RepairGuide = lazy(() => import('./Pages/RepairGuide'))
 const Verify = lazy(() => import('./Pages/Verify'))
 const Completion = lazy(() => import('./Pages/Completion'))
 const History = lazy(() => import('./Pages/History'))
-const Login = lazy(() => import('./Pages/Login'))
 const NearbyShops = lazy(() => import('./Pages/NearbyShops'))
 
 function PageLoader() {
@@ -32,13 +34,91 @@ function PageLoader() {
           <Logo size={40} alt="FixAura logo" />
         </div>
       </div>
+      <p className="text-[12px] uppercase tracking-[0.26em] text-primary/60 font-semibold animate-pulse">
+        FixAura
+      </p>
     </div>
   )
 }
 
-function AnimatedRoutes() {
+function AppLayout() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Outlet />
+    </Suspense>
+  )
+}
+
+function LandingLayout() {
+  return (
+    <>
+      <Navbar />
+      <Outlet />
+    </>
+  )
+}
+
+function AuthenticationError() {
+  const { error } = useAuth()
+  useSyncExternalStore(subscribeLocale, getLocale)
+
+  return (
+    <main className="flex min-h-[70vh] items-center justify-center px-4">
+      <div className="glass-panel max-w-lg rounded-2xl p-6 text-center">
+        <h1 className="text-xl font-semibold">{t('auth.sessionCheckFailed')}</h1>
+        <p role="alert" className="mt-3 break-words text-sm text-text-secondary">
+          {error}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-background"
+        >
+          {t('common.retry')}
+        </button>
+      </div>
+    </main>
+  )
+}
+
+function ProtectedRoute() {
+  const { user, loading, error } = useAuth()
   const location = useLocation()
 
+  if (loading) return <PageLoader />
+  if (error) return <AuthenticationError />
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />
+
+  return (
+    <>
+      <Navbar />
+      <Outlet />
+      <AssistantWidget />
+    </>
+  )
+}
+
+function GuestRoute({ signup = false }: { signup?: boolean }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) return <PageLoader />
+  if (user) {
+    const state = location.state as {
+      from?: { pathname?: string; search?: string; hash?: string }
+    } | null
+    const path = state?.from?.pathname
+    const destination =
+      path?.startsWith('/') && !path.startsWith('//')
+        ? `${path}${state?.from?.search ?? ''}${state?.from?.hash ?? ''}`
+        : '/dashboard'
+    return <Navigate to={destination} replace />
+  }
+
+  return <Auth initialMode={signup ? 'signup' : 'login'} />
+}
+
+function AppRoutes() {
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -59,7 +139,6 @@ function AnimatedRoutes() {
             <Route path="/nearby-shops" element={<NearbyShops />} />
             <Route path="/tools" element={<ToolChecklist />} />
             <Route path="/guide" element={<RepairGuide />} />
-            <Route path="/verify" element={<Verify />} />
             <Route path="/completed" element={<Completion />} />
             <Route path="/history" element={<ErrorBoundary><ProtectedHistory /></ErrorBoundary>} />
             <Route path="/login" element={<AuthRedirect><Login /></AuthRedirect>} />
@@ -71,81 +150,34 @@ function AnimatedRoutes() {
   )
 }
 
-function ProtectedHistory() {
-  const [authenticated, setAuthenticated] = useState<boolean | null>(() =>
-    supabase ? null : false
-  )
-
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticated(Boolean(session))
-    })
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) setAuthenticated(Boolean(data.session))
-    })
-    return () => {
-      active = false
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  if (authenticated === null) return <PageLoader />
-  if (!authenticated) return <Navigate to="/login" replace />
-  return <History />
-}
-
-function AuthRedirect({ children }: { children: ReactNode }) {
-  const [authenticated, setAuthenticated] = useState<boolean | null>(() =>
-    supabase ? null : false
-  )
-
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticated(Boolean(session))
-    })
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error('Unable to check sign-in status:', error)
-        if (active) setAuthenticated(false)
-        return
-      }
-      if (active) setAuthenticated(Boolean(data.session))
-    })
-    return () => {
-      active = false
-      subscription.unsubscribe()
-    }
-  }, [])
-
-  if (authenticated === null) return <PageLoader />
-  if (authenticated) return <Navigate to="/" replace />
-  return children
+function NearbyShopsRoute() {
+  const { user } = useAuth()
+  const session = getRepairSession()
+  return isValidDiagnosisSession(session, user?.id)
+    ? <NearbyShops />
+    : <Navigate to="/dashboard" replace />
 }
 
 export default function App() {
   useEffect(() => {
-    testSupabaseConnection()
+    void testSupabaseConnection()
   }, [])
 
   return (
-    <BrowserRouter>
-      <LocaleSync />
-      <AssistantProvider>
-        <ErrorBoundary>
-          <AnimatedRoutes />
-          <AssistantWidget />
-        </ErrorBoundary>
-      </AssistantProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <LocaleSync />
+        <AssistantProvider>
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
+        </AssistantProvider>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
 
 function LocaleSync() {
-  // Forces a re-render when the selected locale changes.
   useSyncExternalStore(subscribeLocale, getLocale)
   return null
 }
