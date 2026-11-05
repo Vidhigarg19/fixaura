@@ -6,12 +6,17 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import PageShell from '../components/PageShell'
 import ConfidenceMeter from '../components/ConfidenceMeter'
 import FallbackMode from '../components/FallbackMode'
-import { getSession, saveSession } from '../services/repairSession'
+import {
+  getSession,
+  isValidDiagnosisSession,
+  saveSession,
+} from '../services/repairSession'
 import { createSession } from '../services/historyService'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import type { RiskLevel } from '../types/repair'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../components/authContext'
 
 const CONFIDENCE_THRESHOLD = 70
 const diagnosisSaveOperations = new Map<string, Promise<void>>()
@@ -44,6 +49,7 @@ function riskColor(severity: RiskLevel) {
 export default function Diagnosis() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [session] = useState(getSession)
   const [expanded, setExpanded] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
@@ -55,7 +61,7 @@ export default function Diagnosis() {
     let cancelled = false
 
     async function saveDiagnosis() {
-      if (!session?.diagnosis) return
+      if (!isValidDiagnosisSession(session, user?.id)) return
       const attemptId = session.diagnosisAttemptId || crypto.randomUUID()
       if (!session.diagnosisAttemptId) {
         saveSession({ diagnosisAttemptId: attemptId })
@@ -232,10 +238,14 @@ export default function Diagnosis() {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, user?.id])
 
   const startRepair = async () => {
-    if (!session?.diagnosis || starting || !repairSessionReady) return
+    if (
+      !isValidDiagnosisSession(session, user?.id) ||
+      starting ||
+      !repairSessionReady
+    ) return
     setStarting(true)
     setSaveError('')
     const steps = buildRepairPlan(session.diagnosis)
@@ -254,7 +264,8 @@ export default function Diagnosis() {
     }
   }
 
-  if (!session?.diagnosis) {
+  const validDiagnosis = isValidDiagnosisSession(session, user?.id)
+  if (!validDiagnosis) {
     return (
       <PageShell className="flex items-center justify-center p-6">
         <div className="text-center">
@@ -391,6 +402,15 @@ export default function Diagnosis() {
             </motion.span>
           </Link>
         </div>
+        <button
+          type="button"
+          onClick={() =>
+            navigate(`/nearby-shops?appliance=${encodeURIComponent(d.issueName)}`)
+          }
+          className="mt-3 w-full rounded-xl border border-primary/50 py-3 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {t('nearby.findShops')}
+        </button>
         {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>

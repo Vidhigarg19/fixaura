@@ -1,53 +1,59 @@
 
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { supabase } from '../services/supabase'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
 
 export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
-  const navigate = useNavigate()
+  const location = useLocation()
+  const client = supabase
   useSyncExternalStore(subscribeLocale, getLocale)
-  const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
+  const mode = initialMode
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [confirmationPending, setConfirmationPending] = useState(false)
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) navigate('/', { replace: true })
-    })
-    return () => subscription.unsubscribe()
-  }, [navigate])
+  const state = location.state as {
+    from?: { pathname?: string; search?: string; hash?: string }
+  } | null
+  const protectedPath = state?.from?.pathname
+  const redirectPath =
+    protectedPath?.startsWith('/') && !protectedPath.startsWith('//')
+      ? `${protectedPath}${state?.from?.search ?? ''}${state?.from?.hash ?? ''}`
+      : '/dashboard'
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!client) {
+      setMessage(t('auth.notConfigured'))
+      return
+    }
+
     setLoading(true)
     setMessage('')
     setConfirmationPending(false)
 
     try {
       if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await client.auth.signUp({
           email: email.trim(),
           password,
+          options: {
+            emailRedirectTo: new URL(redirectPath, window.location.origin).toString(),
+          },
         })
         if (error) throw error
 
-        if (data.session) {
-          navigate('/', { replace: true })
-        } else {
-          setConfirmationPending(true)
-        }
+        if (!data.session) setConfirmationPending(true)
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await client.auth.signInWithPassword({
           email: email.trim(),
           password,
         })
         if (error) throw error
-        if (data.session) navigate('/', { replace: true })
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t('common.error'))
@@ -57,13 +63,18 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
   }
 
   async function handleGoogleSignIn() {
+    if (!client) {
+      setMessage(t('auth.notConfigured'))
+      return
+    }
+
     setLoading(true)
     setMessage('')
     setConfirmationPending(false)
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await client.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin + '/' },
+        options: { redirectTo: new URL(redirectPath, window.location.origin).toString() },
       })
       if (error) throw error
     } catch (error) {
@@ -117,7 +128,7 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !client}
             aria-label={loading ? t('common.loading') : mode === 'signup' ? t('auth.createAccount') : t('auth.login')}
             className="w-full rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
           >
@@ -128,33 +139,34 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
         <button
           type="button"
           onClick={() => void handleGoogleSignIn()}
-          disabled={loading}
+          disabled={loading || !client}
           aria-label={t('auth.continueWithGoogle')}
           className="w-full rounded-xl border border-border py-3 font-semibold text-text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
         >
           {t('auth.continueWithGoogle')}
         </button>
 
+        {!client && !message && (
+          <p role="alert" className="text-sm text-warning">{t('auth.notConfigured')}</p>
+        )}
         {message && (
-          <p role="status" className="text-sm text-text-secondary break-words">
+          <p
+            role={confirmationPending ? 'status' : 'alert'}
+            className="text-sm text-text-secondary break-words"
+          >
             {confirmationPending ? t('auth.confirmEmail') : message}
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === 'signup' ? 'login' : 'signup')
-            setMessage('')
-            setConfirmationPending(false)
-          }}
-          aria-label={mode === 'signup' ? t('auth.switchToLogin') : t('auth.switchToSignup')}
-          className="w-full text-sm text-primary underline focus-visible:outline-2 focus-visible:outline-primary"
+        <Link
+          to={mode === 'signup' ? '/login' : '/signup'}
+          state={location.state}
+          className="block w-full text-center text-sm text-primary underline focus-visible:outline-2 focus-visible:outline-primary"
         >
           {mode === 'signup'
             ? t('auth.switchToLogin')
             : t('auth.switchToSignup')}
-        </button>
+        </Link>
 
         <Link to="/" className="block text-center text-sm text-text-secondary underline focus-visible:outline-2 focus-visible:outline-primary">
           {t('auth.backHome')}

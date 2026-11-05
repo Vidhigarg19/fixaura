@@ -1,11 +1,12 @@
 <p align="center">
-  <img src="public/fixaura-logo.png" alt="FixAura Logo" width="80" />
+  <img src="public/homegenie-mark.svg" alt="HomeGenie" width="80" />
 </p>
 
-<h1 align="center">FixAura</h1>
+<h1 align="center">HomeGenie</h1>
 
 <p align="center">
-  <strong>AR-powered AI repair assistant</strong><br/>
+  <strong>Your Home. Our Intelligence.</strong><br/>
+  AI-powered home repair assistant for intelligent guidance, safety insights, and nearby professionals<br/>
   Scan a broken item → get instant AI diagnosis → gather tools → follow AR-guided step-by-step repair
 </p>
 
@@ -20,7 +21,7 @@
 
 ## Overview
 
-FixAura empowers everyday people to diagnose and repair broken household items using AI vision analysis and AR-guided instructions. Users point their camera at a broken object, receive an instant AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
+HomeGenie is an AI-powered home repair assistant that helps users identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals. Users can scan an item, review an AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
 
 ### Key Features
 
@@ -738,6 +739,6 @@ This project is private. All rights reserved.
 ---
 
 <p align="center">
-  <strong>FixAura</strong> — Fix anything. Fear nothing.<br/>
+  <strong>HomeGenie</strong> — Your Home. Our Intelligence.<br/>
   Built with ❤️ using React, Supabase, and AWS
 </p>

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { User } from '@supabase/supabase-js'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRight, LogIn, Menu, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { getLocale, subscribeLocale, t } from '../i18n'
-import { supabase } from '../services/supabase'
+import { useAuth } from './authContext'
 import LanguageToggle from './LanguageToggle'
-import Logo from './Logo'
 
 type SectionId = 'features' | 'showcase' | 'why-fixaura'
 
@@ -22,12 +20,14 @@ function sectionHref(id: SectionId, isLandingPage: boolean) {
 
 export default function Navbar() {
   const location = useLocation()
+  const { user, signOut } = useAuth()
   useSyncExternalStore(subscribeLocale, getLocale)
 
-  const [user, setUser] = useState<User | null>(null)
   const [activeSection, setActiveSection] = useState<SectionId | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [signOutError, setSignOutError] = useState('')
+  const [signingOut, setSigningOut] = useState(false)
   const mobileTriggerRef = useRef<HTMLButtonElement>(null)
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const mobilePanelRef = useRef<HTMLDivElement>(null)
@@ -42,27 +42,6 @@ export default function Navbar() {
   const closeAccountMenu = useCallback(() => {
     setAccountOpen(false)
     accountTriggerRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    if (!supabase) return
-    let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error('Unable to check sign-in status:', error)
-        return
-      }
-      if (active) setUser(data.session?.user ?? null)
-    })
-
-    return () => {
-      active = false
-      subscription.unsubscribe()
-    }
   }, [])
 
   useEffect(() => {
@@ -147,11 +126,18 @@ export default function Navbar() {
   }, [accountOpen, closeAccountMenu])
 
   async function handleSignOut() {
-    if (!supabase) return
-    const { error } = await supabase.auth.signOut()
-    if (error) console.error('Sign out failed:', error)
-    if (mobileOpen) closeMobileMenu()
-    else closeAccountMenu()
+    setSigningOut(true)
+    setSignOutError('')
+    try {
+      await signOut()
+      if (mobileOpen) closeMobileMenu()
+      else closeAccountMenu()
+    } catch (error) {
+      console.error('Sign out failed:', error)
+      setSignOutError(error instanceof Error ? error.message : t('common.error'))
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   const activeLinkClass =
@@ -171,9 +157,18 @@ export default function Navbar() {
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-primary sm:gap-3"
           aria-label={t('nav.home')}
         >
-          <Logo size={80} />
-          <span className="mt-1 hidden whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-text-subtle sm:block">
-            {t('landing.footerTagline')}
+          <img
+            src="/homegenie-mark.svg"
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-2xl object-contain"
+          />
+          <span className="min-w-0 leading-none">
+            <span className="block whitespace-nowrap text-[18px] font-bold tracking-tight text-text-primary">
+              {t('common.brandName')}
+            </span>
+            <span className="mt-1 hidden whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-text-subtle sm:block">
+              {t('landing.footerTagline')}
+            </span>
           </span>
         </Link>
 
@@ -189,6 +184,17 @@ export default function Navbar() {
               {t(label)}
             </a>
           ))}
+          {user && (
+            <Link
+              to="/dashboard"
+              aria-current={location.pathname === '/dashboard' ? 'page' : undefined}
+              className={`${desktopLinkClass} ${
+                location.pathname === '/dashboard' ? activeLinkClass : ''
+              }`}
+            >
+              {t('nav.dashboard')}
+            </Link>
+          )}
           {user && (
             <Link
               to="/history"
@@ -229,6 +235,9 @@ export default function Navbar() {
                     className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-border bg-surface p-2 shadow-xl"
                   >
                     <p className="truncate px-3 py-2 text-sm text-text-subtle">{user.email ?? ''}</p>
+                    {signOutError && (
+                      <p role="alert" className="px-3 py-2 text-xs text-warning">{signOutError}</p>
+                    )}
                     <Link
                       to="/history"
                       role="menuitem"
@@ -241,7 +250,8 @@ export default function Navbar() {
                       type="button"
                       role="menuitem"
                       onClick={() => void handleSignOut()}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                      disabled={signingOut}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
                     >
                       {t('nav.signOut')}
                     </button>
@@ -251,7 +261,7 @@ export default function Navbar() {
             </div>
           ) : (
             <Link
-              to="/auth"
+              to="/login"
               className="inline-flex h-10 items-center rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
             >
               {t('nav.logIn')}
@@ -311,6 +321,18 @@ export default function Navbar() {
               ))}
               {user && (
                 <Link
+                  to="/dashboard"
+                  role="menuitem"
+                  onClick={closeMobileMenu}
+                  className={`rounded-lg px-3 py-3 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
+                    location.pathname === '/dashboard' ? 'bg-primary/10 text-primary' : 'text-text-primary'
+                  }`}
+                >
+                  {t('nav.dashboard')}
+                </Link>
+              )}
+              {user && (
+                <Link
                   to="/history"
                   role="menuitem"
                   onClick={closeMobileMenu}
@@ -327,17 +349,21 @@ export default function Navbar() {
               {user ? (
                 <>
                   <p className="truncate px-1 text-sm text-text-subtle">{user.email ?? ''}</p>
+                  {signOutError && (
+                    <p role="alert" className="px-1 text-xs text-warning">{signOutError}</p>
+                  )}
                   <button
                     type="button"
                     onClick={() => void handleSignOut()}
-                    className="h-10 rounded-full border border-border px-4 text-left text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                    disabled={signingOut}
+                    className="h-10 rounded-full border border-border px-4 text-left text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
                   >
                     {t('nav.signOut')}
                   </button>
                 </>
               ) : (
                 <Link
-                  to="/auth"
+                  to="/login"
                   onClick={closeMobileMenu}
                   className="inline-flex h-10 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
                 >
