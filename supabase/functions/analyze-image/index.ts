@@ -146,7 +146,7 @@ Deno.serve(async (request) => {
       )
     }
     const mediaType = input.mediaType
-    const prompt = `You are GarudEye, a household repair vision assistant. Analyze the image together with the user's problem description. User's description of the problem: ${input.description.trim()}. Respond with ONLY valid JSON (no markdown) using this schema:
+    const prompt = `You are HomeGenie, a household repair vision assistant. Analyze the image together with the user's problem description. User's description of the problem: ${input.description.trim()}. Respond with ONLY valid JSON (no markdown) using this schema:
 {
   "issueName": string,
   "confidence": number 0-100,

@@ -481,8 +481,8 @@ export default function Landing() {
           <div className="md:col-span-1">
             <div className="flex items-center gap-3 mb-4">
               <img
-                src="/logo.png"
-                alt="GarudEye"
+                src="/homegenie-mark.svg"
+                alt="HomeGenie"
                 className="h-10 w-10 rounded-2xl object-contain"
               />
               <div>

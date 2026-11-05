@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="public/logo.png" alt="GarudEye" width="80" />
+  <img src="public/homegenie-mark.svg" alt="HomeGenie" width="80" />
 </p>
 
-<h1 align="center">GarudEye</h1>
+<h1 align="center">HomeGenie</h1>
 
 <p align="center">
-  <strong>See the Problem. Know the Solution.</strong><br/>
-  AI-powered home repair and safety assistant<br/>
+  <strong>Your Home. Our Intelligence.</strong><br/>
+  AI-powered home repair assistant for intelligent guidance, safety insights, and nearby professionals<br/>
   Scan a broken item → get instant AI diagnosis → gather tools → follow AR-guided step-by-step repair
 </p>
 
@@ -21,7 +21,7 @@
 
 ## Overview
 
-GarudEye empowers everyday people to diagnose and repair broken household items using AI vision analysis and AR-guided instructions. Users point their camera at a broken object, receive an AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
+HomeGenie is an AI-powered home repair assistant that helps users identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals. Users can scan an item, review an AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
 
 ### Key Features
 
@@ -739,6 +739,6 @@ This project is private. All rights reserved.
 ---
 
 <p align="center">
-  <strong>GarudEye</strong> — See the Problem. Know the Solution.<br/>
+  <strong>HomeGenie</strong> — Your Home. Our Intelligence.<br/>
   Built with ❤️ using React, Supabase, and AWS
 </p>

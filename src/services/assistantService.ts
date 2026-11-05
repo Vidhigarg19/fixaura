@@ -87,9 +87,9 @@ function hasImmediateHazard(text: string) {
 function getIntent(message: string): Intent {
   const normalized = message.toLocaleLowerCase()
   if (matchesAny(normalized, [
-    'how does garudeye work',
+    'how does homegenie work',
     'how does this work',
-    'garudeye कैसे काम',
+    'homegenie कैसे काम',
     'कैसे काम करता',
   ])) return 'how'
   if (matchesAny(normalized, [

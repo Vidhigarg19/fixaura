@@ -3,7 +3,7 @@
 ## Quick Fix (Most Common Solution)
 
 ### For Chrome/Edge:
-1. Look at the address bar: `https://fixaura.vercel.app/capture`
+1. Look at the address bar on your configured HomeGenie deployment
 2. Click the **🔒 lock icon** or **🎥 camera icon** (left side of address bar)
 3. Find "Camera" in the dropdown
 4. Change from "Block" to **"Allow"**
@@ -13,7 +13,7 @@
 1. Go to Safari menu → Settings (or Preferences)
 2. Click "Websites" tab
 3. Click "Camera" in the left sidebar
-4. Find `fixaura.vercel.app` in the list
+4. Find your HomeGenie deployment domain in the list
 5. Change to **"Allow"**
 6. Refresh the page
 
@@ -60,7 +60,7 @@
 ### Chrome/Edge - Reset Camera Permission:
 
 ```
-Address Bar:  [🔒] https://fixaura.vercel.app/capture
+Address Bar:  [🔒] HomeGenie deployment domain /capture
                 ↓ Click here
               
 Dropdown appears:
@@ -81,7 +81,7 @@ Safari Menu → Settings → Websites → Camera
 
 Find in list:
 ┌──────────────────────────────────┐
-│ fixaura.vercel.app: Deny ← Click │
+│ HomeGenie site: Deny ← Click     │
 │ Change to: Allow                 │
 └──────────────────────────────────┘
 
@@ -93,8 +93,8 @@ Then refresh the page
 ### Test in Another Website:
 1. Go to: https://webcamtests.com/
 2. Click "Test my cam"
-3. If it works there but not in GarudEye:
-   - Problem is GarudEye-specific permissions
+3. If it works there but not in HomeGenie:
+   - Problem is HomeGenie-specific permissions
    - Follow reset steps above
 4. If it doesn't work there either:
    - Problem is system-level

@@ -158,7 +158,7 @@ export default function Navbar() {
           aria-label={t('nav.home')}
         >
           <img
-            src="/logo.png"
+            src="/homegenie-mark.svg"
             alt=""
             className="h-10 w-10 shrink-0 rounded-2xl object-contain"
           />

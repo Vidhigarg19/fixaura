@@ -34,7 +34,7 @@ function PageLoader() {
         </div>
       </div>
       <p className="text-[12px] uppercase tracking-[0.26em] text-primary/60 font-semibold animate-pulse">
-        GarudEye
+        HomeGenie
       </p>
     </div>
   )
