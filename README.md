@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="public/homegenie-mark.svg" alt="HomeGenie" width="80" />
+  <img src="public/homegenie-logo.png" alt="HomeGenie" width="160" />
 </p>
 
 <h1 align="center">HomeGenie</h1>
 
 <p align="center">
-  <strong>Your Home. Our Intelligence.</strong><br/>
+  <strong>Your home our intelligence</strong><br/>
   AI-powered home repair assistant for intelligent guidance, safety insights, and nearby professionals<br/>
   Scan a broken item → get instant AI diagnosis → gather tools → follow AR-guided step-by-step repair
 </p>
@@ -739,6 +739,6 @@ This project is private. All rights reserved.
 ---
 
 <p align="center">
-  <strong>HomeGenie</strong> — Your Home. Our Intelligence.<br/>
+  <strong>HomeGenie</strong> — Your home our intelligence<br/>
   Built with ❤️ using React, Supabase, and AWS
 </p>

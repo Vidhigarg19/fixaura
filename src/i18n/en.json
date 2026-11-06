@@ -2,9 +2,9 @@
   "nav": {
     "features": "Features",
     "showcase": "Repairs",
-    "testimonials": "Why FixAura",
-    "whyFixaura": "Why FixAura",
-    "scan": "Scan Problem",
+    "testimonials": "Why HomeGenie",
+    "whyFixaura": "Why HomeGenie",
+    "scan": "Scan a problem",
     "home": "HomeGenie home",
     "mainMenu": "Main navigation",
     "accountMenu": "Open account menu",
@@ -16,7 +16,7 @@
   },
   "nearby": {
     "eyebrow": "Local repair and retail",
-    "title": "Nearby Shops",
+    "title": "Nearby shops",
     "subtitle": "Find nearby places to repair or buy appliance parts.",
     "back": "Back",
     "applianceDescription": "Nearby options for",
@@ -78,30 +78,29 @@
     "findShops": "Find nearby repair / buy shops"
   },
   "landing": {
-    "headline": "Your Home. Our Intelligence.",
+    "headline": "Your home our intelligence",
     "subheadline": "Point your camera at any broken household object — get instant diagnosis, AR-guided steps, and safety-first confirmations.",
-    "ctaPrimary": "Scan Problem",
+    "ctaPrimary": "Scan a problem",
     "ctaSecondary": "See how it works",
     "confidenceLabel": "Diagnosis confidence",
 
     "badge": "Precision engineered",
-    "heroLine1": "Fix anything.",
-    "heroLine2": "Fear nothing.",
-    "trustStat": "50k+ DIYers trust FixAura",
-    "trustSubtitle": "Safety-first repairs with clear AR guidance.",
+    "heroLine1": "Your home",
+    "heroLine2": "our intelligence",
+    "trustStat": "Clearer next steps for everyday household problems.",
 
     "featuresTitle": "Repair intelligence, built in",
     "featuresKicker": "Precision engineered",
 
-    "showcaseKicker": "Pro Mode",
+    "showcaseKicker": "Pro mode",
     "showcaseTitle": "Works on everyday fixes",
 
-    "whyKicker": "Why FixAura",
+    "whyKicker": "Why HomeGenie",
     "whyTitle": "Built with safety and clarity at the core",
 
     "why": {
       "safety": {
-        "tag": "Safety First",
+        "tag": "Safety first",
         "title": "Safety-First Guidance",
         "description": "Critical repair steps are gated behind confirmation checks, hazard alerts, and professional disclaimers so you never take unsafe risks."
       },
@@ -111,7 +110,7 @@
         "description": "Full bilingual interface with natural Hindi translations and voice input tailored for Indian households and makers."
       },
       "assistant": {
-        "tag": "AI Guidance",
+        "tag": "AI guidance",
         "title": "Step-by-Step AI Assistant",
         "description": "Visual AR cues, clear tool checklists, and an on-demand AI assistant that explains instructions at your own pace."
       }
@@ -119,28 +118,24 @@
 
     "ctaBannerKicker": "Meet HomeGenie",
     "ctaBannerTitle": "Ready to fix it yourself?",
-    "ctaBannerSubtitle": "Download the app today and get your first 3 repairs completely free. No subscription required.",
+    "ctaBannerSubtitle": "Scan a household problem and review clearer next steps before you start.",
 
-    "footerTagline": "Your Home. Our Intelligence.",
-    "footerSurgicalTagline": "Your Home. Our Intelligence.",
+    "footerTagline": "Your home our intelligence",
+    "footerSurgicalTagline": "Your home our intelligence",
     "footerDescription": "HomeGenie helps you identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals.",
 
     "footerProductHeading": "Product",
     "footerProductFeatures": "Features",
-    "footerProductProMode": "Pro Mode",
-    "footerProductSafetyFirst": "Safety First",
-    "footerProductStatus": "Why FixAura",
+    "footerProductProMode": "Pro mode",
+    "footerProductSafetyFirst": "Safety first",
+    "footerProductStatus": "Why HomeGenie",
 
     "footerLegalHeading": "Legal",
-    "footerLegalPrivacyPolicy": "Privacy Policy",
-    "footerLegalTermsOfService": "Terms of Service",
-    "footerLegalCookiePolicy": "Cookie Policy",
-    "footerLegalSafetyDisclosure": "Safety Disclosure",
+    "footerLegalPrivacyPolicy": "Privacy policy",
+    "footerLegalTermsOfService": "Terms of service",
+    "footerLegalCookiePolicy": "Cookie policy",
+    "footerLegalSafetyDisclosure": "Safety disclosure",
 
-    "footerNewsletterHeading": "Newsletter",
-    "footerNewsletterBody": "Get repair tips and AR news.",
-    "footerNewsletterPlaceholderEmail": "Email address",
-    "footerNewsletterSubscribeButton": "Subscribe",
 
     "footerRights": "All rights reserved.",
 
@@ -173,10 +168,10 @@
     },
 
     "preview": {
-      "alt": "AR Repair Mockup",
+      "alt": "AR repair mockup",
       "diagnosisTitle": "Diagnosis",
       "confidenceText": "89% Conf.",
-      "issueName": "Worn Faucet Washer",
+      "issueName": "Worn faucet washer",
       "safetyLine": "Repair is safe to continue after shutoff confirmation.",
       "liveScanLabel": "Live scan",
       "arOverlayLockedLine": "AR overlay locked to the leak area",
@@ -197,7 +192,7 @@
     "errorBody": "We couldn't access your camera. Check permissions or try another device.",
     "unsafeLighting": "Lighting looks too dim — move to a brighter area for a clearer scan.",
     "unstableMotion": "Hold steady — motion detected. Pause before capturing.",
-    "uploadPhoto": "Upload a Photo Instead",
+    "uploadPhoto": "Upload a photo instead",
     "cameraSecureContext": "Camera access requires a secure connection. Open this page on localhost or HTTPS. You can still upload a photo.",
     "cameraUnsupported": "This browser does not provide camera access. You can still upload a photo.",
     "cameraPermissionDenied": "Camera permission was denied. Allow camera access in your browser's site settings, then retry.",
@@ -236,8 +231,8 @@
     "riskLevel": "Risk level",
     "summary": "Summary",
     "whyResult": "Why this result?",
-    "ctaTools": "See Tools Needed",
-    "ctaRetake": "Retake Photo",
+    "ctaTools": "See tools needed",
+    "ctaRetake": "Retake photo",
     "lowConfidence": "Low confidence",
     "riskLow": "Low risk",
     "riskMedium": "Medium risk",
@@ -414,16 +409,16 @@
     "loginSent": "Check your email for a sign-in link."
   },
   "assistant": {
-    "title": "HomeGenie Assistant",
+    "title": "HomeGenie assistant",
     "demoBadge": "Demo replies",
-    "open": "Open HomeGenie Assistant",
+    "open": "Open HomeGenie assistant",
     "close": "Close assistant",
     "newChat": "New chat",
     "welcome": "Hi! Ask me about repairs, safety, or the step you're working on.",
     "placeholder": "Ask about your repair...",
-    "inputLabel": "Message the HomeGenie Assistant",
+    "inputLabel": "Message the HomeGenie assistant",
     "send": "Send message",
-    "thinking": "HomeGenie Assistant is thinking",
+    "thinking": "HomeGenie assistant is thinking",
     "keyboardHelp": "Press Enter to send. Press Shift and Enter for a new line.",
     "contextLine": "Helping with: {issue} - Step {step} of {total}",
     "persistenceWarning": "This chat couldn't be saved or loaded. You can keep chatting here.",
@@ -468,7 +463,7 @@
     }
   },
   "verify": {
-    "title": "Repair Verification",
+    "title": "Repair verification",
     "subtitle": "Compare before & after photos to confirm the fix before marking complete.",
     "beforePhoto": "Before repair",
     "beforePhotoAlt": "Initial problem photo",

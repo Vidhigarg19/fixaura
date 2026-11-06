@@ -174,13 +174,9 @@ export default function RepairGuide() {
             transition={{ duration: 0.35 }}
             className={`glass-panel rounded-xl p-6 ${index === 0 ? '' : ''}`}
           >
-            <motion.span
-              animate={{ scale: [1, 1.02, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="inline-block text-label-bold text-primary mb-2"
-            >
+            <span className="inline-block text-label-bold text-primary mb-2">
               {t('guide.step')} {index + 1}
-            </motion.span>
+            </span>
             <h2 className="text-heading-md mb-3">{step.title}</h2>
             <p className="text-body-md text-text-secondary mb-4">{step.instruction}</p>
             <p className="text-sm text-warning/90 border-l-2 border-warning pl-3">

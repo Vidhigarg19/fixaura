@@ -1,12 +1,13 @@
 import { Suspense, lazy, useEffect, useSyncExternalStore } from 'react'
+import { MotionConfig } from 'framer-motion'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
-import { Wrench } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './components/AuthProvider'
 import { useAuth } from './components/authContext'
 import AssistantProvider from './components/AssistantProvider'
 import AssistantWidget from './components/AssistantWidget'
 import Navbar from './components/Navbar'
+import { LogoMark } from './components/Logo'
 import { getLocale, subscribeLocale, t } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
 import { getSession as getRepairSession, isValidDiagnosisSession } from './services/repairSession'
@@ -30,8 +31,8 @@ function PageLoader() {
       <div className="relative flex items-center justify-center">
         <div className="h-20 w-20 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
         <div className="absolute h-14 w-14 rounded-full border border-primary/10 border-t-primary/40 animate-[spin_1.5s_linear_infinite_reverse]" />
-        <div className="absolute h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center shadow-[0_0_24px_rgba(0,245,212,0.3)]">
-          <Wrench className="h-5 w-5 text-primary" />
+        <div className="absolute flex h-10 w-10 items-center justify-center">
+          <LogoMark size={40} className="rounded-xl" />
         </div>
       </div>
       <p className="text-[12px] uppercase tracking-[0.26em] text-primary/60 font-semibold animate-pulse">
@@ -161,16 +162,18 @@ export default function App() {
   }, [])
 
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <LocaleSync />
-        <AssistantProvider>
-          <ErrorBoundary>
-            <AppRoutes />
-          </ErrorBoundary>
-        </AssistantProvider>
-      </BrowserRouter>
-    </AuthProvider>
+    <MotionConfig reducedMotion="user">
+      <AuthProvider>
+        <BrowserRouter>
+          <LocaleSync />
+          <AssistantProvider>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
+          </AssistantProvider>
+        </BrowserRouter>
+      </AuthProvider>
+    </MotionConfig>
   )
 }
 

@@ -2,8 +2,8 @@
   "nav": {
     "features": "विशेषताएँ",
     "showcase": "मरम्मत",
-    "testimonials": "FixAura क्यों",
-    "whyFixaura": "FixAura क्यों",
+    "testimonials": "HomeGenie क्यों",
+    "whyFixaura": "HomeGenie क्यों",
     "scan": "समस्या स्कैन करें",
     "home": "HomeGenie होम",
     "mainMenu": "मुख्य नेविगेशन",
@@ -78,17 +78,16 @@
     "findShops": "आस-पास मरम्मत / खरीद की दुकानें खोजें"
   },
   "landing": {
-    "headline": "Your Home. Our Intelligence.",
+    "headline": "Your home our intelligence",
     "subheadline": "अपने फोन के कैमरे को किसी भी टूटी हुई वस्तु पर रखें — तुरंत निदान, AR-मार्गदर्शित कदम, और सुरक्षा-पहले पुष्टि के साथ।",
     "ctaPrimary": "समस्या स्कैन करें",
     "ctaSecondary": "देखें यह कैसे काम करता है",
     "confidenceLabel": "निदान विश्वास",
 
     "badge": "सटीक रूप से इंजीनियर्ड",
-    "heroLine1": "कुछ भी ठीक करें।",
-    "heroLine2": "कुछ भी न डरें।",
-    "trustStat": "50k+ DIYers ने FixAura पर भरोसा किया",
-    "trustSubtitle": "स्पष्ट AR मार्गदर्शन के साथ सुरक्षा-पहले मरम्मत।",
+    "heroLine1": "Your home",
+    "heroLine2": "our intelligence",
+    "trustStat": "रोज़मर्रा की घरेलू समस्याओं के लिए स्पष्ट अगले कदम।",
 
     "featuresTitle": "मरम्मत बुद्धिमत्ता, अंदर से",
     "featuresKicker": "सटीक रूप से इंजीनियर्ड",
@@ -96,7 +95,7 @@
     "showcaseKicker": "Pro मोड",
     "showcaseTitle": "रोज़मर्रा की मरम्मत पर काम करता है",
 
-    "whyKicker": "FixAura क्यों",
+    "whyKicker": "HomeGenie क्यों",
     "whyTitle": "सुरक्षा और स्पष्टता को केंद्र में रखकर निर्मित",
 
     "why": {
@@ -119,17 +118,17 @@
 
     "ctaBannerKicker": "HomeGenie से मिलें",
     "ctaBannerTitle": "खुद ठीक करने के लिए तैयार?",
-    "ctaBannerSubtitle": "ऐप आज डाउनलोड करें और अपनी पहली 3 मरम्मत पूरी तरह मुफ्त पाएं। सब्सक्रिप्शन की जरूरत नहीं।",
+    "ctaBannerSubtitle": "घर की किसी समस्या को स्कैन करें और शुरू करने से पहले स्पष्ट अगले कदम देखें।",
 
-    "footerTagline": "Your Home. Our Intelligence.",
-    "footerSurgicalTagline": "Your Home. Our Intelligence.",
+    "footerTagline": "Your home our intelligence",
+    "footerSurgicalTagline": "Your home our intelligence",
     "footerDescription": "HomeGenie घरेलू समस्याओं की पहचान, बुद्धिमान मरम्मत मार्गदर्शन, सुरक्षा जोखिमों की जानकारी और आस-पास के मरम्मत पेशेवरों को खोजने में मदद करता है।",
 
     "footerProductHeading": "प्रोडक्ट",
     "footerProductFeatures": "फीचर्स",
     "footerProductProMode": "Pro मोड",
     "footerProductSafetyFirst": "पहले सुरक्षा",
-    "footerProductStatus": "FixAura क्यों",
+    "footerProductStatus": "HomeGenie क्यों",
 
     "footerLegalHeading": "कानूनी",
     "footerLegalPrivacyPolicy": "गोपनीयता नीति",
@@ -137,10 +136,6 @@
     "footerLegalCookiePolicy": "कुकी नीति",
     "footerLegalSafetyDisclosure": "सुरक्षा सूचना",
 
-    "footerNewsletterHeading": "न्यूज़लेटर",
-    "footerNewsletterBody": "मरम्मत टिप्स और AR समाचार पाएं।",
-    "footerNewsletterPlaceholderEmail": "ईमेल पता",
-    "footerNewsletterSubscribeButton": "सब्सक्राइब",
 
     "footerRights": "सर्वाधिकार सुरक्षित।",
 
