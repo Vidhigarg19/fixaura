@@ -323,7 +323,8 @@
     "rateAria": "Rate this repair",
     "startAnother": "Start another repair",
     "rating": "How helpful was HomeGenie?",
-    "thanks": "Thanks for your feedback!"
+    "thanks": "Thanks for your feedback!",
+    "notCompleted": "Comparison not completed."
   },
   "common": {
     "loading": "Loading…",
@@ -499,6 +500,7 @@
     "completing": "Saving repair...",
     "reverify": "Retake photo & re-verify",
     "error": "Unable to verify repair at this time.",
-    "photoRequired": "Please capture or upload an after-repair photo first."
+    "photoRequired": "Please capture or upload an after-repair photo first.",
+    "unavailable": "Comparison is currently unavailable. No repair outcome has been confirmed."
   }
 }
