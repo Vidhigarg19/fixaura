@@ -1,19 +1,59 @@
 import { motion } from 'framer-motion'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { ArrowLeft, Clock3, MapPin, Navigation, Phone, Search, Wrench } from 'lucide-react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from 'react'
+import {
+  ArrowLeft,
+  Clock3,
+  ExternalLink,
+  Globe,
+  MapPin,
+  Navigation,
+  Phone,
+  Search,
+  Wrench,
+} from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import LanguageToggle from '../components/LanguageToggle'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
-import { findNearbyShops, type NearbyShop, type NearbyShopType } from '../services/nearbyShops'
+import {
+  buildExternalSearchUrl,
+  findNearbyShops,
+  isValidArea,
+  NearbySearchError,
+  type NearbySearchErrorCode,
+  type NearbyShop,
+  type NearbyShopType,
+} from '../services/nearbyShops'
 
 const RADII = [3, 5, 10, 20] as const
+type Radius = (typeof RADII)[number]
 type ShopFilter = 'all' | 'repair' | 'sell'
+type Coordinates = { latitude: number; longitude: number }
+type SearchState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success' }
+  | { status: 'error'; code: NearbySearchErrorCode }
 
 function getGeolocationError(error: GeolocationPositionError): string {
   if (error.code === error.PERMISSION_DENIED) return 'nearby.locationDenied'
   if (error.code === error.POSITION_UNAVAILABLE) return 'nearby.locationUnavailable'
   return 'nearby.locationTimeout'
+}
+
+function getSearchErrorKey(code: NearbySearchErrorCode): string {
+  if (code === 'offline') return 'nearby.internetUnavailable'
+  if (code === 'busy') return 'nearby.errorBusy'
+  if (code === 'timeout') return 'nearby.errorTimeout'
+  if (code === 'invalid_input') return 'nearby.invalidCoordinates'
+  return 'nearby.overpassUnavailable'
 }
 
 function getTypeLabel(type: NearbyShopType): string {
@@ -22,52 +62,125 @@ function getTypeLabel(type: NearbyShopType): string {
 
 function getPhoneHref(phone: string): string | null {
   const digits = phone.replace(/\D/g, '')
-  if (digits.length < 5 || !/^[+\d\s()./;#*-]+$/.test(phone)) return null
-  return `tel:${phone.replace(/[^\d+*#;]/g, '')}`
+  if (digits.length < 5 || !/^[+\d\s()./#*-]+$/.test(phone)) return null
+  return `tel:${phone.replace(/[^\d+*#]/g, '')}`
+}
+
+function formatDistance(distanceKm: number): string {
+  return distanceKm < 0.1 ? '< 0.1' : distanceKm.toFixed(1)
+}
+
+function ExternalSearchLink({
+  href,
+  sharesLocation,
+}: {
+  href: string
+  sharesLocation: boolean
+}) {
+  return (
+    <div>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <Search className="h-4 w-4" aria-hidden="true" />
+        {t('nearby.searchGoogleMaps')}
+        <ExternalLink className="h-4 w-4" aria-hidden="true" />
+      </a>
+      <p className="mt-2 text-xs text-text-secondary">
+        {t('nearby.externalNote')}
+        {sharesLocation && <> {t('nearby.externalLocationNote')}</>}
+      </p>
+    </div>
+  )
 }
 
 export default function NearbyShops() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const appliance = searchParams.get('appliance')?.trim() ?? ''
-  const [radiusKm, setRadiusKm] = useState<(typeof RADII)[number]>(5)
+  const appliance = (searchParams.get('appliance')?.trim() ?? '').slice(0, 60)
+  const [radiusKm, setRadiusKm] = useState<Radius>(5)
   const [filter, setFilter] = useState<ShopFilter>('all')
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
-    null
-  )
+  // Exact coordinates live only in this component's memory: never stored or logged.
+  const [coordinates, setCoordinates] = useState<Coordinates | null>(null)
   const [shops, setShops] = useState<NearbyShop[]>([])
-  const [locationStatus, setLocationStatus] = useState('nearby.locationNotRequested')
   const [locating, setLocating] = useState(false)
-  const [searching, setSearching] = useState(false)
+  const [locationIssue, setLocationIssue] = useState('')
+  const [search, setSearch] = useState<SearchState>({ status: 'idle' })
   const [searchAttempt, setSearchAttempt] = useState(0)
-  const [error, setError] = useState('')
-  const [errorDetails, setErrorDetails] = useState('')
+  const [area, setArea] = useState('')
+  const [areaTouched, setAreaTouched] = useState(false)
+  const locateRequest = useRef(0)
 
-  function findShopsNearMe() {
-    setError('')
-    setErrorDetails('')
+  // Ignore a late geolocation callback if the user has already left the page.
+  useEffect(() => {
+    const request = locateRequest
+    return () => {
+      request.current += 1
+    }
+  }, [])
+
+  // One cancellable directory search per (location, radius, attempt). Changing any of
+  // them, or leaving the page, aborts the request in flight, so an old response can
+  // never replace newer results and no request keeps running unnecessarily.
+  useEffect(() => {
+    if (!coordinates) return
+    const controller = new AbortController()
+
+    findNearbyShops(coordinates.latitude, coordinates.longitude, radiusKm, controller.signal)
+      .then((results) => {
+        if (controller.signal.aborted) return
+        setShops(results)
+        setSearch({ status: 'success' })
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return
+        const code: NearbySearchErrorCode =
+          requestError instanceof NearbySearchError ? requestError.code : 'unavailable'
+        if (code === 'cancelled') return
+        console.warn('Nearby directory search failed:', code)
+        setShops([])
+        setSearch({ status: 'error', code })
+      })
+
+    return () => controller.abort()
+  }, [coordinates, radiusKm, searchAttempt])
+
+  const searching = search.status === 'loading'
+
+  function beginSearch() {
+    setSearch({ status: 'loading' })
+    setSearchAttempt((attempt) => attempt + 1)
+  }
+
+  function requestLocation() {
+    if (locating || searching) return
+    setLocationIssue('')
+
     if (coordinates) {
-      setSearching(true)
-      setSearchAttempt((attempt) => attempt + 1)
+      beginSearch()
       return
     }
-
     if (!window.isSecureContext) {
-      setError('nearby.secureContextRequired')
+      setLocationIssue('nearby.secureContextRequired')
       return
     }
-
     if (!navigator.geolocation) {
-      setError('nearby.geolocationUnsupported')
+      setLocationIssue('nearby.geolocationUnsupported')
       return
     }
 
+    const requestId = locateRequest.current + 1
+    locateRequest.current = requestId
     setLocating(true)
-    setLocationStatus('nearby.locationRequesting')
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (requestId !== locateRequest.current) return
         const { latitude, longitude } = position.coords
+        setLocating(false)
         if (
           !Number.isFinite(latitude) ||
           !Number.isFinite(longitude) ||
@@ -76,67 +189,26 @@ export default function NearbyShops() {
           longitude < -180 ||
           longitude > 180
         ) {
-          setError('nearby.invalidCoordinates')
-          setLocationStatus('nearby.locationFailed')
-          setLocating(false)
+          setLocationIssue('nearby.invalidCoordinates')
           return
         }
-
-        setCoordinates({
-          latitude,
-          longitude,
-        })
-        setLocationStatus('nearby.locationFound')
-        setLocating(false)
-        setSearching(true)
+        setCoordinates({ latitude, longitude })
+        setSearch({ status: 'loading' })
       },
       (positionError) => {
-        setError(getGeolocationError(positionError))
-        setLocationStatus('nearby.locationFailed')
+        if (requestId !== locateRequest.current) return
         setLocating(false)
+        setLocationIssue(getGeolocationError(positionError))
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
     )
   }
 
-  useEffect(() => {
-    if (!coordinates) return
-    let active = true
-
-    void findNearbyShops(coordinates.latitude, coordinates.longitude, radiusKm)
-      .then((results) => {
-        if (active) setShops(results)
-      })
-      .catch((requestError: unknown) => {
-        console.error('Nearby shops search failed:', requestError)
-        if (active) {
-          setError(navigator.onLine ? 'nearby.overpassUnavailable' : 'nearby.internetUnavailable')
-          setErrorDetails(
-            requestError instanceof Error ? requestError.message : String(requestError)
-          )
-          setShops([])
-        }
-      })
-      .finally(() => {
-        if (active) setSearching(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [coordinates, radiusKm, searchAttempt])
-
-  function selectRadius(radius: (typeof RADII)[number]) {
-    if (coordinates) {
-      setError('')
-      setErrorDetails('')
-      setSearching(true)
-      if (radius === radiusKm) {
-        setSearchAttempt((attempt) => attempt + 1)
-        return
-      }
-    }
+  function selectRadius(radius: Radius) {
+    if (radius === radiusKm) return
     setRadiusKm(radius)
+    // The effect aborts any pending request for the old radius and starts a new one.
+    if (coordinates) setSearch({ status: 'loading' })
   }
 
   const visibleShops = useMemo(
@@ -149,16 +221,43 @@ export default function NearbyShops() {
     [filter, shops]
   )
 
-  const googleMapsSearch = new URLSearchParams({
-    api: '1',
-    query: [
-      appliance,
-      t('nearby.mapsQuery'),
-      coordinates ? `${coordinates.latitude},${coordinates.longitude}` : '',
-    ]
-      .filter(Boolean)
-      .join(' '),
-  }).toString()
+  const areaText = area.trim()
+  const areaValid = isValidArea(areaText)
+  const searchArea = areaValid ? areaText : ''
+  const sharesLocation = !searchArea && Boolean(coordinates)
+  const categoryTerms =
+    filter === 'repair'
+      ? t('nearby.mapsQueryRepair')
+      : filter === 'sell'
+        ? t('nearby.mapsQuerySell')
+        : t('nearby.mapsQuery')
+  const externalUrl = buildExternalSearchUrl(
+    [appliance, categoryTerms].filter(Boolean).join(' '),
+    searchArea,
+    searchArea ? null : coordinates
+  )
+
+  function submitArea(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAreaTouched(true)
+    if (!areaValid) return
+    window.open(externalUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const statusKey = locating
+    ? 'nearby.locationRequesting'
+    : searching
+      ? 'nearby.loading'
+      : locationIssue && !coordinates
+        ? 'nearby.locationFailed'
+        : coordinates
+          ? 'nearby.locationFound'
+          : 'nearby.locationNotRequested'
+  const showAreaError = areaTouched && !areaValid
+  const canRetryLocation =
+    locationIssue !== 'nearby.secureContextRequired' &&
+    locationIssue !== 'nearby.geolocationUnsupported'
+  const hasResults = search.status === 'success' && shops.length > 0
 
   return (
     <PageShell className="pb-16">
@@ -168,7 +267,7 @@ export default function NearbyShops() {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary"
+              className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {t('nearby.back')}
@@ -177,9 +276,7 @@ export default function NearbyShops() {
           </div>
           <div className="mb-3 flex items-center gap-2 text-primary">
             <MapPin className="h-5 w-5" aria-hidden="true" />
-            <span className="text-sm font-semibold uppercase tracking-wide">
-              {t('nearby.eyebrow')}
-            </span>
+            <span className="text-sm font-semibold">{t('nearby.eyebrow')}</span>
           </div>
           <h1 className="text-heading-lg">{t('nearby.title')}</h1>
           <p className="mt-2 text-text-secondary">{t('nearby.subtitle')}</p>
@@ -194,7 +291,9 @@ export default function NearbyShops() {
           <div className="flex items-start gap-3">
             <MapPin className="mt-1 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <p className="font-semibold">{t(locationStatus)}</p>
+              <p role="status" className="font-semibold">
+                {t(statusKey)}
+              </p>
               <p className="mt-1 text-sm text-text-secondary">
                 {t('nearby.locationPermissionMessage')}
               </p>
@@ -202,17 +301,91 @@ export default function NearbyShops() {
           </div>
           <button
             type="button"
-            onClick={findShopsNearMe}
+            onClick={requestLocation}
             disabled={locating || searching}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-background transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+            aria-busy={locating || searching}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60 sm:w-auto"
           >
             {locating || searching ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-background/30 border-t-background" />
+              <span
+                className="h-4 w-4 animate-spin rounded-full border-2 border-background/30 border-t-background"
+                aria-hidden="true"
+              />
             ) : (
               <Search className="h-4 w-4" aria-hidden="true" />
             )}
             {t('nearby.findNearMe')}
           </button>
+
+          {locationIssue && !coordinates && !locating && (
+            <div className="mt-5 border-t border-border pt-5">
+              <p role="alert" className="mb-4 text-text-secondary">
+                {t(locationIssue)}
+              </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                {canRetryLocation && (
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className="rounded-lg border border-border px-4 py-2 font-semibold text-text-secondary hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {t('nearby.tryAgain')}
+                  </button>
+                )}
+                <ExternalSearchLink href={externalUrl} sharesLocation={sharesLocation} />
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section
+          className="glass-panel mb-6 rounded-xl p-5 sm:p-6"
+          aria-labelledby="nearby-area-heading"
+        >
+          <h2 id="nearby-area-heading" className="font-semibold">
+            {t('nearby.externalHeading')}
+          </h2>
+          <form onSubmit={submitArea} noValidate className="mt-3">
+            <label htmlFor="nearby-area" className="block text-sm font-medium">
+              {t('nearby.areaLabel')}
+            </label>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+              <input
+                id="nearby-area"
+                type="text"
+                value={area}
+                maxLength={80}
+                autoComplete="off"
+                onChange={(event) => setArea(event.target.value)}
+                onBlur={() => {
+                  if (area.trim()) setAreaTouched(true)
+                }}
+                placeholder={t('nearby.areaPlaceholder')}
+                aria-invalid={showAreaError}
+                aria-describedby={
+                  showAreaError ? 'nearby-area-help nearby-area-error' : 'nearby-area-help'
+                }
+                className="h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-4 text-text-primary placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-primary"
+              />
+              <button
+                type="submit"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-primary px-5 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                <Search className="h-4 w-4" aria-hidden="true" />
+                {t('nearby.searchGoogleMaps')}
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <p id="nearby-area-help" className="mt-2 text-xs text-text-secondary">
+              {t('nearby.areaHelp')}
+            </p>
+            {showAreaError && (
+              <p id="nearby-area-error" role="alert" className="mt-2 text-sm text-error">
+                {t('nearby.areaInvalid')}
+              </p>
+            )}
+            <p className="mt-2 text-xs text-text-secondary">{t('nearby.externalNote')}</p>
+          </form>
         </section>
 
         <section className="glass-panel mb-6 rounded-xl p-4 sm:p-5" aria-label={t('nearby.radius')}>
@@ -224,7 +397,7 @@ export default function NearbyShops() {
                 type="button"
                 aria-pressed={radiusKm === radius}
                 onClick={() => selectRadius(radius)}
-                className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                   radiusKm === radius
                     ? 'border-primary bg-primary text-background'
                     : 'border-border text-text-secondary hover:border-primary hover:text-primary'
@@ -238,17 +411,16 @@ export default function NearbyShops() {
 
         <div
           className="mb-5 flex gap-2 border-b border-border"
-          role="tablist"
+          role="group"
           aria-label={t('nearby.filterLabel')}
         >
           {(['all', 'repair', 'sell'] as const).map((value) => (
             <button
               key={value}
               type="button"
-              role="tab"
-              aria-selected={filter === value}
+              aria-pressed={filter === value}
               onClick={() => setFilter(value)}
-              className={`border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+              className={`min-h-11 border-b-2 px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                 filter === value
                   ? 'border-primary text-primary'
                   : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -259,16 +431,8 @@ export default function NearbyShops() {
           ))}
         </div>
 
-        {locating && (
-          <div role="status" className="glass-panel mb-5 animate-pulse rounded-xl p-5">
-            <div className="mb-3 h-4 w-2/5 rounded bg-surface-high" />
-            <div className="h-3 w-3/4 rounded bg-surface-high" />
-            <span className="sr-only">{t('nearby.locating')}</span>
-          </div>
-        )}
-
-        {searching && (
-          <div role="status" className="space-y-4">
+        {(locating || searching) && (
+          <div aria-hidden="true" className="space-y-4">
             {[0, 1, 2].map((item) => (
               <div key={item} className="glass-panel animate-pulse rounded-xl p-5">
                 <div className="mb-4 h-5 w-2/3 rounded bg-surface-high" />
@@ -276,163 +440,166 @@ export default function NearbyShops() {
                 <div className="h-3 w-3/4 rounded bg-surface-high" />
               </div>
             ))}
-            <span className="sr-only">{t('nearby.loading')}</span>
           </div>
         )}
 
-        {!searching && error && (
+        {!searching && search.status === 'error' && (
           <div className="glass-panel rounded-xl p-6 text-center">
             <p role="alert" className="mb-4 text-text-secondary">
-              {t(error)}
+              {t(getSearchErrorKey(search.code))}
             </p>
-            {errorDetails && (
-              <p className="mb-4 break-words text-xs text-text-secondary">
-                {t('nearby.errorDetails')}: {errorDetails}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={findShopsNearMe}
-              className="mb-4 rounded-lg border border-border px-4 py-2 font-semibold text-text-secondary hover:border-primary hover:text-primary"
-            >
-              {t('nearby.tryAgain')}
-            </button>
-            <br />
-            <a
-              href={`https://www.google.com/maps/search/?${googleMapsSearch}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background"
-            >
-              <Search className="h-4 w-4" aria-hidden="true" />
-              {t('nearby.searchGoogleMaps')}
-            </a>
+            <div className="flex flex-col items-center gap-4">
+              {search.code !== 'invalid_input' && (
+                <button
+                  type="button"
+                  onClick={requestLocation}
+                  className="rounded-lg border border-border px-4 py-2 font-semibold text-text-secondary hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  {t('nearby.tryAgain')}
+                </button>
+              )}
+              <ExternalSearchLink href={externalUrl} sharesLocation={sharesLocation} />
+            </div>
           </div>
         )}
 
-        {searching && (
-          <p className="mb-3 text-center text-sm text-text-secondary">
-            {t('nearby.loading')}
-          </p>
-        )}
-
-        {!searching && !error && coordinates && shops.length === 0 && (
+        {!searching && search.status === 'success' && shops.length === 0 && (
           <div className="glass-panel rounded-xl p-6 text-center">
             <Wrench className="mx-auto mb-3 h-8 w-8 text-primary" aria-hidden="true" />
-            <p className="mb-2 text-text-secondary">{t('nearby.empty')}</p>
+            <p role="status" className="mb-2 text-text-secondary">
+              {t('nearby.empty')}
+            </p>
             <p className="mb-4 text-sm text-text-secondary">
               {t(`nearby.increaseRadius${radiusKm}`)}
             </p>
-            <a
-              href={`https://www.google.com/maps/search/?${googleMapsSearch}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-primary underline underline-offset-4"
-            >
-              <Search className="h-4 w-4" aria-hidden="true" />
-              {t('nearby.searchGoogleMaps')}
-            </a>
+            <div className="flex justify-center">
+              <ExternalSearchLink href={externalUrl} sharesLocation={sharesLocation} />
+            </div>
           </div>
         )}
 
-        {!searching && !error && coordinates && shops.length > 0 && visibleShops.length === 0 && (
+        {!searching && hasResults && visibleShops.length === 0 && (
           <div className="glass-panel rounded-xl p-6 text-center">
-            <p className="mb-4 text-text-secondary">{t('nearby.noFilterResults')}</p>
-            <a
-              href={`https://www.google.com/maps/search/?${googleMapsSearch}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-primary underline underline-offset-4"
-            >
-              <Search className="h-4 w-4" aria-hidden="true" />
-              {t('nearby.searchGoogleMaps')}
-            </a>
+            <p role="status" className="mb-4 text-text-secondary">
+              {t('nearby.noFilterResults')}
+            </p>
+            <div className="flex justify-center">
+              <ExternalSearchLink href={externalUrl} sharesLocation={sharesLocation} />
+            </div>
           </div>
         )}
 
-        {!searching && !error && visibleShops.length > 0 && (
-          <p className="mb-3 text-sm text-text-secondary" role="status">
-            {visibleShops.length} {t('nearby.results')}
-          </p>
-        )}
-
-        {!searching && !error && visibleShops.length > 0 && (
-          <ul className="space-y-4">
-            {visibleShops.map((shop) => (
-              <motion.li
-                key={shop.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="glass-panel rounded-xl p-5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">{shop.name}</h2>
-                    <p className="mt-1 text-sm text-text-secondary">
-                      {t(`nearby.categories.${shop.category}`)}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                    {getTypeLabel(shop.type)}
-                  </span>
-                </div>
-
-                <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
-                  <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                  {shop.distance.toFixed(1)} {t('nearby.kmAway')}
-                </p>
-                <p className="mt-2 flex items-start gap-2 text-sm text-text-secondary">
-                  <span aria-hidden="true" className="w-4 shrink-0 text-center">•</span>
-                  <span>{shop.address || t('nearby.addressUnavailable')}</span>
-                </p>
-                <p className="mt-2 flex items-start gap-2 text-sm text-text-secondary">
-                  <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                  <span>{shop.openingHours || t('nearby.hoursUnavailable')}</span>
-                </p>
-                {getPhoneHref(shop.phone) && (
-                  <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
-                    <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <span>{shop.phone}</span>
-                  </p>
-                )}
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background"
+        {!searching && hasResults && visibleShops.length > 0 && (
+          <>
+            <p className="mb-3 text-sm text-text-secondary" role="status">
+              {visibleShops.length} {t('nearby.results')}
+            </p>
+            <ul className="space-y-4">
+              {visibleShops.map((shop) => {
+                const phoneHref = getPhoneHref(shop.phone)
+                return (
+                  <motion.li
+                    key={shop.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-panel rounded-xl p-5"
                   >
-                    <Navigation className="h-4 w-4" aria-hidden="true" />
-                    {t('nearby.directions')}
-                  </a>
-                  {getPhoneHref(shop.phone) && (
-                    <a
-                      href={getPhoneHref(shop.phone) ?? undefined}
-                      className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary"
-                    >
-                      <Phone className="h-4 w-4" aria-hidden="true" />
-                      {t('nearby.call')}
-                    </a>
-                  )}
-                </div>
-              </motion.li>
-            ))}
-          </ul>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="break-words text-lg font-semibold">{shop.name}</h2>
+                        <p className="mt-1 text-sm text-text-secondary">
+                          {t(`nearby.categories.${shop.category}`)}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                        {getTypeLabel(shop.type)}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
+                      <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      {t('nearby.distancePrefix')} {formatDistance(shop.distance)}{' '}
+                      {t('nearby.distanceSuffix')}
+                    </p>
+                    {shop.address && (
+                      <p className="mt-2 flex items-start gap-2 text-sm text-text-secondary">
+                        <span aria-hidden="true" className="w-4 shrink-0 text-center">
+                          •
+                        </span>
+                        <span className="break-words">{shop.address}</span>
+                      </p>
+                    )}
+                    {shop.openingHours && (
+                      <p className="mt-2 flex items-start gap-2 text-sm text-text-secondary">
+                        <Clock3
+                          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                          aria-hidden="true"
+                        />
+                        <span className="break-words">
+                          <span className="sr-only">{t('nearby.hoursLabel')} </span>
+                          {shop.openingHours}
+                        </span>
+                      </p>
+                    )}
+                    {phoneHref && (
+                      <p className="mt-2 flex items-center gap-2 text-sm text-text-secondary">
+                        <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span>{shop.phone}</span>
+                      </p>
+                    )}
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        <Navigation className="h-4 w-4" aria-hidden="true" />
+                        {t('nearby.directions')}
+                      </a>
+                      {phoneHref && (
+                        <a
+                          href={phoneHref}
+                          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          <Phone className="h-4 w-4" aria-hidden="true" />
+                          {t('nearby.call')}
+                        </a>
+                      )}
+                      {shop.website && (
+                        <a
+                          href={shop.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          <Globe className="h-4 w-4" aria-hidden="true" />
+                          {t('nearby.website')}
+                        </a>
+                      )}
+                    </div>
+                  </motion.li>
+                )
+              })}
+            </ul>
+            <div className="mt-6">
+              <ExternalSearchLink href={externalUrl} sharesLocation={sharesLocation} />
+            </div>
+          </>
         )}
 
-        {!searching && !error && visibleShops.length > 0 && (
+        <p className="mt-8 text-xs text-text-secondary">
+          {t('nearby.attributionNote')}{' '}
           <a
-            href={`https://www.google.com/maps/search/?${googleMapsSearch}`}
+            href="https://www.openstreetmap.org/copyright"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-6 inline-flex items-center gap-2 text-sm text-primary underline underline-offset-4"
+            className="underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <Search className="h-4 w-4" aria-hidden="true" />
-            {t('nearby.searchGoogleMaps')}
+            {t('nearby.attributionLink')}
           </a>
-        )}
-
+        </p>
       </main>
     </PageShell>
   )

@@ -116,6 +116,28 @@
 
 html {
   scroll-behavior: smooth;
+  /* Keep anchor targets clear of the sticky navbar (up to 72px tall). */
+  scroll-padding-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Loading spinners stay animated: they are the only loading feedback. */
+  .animate-spin {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 body {
@@ -178,8 +200,7 @@ body {
 .text-label-bold {
   font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  line-height: 1.4;
 }
 
 .shimmer-loading {
