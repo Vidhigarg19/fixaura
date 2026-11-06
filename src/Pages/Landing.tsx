@@ -21,6 +21,7 @@ import {
   GlassWater,
 } from "lucide-react";
 import ConfidenceMeter from "../components/ConfidenceMeter";
+import Logo from "../components/Logo";
 import { t } from '../i18n'
 
 const fadeUp = {
@@ -154,7 +155,7 @@ export default function Landing() {
 
               <motion.h1
                 variants={fadeUp}
-                className="text-[42px] md:text-[64px] lg:text-[72px] leading-[0.98] tracking-[-0.03em] font-extrabold text-text-primary max-w-[11ch]"
+                className="text-[34px] md:text-[56px] lg:text-[52px] leading-[1.02] tracking-[-0.03em] font-extrabold text-text-primary"
               >
                 <span className="block">{t("landing.heroLine1")}</span>
                 <span className="block text-primary">{t("landing.heroLine2")}</span>
@@ -187,7 +188,7 @@ export default function Landing() {
                   }}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-border-default/90 bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors cursor-pointer"
                 >
                   <Play className="h-5 w-5" />
                   {t("landing.ctaSecondary")}
@@ -200,7 +201,6 @@ export default function Landing() {
                 </div>
                 <div>
                   <p className="text-text-primary font-semibold">{t("landing.trustStat")}</p>
-                  <p className="text-text-subtle">{t("landing.trustSubtitle")}</p>
                 </div>
               </motion.div>
             </div>
@@ -208,8 +208,6 @@ export default function Landing() {
             <motion.div
               id="preview"
               variants={fadeUp}
-              animate={{ y: [0, -12, 0] }}
-              transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
               className="relative flex justify-center lg:justify-end"
             >
               <div className="relative w-full max-w-107.5">
@@ -226,7 +224,7 @@ export default function Landing() {
                     />
                     <div className="absolute inset-0">
                       <div className="absolute top-[16%] left-[16%] h-[42%] w-[48%] rounded-2xl border border-primary/60 shadow-[0_0_26px_rgba(0,245,212,0.20)]" />
-                      <div className="absolute top-[19%] right-[18%] h-10 w-10 rounded-full border border-secondary/70 bg-primary/10 animate-pulse" />
+                      <div className="absolute top-[19%] right-[18%] h-10 w-10 rounded-full border border-secondary/70 bg-primary/10" aria-hidden="true" />
                       <motion.div
                         initial={{ opacity: 0, y: 12, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -295,8 +293,8 @@ export default function Landing() {
                   </div>
                 </div>
 
-                <div className="absolute -top-6 -right-3 h-20 w-20 rounded-full border border-primary/15 bg-primary/5 animate-[spin_22s_linear_infinite]" />
-                <div className="absolute -bottom-8 -left-4 h-28 w-28 rounded-full border-2 border-primary/10 bg-transparent animate-[spin_28s_linear_infinite_reverse]" />
+                <div className="absolute -top-6 -right-3 h-20 w-20 rounded-full border border-primary/15 bg-primary/5" aria-hidden="true" />
+                <div className="absolute -bottom-8 -left-4 h-28 w-28 rounded-full border-2 border-primary/10 bg-transparent" aria-hidden="true" />
               </div>
             </motion.div>
           </motion.div>
@@ -325,6 +323,8 @@ export default function Landing() {
                   <img
                     src={image}
                     alt={t(titleKey)}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover opacity-70 group-hover:opacity-90 group-hover:scale-105 transition-all duration-500"
                   />
                   <div className="absolute inset-0 bg-linear-to-b from-transparent to-background/80" />
@@ -368,6 +368,8 @@ export default function Landing() {
                   <img
                     src={image}
                     alt={t(nameKey)}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
                   />
                   <div className="absolute inset-0 bg-linear-to-b from-transparent to-background/90" />
@@ -468,19 +470,10 @@ export default function Landing() {
       </main>
 
       <footer className="border-t border-white/8 mt-6 py-10 md:py-12 bg-[#03101f]/80 backdrop-blur-xl">
-        <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-4 text-sm">
+        <div className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 grid gap-10 md:grid-cols-3 text-sm">
           <div className="md:col-span-1">
-            <div className="flex items-center gap-3 mb-4">
-              <img
-                src="/homegenie-mark.svg"
-                alt="HomeGenie"
-                className="h-10 w-10 rounded-2xl object-contain"
-              />
-              <div>
-                <span className="block text-[11px] uppercase tracking-[0.22em] text-text-subtle mt-1">
-                  {t("landing.footerSurgicalTagline")}
-                </span>
-              </div>
+            <div className="mb-4">
+              <Logo height={112} alt={t("common.brandName")} className="h-24 w-auto md:h-28" />
             </div>
             <p className="text-text-secondary leading-[1.7] max-w-xs">
               {t("landing.footerDescription")}
@@ -543,26 +536,6 @@ export default function Landing() {
             </ul>
           </div>
 
-          <div>
-            <div className="glass-panel p-5 rounded-2xl border border-white/10">
-              <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-3">
-                {t("landing.footerNewsletterHeading")}
-              </h4>
-              <p className="text-text-secondary mb-4 leading-[1.65]">
-                {t("landing.footerNewsletterBody")}
-              </p>
-              <div className="flex flex-col gap-3">
-                <input
-                  className="h-12 rounded-xl bg-brand-surface/80 border border-border-default px-4 text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-primary/70 transition-colors"
-                  placeholder={t("landing.footerNewsletterPlaceholderEmail")}
-                  type="email"
-                />
-                <button className="h-12 rounded-xl bg-primary text-background font-semibold hover:opacity-90 transition-opacity">
-                  {t("landing.footerNewsletterSubscribeButton")}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </footer>
     </div>

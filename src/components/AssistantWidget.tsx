@@ -317,13 +317,9 @@ export default function AssistantWidget() {
           location.pathname === '/guide' ? 'bottom-24' : 'bottom-5'
         }`}
       >
-        <motion.span
-          aria-hidden="true"
-          animate={{ scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
+        <span aria-hidden="true">
           <Sparkles className="h-6 w-6" />
-        </motion.span>
+        </span>
       </motion.button>
 
       <AnimatePresence>
