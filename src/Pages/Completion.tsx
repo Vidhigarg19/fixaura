@@ -20,7 +20,6 @@ export default function Completion() {
     completion &&
       completion.diagnosisId !== 'guest-repair' &&
       verification &&
-      !verification.mock &&
       verification.status === 'resolved'
   )
 
