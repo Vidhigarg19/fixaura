@@ -7,7 +7,6 @@ export interface RepairVerification {
   summary: string
   checks: Array<{ label: string; passed: boolean }>
   nextAdvice: string
-  mock: boolean
 }
 
 export interface DiagnosisResult {
@@ -20,6 +19,7 @@ export interface DiagnosisResult {
   nextStepAdvice: string
   safetyWarning: string
   explanation?: string
+  safetyStop?: boolean
   verification?: RepairVerification
 }
 

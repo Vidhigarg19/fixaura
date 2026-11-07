@@ -1,6 +1,8 @@
 import type { DiagnosisResult, RepairStep } from '../types/repair'
 
 export function buildRepairPlan(diagnosis: DiagnosisResult): RepairStep[] {
+  if (diagnosis.safetyStop || diagnosis.severity === 'high') return []
+
   const issue = diagnosis.issueName.toLowerCase()
 
   const base: RepairStep[] = [

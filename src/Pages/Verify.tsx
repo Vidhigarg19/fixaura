@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertOctagon,
@@ -25,6 +25,45 @@ import { completeSession } from '../services/historyService'
 import { persistCompletedRepair } from '../services/completedRepair'
 import type { CapturedPhoto } from '../services/photoImage'
 import type { DiagnosisResult, RepairVerification, VerificationStatus } from '../types/repair'
+import { AnalysisError } from '../types/analysis'
+
+function storedVerification(value: unknown): RepairVerification | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const statuses: VerificationStatus[] = ['resolved', 'monitor', 'unresolved', 'professional']
+  if (
+    record.mock === true ||
+    typeof record.status !== 'string' ||
+    !statuses.includes(record.status as VerificationStatus) ||
+    typeof record.summary !== 'string' ||
+    !record.summary.trim() ||
+    typeof record.nextAdvice !== 'string' ||
+    !record.nextAdvice.trim() ||
+    !Array.isArray(record.checks) ||
+    record.checks.length === 0
+  ) {
+    return null
+  }
+  const checks: RepairVerification['checks'] = []
+  for (const value of record.checks) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const check = value as Record<string, unknown>
+    if (
+      typeof check.label !== 'string' ||
+      !check.label.trim() ||
+      typeof check.passed !== 'boolean'
+    ) {
+      return null
+    }
+    checks.push({ label: check.label, passed: check.passed })
+  }
+  return {
+    status: record.status as VerificationStatus,
+    summary: record.summary,
+    checks,
+    nextAdvice: record.nextAdvice,
+  }
+}
 
 export default function Verify() {
   const navigate = useNavigate()
@@ -38,8 +77,10 @@ export default function Verify() {
   const [verifyError, setVerifyError] = useState('')
   const [completionError, setCompletionError] = useState('')
   const [result, setResult] = useState<RepairVerification | null>(
-    () => session?.diagnosis?.verification ?? null
+    () => storedVerification(session?.diagnosis?.verification)
   )
+  const verificationLock = useRef(false)
+  const completionLock = useRef(false)
 
   useEffect(() => {
     if (!session?.diagnosis) {
@@ -54,12 +95,13 @@ export default function Verify() {
   }, [session])
 
   const handleVerify = async () => {
-    if (!session?.diagnosis) return
+    if (!session?.diagnosis || verificationLock.current || completing) return
     if (!afterPhoto) {
       setVerifyError(t('verify.photoRequired'))
       return
     }
 
+    verificationLock.current = true
     setVerifying(true)
     setVerifyError('')
     setCompletionError('')
@@ -76,15 +118,23 @@ export default function Verify() {
       })
       setResult(verification)
     } catch (error) {
-      console.error('Repair verification error:', error)
-      setVerifyError(error instanceof Error ? error.message : t('verify.error'))
+      console.error('Repair verification failed')
+      setVerifyError(error instanceof AnalysisError ? error.message : t('verify.error'))
     } finally {
+      verificationLock.current = false
       setVerifying(false)
     }
   }
 
   const handleFinish = async (verificationToSave?: RepairVerification) => {
-    if (!session?.diagnosis || completing) return
+    if (
+      !session?.diagnosis ||
+      completing ||
+      verifying ||
+      verifyError ||
+      completionLock.current
+    ) return
+    completionLock.current = true
     setCompleting(true)
     setCompletionError('')
 
@@ -95,34 +145,27 @@ export default function Verify() {
 
     try {
       if (session.historySessionId) {
-        try {
-          await completeSession(session.historySessionId, updatedDiagnosis)
-        } catch (error) {
-          console.warn('Unable to complete history session:', error)
-        }
+        const completedSession = await completeSession(
+          session.historySessionId,
+          updatedDiagnosis
+        )
+        if (!completedSession) throw new Error(t('completion.saveError'))
       }
 
-      let completedRepairRecord = null
-      if (session.diagnosisPersistence?.repairSessionId && session.diagnosisPersistence?.diagnosisId) {
-        try {
-          completedRepairRecord = await persistCompletedRepair(
-            session.diagnosisPersistence.repairSessionId,
-            session.diagnosisPersistence.diagnosisId
-          )
-        } catch (error) {
-          console.warn('Completed repair record persistence error:', error)
-        }
+      const repairSessionId = session.diagnosisPersistence?.repairSessionId
+      const diagnosisId = session.diagnosisPersistence?.diagnosisId
+      if (Boolean(repairSessionId) !== Boolean(diagnosisId)) {
+        throw new Error(t('completion.saveError'))
       }
-
-      if (!completedRepairRecord) {
-        completedRepairRecord = {
+      const completedRepairRecord = repairSessionId && diagnosisId
+        ? await persistCompletedRepair(repairSessionId, diagnosisId)
+        : {
           id: crypto.randomUUID(),
-          diagnosisId: session.diagnosisPersistence?.diagnosisId ?? 'guest-repair',
+          diagnosisId: 'guest-repair',
           repairSummary: updatedDiagnosis.recommendedFix || updatedDiagnosis.issueName,
           completedAt: new Date().toISOString(),
           feedbackRating: null,
         }
-      }
 
       const savings = estimateSavings(updatedDiagnosis)
       saveSession({
@@ -138,11 +181,13 @@ export default function Verify() {
         error instanceof Error ? error.message : t('completion.saveError')
       )
     } finally {
+      completionLock.current = false
       setCompleting(false)
     }
   }
 
   const handleSkip = () => {
+    if (verifyError || verifying || completing) return
     void handleFinish(undefined)
   }
 
@@ -304,7 +349,7 @@ export default function Verify() {
                 <button
                   type="button"
                   onClick={handleSkip}
-                  disabled={verifying || completing}
+                  disabled={verifying || completing || Boolean(verifyError)}
                   className="rounded-xl border border-border px-5 py-3 text-sm font-semibold text-text-secondary hover:text-text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   {t('verify.skip')}
@@ -359,11 +404,6 @@ export default function Verify() {
                     </span>
                   </div>
 
-                  {result.mock && (
-                    <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                      {t('verify.demoBadge')}
-                    </span>
-                  )}
                 </div>
 
                 <p className="mt-4 text-base font-medium text-text-primary">{result.summary}</p>

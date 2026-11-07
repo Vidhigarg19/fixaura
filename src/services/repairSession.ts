@@ -46,13 +46,16 @@ export function isValidDiagnosisSession(
 ): session is RepairSession {
   return Boolean(
     session &&
-    userId &&
-    session.ownerUserId === userId &&
     typeof session.diagnosisAttemptId === 'string' &&
     session.diagnosisAttemptId.length > 0 &&
     typeof session.imageDataUrl === 'string' &&
     session.imageDataUrl.startsWith('data:image/') &&
-    isValidDiagnosisResult(session.diagnosis)
+    isValidDiagnosisResult(session.diagnosis) &&
+    (
+      userId
+        ? session.ownerUserId === userId
+        : !session.ownerUserId
+    )
   )
 }
 
@@ -60,7 +63,7 @@ export function setDiagnosis(
   diagnosis: DiagnosisResult,
   imageDataUrl: string,
   description: string,
-  ownerUserId: string
+  ownerUserId?: string
 ) {
   saveSession({
     diagnosis,
@@ -74,7 +77,6 @@ export function setDiagnosis(
     currentStep: 0,
   })
 }
-
 export function clearSession() {
   sessionStorage.removeItem(KEY)
 }

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import PageShell from '../components/PageShell'
 import { clearSession, getSession } from '../services/repairSession'
 import { t } from '../i18n'
+import type { RepairVerification } from '../types/repair'
 
 export default function Completion() {
   const session = getSession()
@@ -12,6 +13,10 @@ export default function Completion() {
   const [rated, setRated] = useState(false)
 
   const completion = session?.completedRepair
+  const verification = session?.diagnosis?.verification as
+    | (RepairVerification & { mock?: unknown })
+    | undefined
+  const legacyMockVerification = verification?.mock === true
 
   const share = async () => {
     const text = `${t('completion.sharePrefix')}${completion?.repairSummary ?? t('completion.noSummary')}`
@@ -26,6 +31,7 @@ export default function Completion() {
     clearSession()
   }
 
+  if (legacyMockVerification) return <Navigate to="/verify" replace />
   if (!completion || !session?.diagnosis) return <Navigate to="/" replace />
 
   return (
