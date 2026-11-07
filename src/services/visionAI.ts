@@ -26,17 +26,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function invocationError(error: unknown): AnalysisError {
   const context = isRecord(error) ? error.context : undefined
   if (context instanceof Response) {
-    return context.status === 401
+    const status = context.status
+    return status === 401
       ? new AnalysisError('unauthenticated', false)
-      : context.status === 403
+      : status === 403
         ? new AnalysisError('forbidden', false)
-        : context.status === 429
+        : status === 429
           ? new AnalysisError('rate_limited', true)
-          : context.status === 400
+          : status === 400
             ? new AnalysisError('invalid_input', false)
             : new AnalysisError('service_unavailable', true)
   }
   return new AnalysisError('service_unavailable', true)
+}
+
+async function invocationErrorWithContract(error: unknown): Promise<AnalysisError> {
+  const context = isRecord(error) ? error.context : undefined
+  if (context instanceof Response) {
+    if (context.status === 401) {
+      return new AnalysisError('unauthenticated', false)
+    }
+    try {
+      const contractError = errorFromEnvelope(await context.clone().json())
+      if (contractError) return contractError
+    } catch {
+      // Fall back to the HTTP status when the gateway body is not valid JSON.
+    }
+  }
+  return invocationError(error)
 }
 
 // Convert image into Base64
@@ -91,9 +108,9 @@ export async function analyzeImage(
   const base64 = await imageToBase64(imageBlob)
   const mediaType = imageBlob.type.toLowerCase()
 
-  let data, error;
+  let response
   try {
-    const res = await supabase.functions.invoke(
+    response = await supabase.functions.invoke(
       'analyze-image',
       {
         body: {
@@ -103,19 +120,17 @@ export async function analyzeImage(
         },
       }
     )
-    data = res.data
-    error = res.error
-  } catch (netError) {
-    // 🔥 Ye line real offline / network failure ko turant pakad legi!
-    throw new Error('You are offline. Please connect to the internet and try again.')
+  } catch {
+    throw new AnalysisError('service_unavailable', true)
   }
 
-  if (error || !data) {
-    throw new Error('You are offline. Please connect to the internet and try again.')
-  }
+  const { data, error } = response
+  if (error) throw await invocationErrorWithContract(error)
+  if (!data) throw new AnalysisError('invalid_response', true)
 
   return diagnosisFromEnvelope(data)
 }
+
 // Repair verification parameters
 export interface VerifyRepairParams {
   afterImage: Blob | string
@@ -191,16 +206,7 @@ export async function verifyRepair(
   const { data, error } = response
 
   if (error) {
-    const context = isRecord(error) ? error.context : undefined
-    if (context instanceof Response) {
-      try {
-        const contractError = errorFromEnvelope(await context.clone().json())
-        if (contractError) throw contractError
-      } catch (parseError) {
-        if (parseError instanceof AnalysisError) throw parseError
-      }
-    }
-    throw invocationError(error)
+    throw await invocationErrorWithContract(error)
   }
   return verificationFromEnvelope(data)
 }

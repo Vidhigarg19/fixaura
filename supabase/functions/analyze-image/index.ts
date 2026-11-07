@@ -1,20 +1,74 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { handleAnalyze } from './handler.ts'
+import {
+  ConfigurationError,
+  DEFAULT_LIMITS,
+  parsePositiveInt,
+  type QuotaLimits,
+  type QuotaResult,
+} from './logic.ts'
 
 declare const Deno: {
   env: { get(name: string): string | undefined }
   serve(handler: (request: Request) => Response | Promise<Response>): void
 }
 
-const DEFAULT_MODEL = 'gemini-3.1-flash-lite'
+// Model env-configurable: `supabase secrets set GEMINI_MODEL=...`
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite'
+const env = (name: string) => Deno.env.get(name)
+
+// SUPABASE_* secrets auto-injected hote hain. Agar kisi wajah se na milein to APP_* fallback
+// (SUPABASE_ prefix wale secrets CLI se set nahi ho sakte, isliye alag naam).
+const SUPABASE_URL = env('SUPABASE_URL')
+const ANON_KEY = env('SUPABASE_ANON_KEY') ?? env('APP_SUPABASE_ANON_KEY')
+const SERVICE_KEY = env('SUPABASE_SERVICE_ROLE_KEY') ?? env('APP_SUPABASE_SERVICE_ROLE_KEY')
+
+const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
+
+async function identifyUser(request: Request): Promise<string | null> {
+  if (!SUPABASE_URL || !ANON_KEY) throw new ConfigurationError('missing SUPABASE_URL or anon key')
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (!token) return null
+  const client = createClient(SUPABASE_URL, ANON_KEY, clientOptions)
+  const { data, error } = await client.auth.getUser(token)
+  if (error) {
+    // Network/5xx = auth service problem (user ki galti nahi); baaki = invalid/expired session
+    if (!error.status || error.status >= 500) throw new Error('auth service unavailable')
+    return null
+  }
+  return data.user?.id ?? null
+}
+
+async function consumeQuota(userId: string, limits: QuotaLimits): Promise<QuotaResult> {
+  if (!SUPABASE_URL || !SERVICE_KEY) throw new ConfigurationError('missing SUPABASE_URL or service key')
+  const client = createClient(SUPABASE_URL, SERVICE_KEY, clientOptions)
+  const { data, error } = await client.rpc('consume_analysis_quota', {
+    p_user: userId,
+    p_minute_limit: limits.userPerMinute,
+    p_user_day_limit: limits.userPerDay,
+    p_global_day_limit: limits.globalPerDay,
+  })
+  if (error) {
+    console.error('quota rpc failed', error.code, error.message)
+    throw new Error('quota store error')
+  }
+  if (data === 'ok' || data === 'user_minute' || data === 'user_day' || data === 'global_day') return data
+  throw new Error('unexpected quota response')
+}
 
 Deno.serve((request) =>
   handleAnalyze(request, {
-    apiKey: Deno.env.get('GEMINI_API_KEY'),
-    model: Deno.env.get('GEMINI_MODEL') ?? DEFAULT_MODEL,
-    supabaseUrl: Deno.env.get('SUPABASE_URL'),
-    supabaseKey:
-      Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY'),
+    apiKey: env('GEMINI_API_KEY'),
+    model: env('GEMINI_MODEL') ?? DEFAULT_MODEL,
     fetchFn: fetch,
-    timeoutMs: 25_000,
+    timeoutMs: parsePositiveInt(env('ANALYSIS_TIMEOUT_MS'), 25_000, 5_000, 60_000),
+    identifyUser,
+    consumeQuota,
+    limits: {
+      userPerMinute: parsePositiveInt(env('ANALYSIS_USER_PER_MINUTE_LIMIT'), DEFAULT_LIMITS.userPerMinute, 1, 60),
+      userPerDay: parsePositiveInt(env('ANALYSIS_USER_DAILY_LIMIT'), DEFAULT_LIMITS.userPerDay, 1, 1000),
+      globalPerDay: parsePositiveInt(env('ANALYSIS_GLOBAL_DAILY_LIMIT'), DEFAULT_LIMITS.globalPerDay, 1, 100_000),
+    },
+    now: () => new Date(),
   })
 )

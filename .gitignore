@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 .env.local
+# S02 evaluation photos (private, never commit)
+eval/images/
+eval/cases.json

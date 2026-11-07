@@ -1,24 +1,29 @@
 import {
+  ConfigurationError,
   HTTP_STATUS,
-  containsDanger,
   makeError,
   mapProviderFailure,
   parseModelJson,
-  safetyStopDiagnosis,
+  providerErrorSummary,
+  secondsUntilNextMinute,
   validateDiagnosis,
-  validateDiagnosisRequest,
-  validateVerification,
-  validateVerificationRequest,
+  validateRequest,
   type ApiError,
+  type QuotaLimits,
+  type QuotaResult,
 } from './logic.ts'
 
 export interface HandlerDeps {
   apiKey: string | undefined
   model: string
-  supabaseUrl: string | undefined
-  supabaseKey: string | undefined
   fetchFn: typeof fetch
   timeoutMs: number
+  // Server verified user id (JWT se). Request body ke user_id par kabhi bharosa nahi.
+  identifyUser: (request: Request) => Promise<string | null>
+  // Atomic quota check + consume. Store fail ho to throw (hum fail-closed rehte hain).
+  consumeQuota: (userId: string, limits: QuotaLimits) => Promise<QuotaResult>
+  limits: QuotaLimits
+  now: () => Date
 }
 
 const CORS = {
@@ -40,312 +45,143 @@ function fail(error: ApiError, status = HTTP_STATUS[error.code]) {
   return respond(status, { ok: false, error }, extra)
 }
 
-function diagnosisPrompt(description: string) {
-  return `You are HomeGenie, a household repair vision assistant. Analyze the image with the user's problem description. Do not invent details that are not visible; if the image is unclear, say so and lower confidence. Return only JSON matching the requested schema.
-
-SAFETY: Gas leaks or gas odors, exposed/live electrical wires, electrical sparks, burning smells, smoke, fire, carbon monoxide, structural danger, or any other potentially dangerous condition require a Safety Stop. Do not give DIY steps or recommend tools. Return severity "high", professional/emergency advice only, and an empty recommendedTools array.
-
-User's problem description: ${description}`
-}
-
-function verificationPrompt(input: {
-  issueName: string
-  description: string
-  stepsSummary: string
-  note?: string
-}) {
-  return `You are HomeGenie, a cautious household repair verification assistant. Compare the before and after images where both are supplied. Do not claim a check passed unless it is visibly supported. If evidence is uncertain, use status "monitor" or "unresolved", not "resolved". Return only JSON matching the requested schema.
-
-SAFETY: If either image or the supplied information suggests gas leaks/odors, exposed/live electrical wires, sparks, burning smells, smoke, fire, carbon monoxide, structural danger, or any other dangerous condition, use status "professional"; do not say the repair is resolved and mark all checks as failed.
-
-Issue: ${input.issueName}
-Problem: ${input.description}
-Repair steps: ${input.stepsSummary}
-User note: ${input.note ?? 'None'}`
-}
-
-const diagnosisSchema = {
-  type: 'OBJECT',
-  properties: {
-    issueName: { type: 'STRING' },
-    confidence: { type: 'NUMBER' },
-    summary: { type: 'STRING' },
-    severity: { type: 'STRING', enum: ['low', 'medium', 'high'] },
-    recommendedFix: { type: 'STRING' },
-    recommendedTools: { type: 'ARRAY', items: { type: 'STRING' } },
-    nextStepAdvice: { type: 'STRING' },
-    safetyWarning: { type: 'STRING' },
-    explanation: { type: 'STRING' },
-    safetyStop: { type: 'BOOLEAN' },
-  },
-  required: [
-    'issueName',
-    'confidence',
-    'summary',
-    'severity',
-    'recommendedFix',
-    'recommendedTools',
-    'nextStepAdvice',
-    'safetyWarning',
-    'explanation',
-  ],
-}
-
-const verificationSchema = {
-  type: 'OBJECT',
-  properties: {
-    status: { type: 'STRING', enum: ['resolved', 'monitor', 'unresolved', 'professional'] },
-    summary: { type: 'STRING' },
-    checks: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          label: { type: 'STRING' },
-          passed: { type: 'BOOLEAN' },
-        },
-        required: ['label', 'passed'],
-      },
-    },
-    nextAdvice: { type: 'STRING' },
-  },
-  required: ['status', 'summary', 'checks', 'nextAdvice'],
-}
-
-function bearerToken(request: Request): string | null {
-  return request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null
-}
-
-async function authenticate(request: Request, deps: HandlerDeps): Promise<ApiError | null> {
-  const token = bearerToken(request)
-  if (!token) return makeError('unauthenticated', false)
-  if (!deps.supabaseUrl || !deps.supabaseKey) {
-    return makeError('configuration_error', false)
-  }
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), deps.timeoutMs)
-  try {
-    const response = await deps.fetchFn(
-      `${deps.supabaseUrl.replace(/\/$/, '')}/auth/v1/user`,
-      {
-        signal: controller.signal,
-        headers: {
-          apikey: deps.supabaseKey,
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
-    if (response.ok) return null
-    if (response.status === 401 || response.status === 403) {
-      return makeError('unauthenticated', false)
-    }
-    console.error('analyze-image: auth verification failed', response.status)
-    return makeError('service_unavailable', true)
-  } catch {
-    console.error(
-      'analyze-image: auth verification request failed',
-      controller.signal.aborted ? 'timeout' : 'network_error'
-    )
-    return makeError('service_unavailable', true)
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-function candidateText(providerJson: unknown): string {
-  if (!providerJson || typeof providerJson !== 'object') return ''
-  const candidate = (providerJson as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>
-  }).candidates?.[0]
-  return candidate?.content?.parts
-    ?.map((part) => typeof part.text === 'string' ? part.text : '')
-    .join('') ?? ''
-}
-
-function hasProviderSafetyBlock(providerJson: unknown): boolean {
-  if (!providerJson || typeof providerJson !== 'object') return false
-  const result = providerJson as {
-    promptFeedback?: { blockReason?: unknown }
-    candidates?: Array<{ finishReason?: unknown }>
-  }
-  return typeof result.promptFeedback?.blockReason === 'string' ||
-    result.candidates?.[0]?.finishReason === 'SAFETY'
+function buildPrompt(description: string) {
+  return `You are FixAura, a household repair vision assistant. Analyze the image together with the user's problem description. Do not invent details that are not visible; if the image is unclear, say so in the summary and lower the confidence. User's description of the problem: ${description}. Respond with ONLY valid JSON (no markdown) using this schema:
+{
+  "issueName": string,
+  "confidence": number 0-100,
+  "summary": string,
+  "severity": "low" | "medium" | "high",
+  "recommendedFix": string,
+  "recommendedTools": string[],
+  "nextStepAdvice": string,
+  "safetyWarning": string,
+  "explanation": string
+}`
 }
 
 export async function handleAnalyze(request: Request, deps: HandlerDeps): Promise<Response> {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS })
-  if (request.method !== 'POST') return fail(makeError('invalid_input', false), 405)
 
-  const authError = await authenticate(request, deps)
-  if (authError) return fail(authError)
+  const started = Date.now()
+  const requestId = crypto.randomUUID().slice(0, 8)
+  let userRef: string | undefined
 
+  // Structured, sanitized log: image, description, key, poora user id kabhi nahi.
+  const log = (status: number, fields: Record<string, unknown>) => {
+    const line = JSON.stringify({
+      event: 'analyze-image',
+      requestId,
+      status,
+      latencyMs: Date.now() - started,
+      model: deps.model,
+      user: userRef,
+      ...fields,
+    })
+    if (status >= 400) console.error(line)
+    else console.log(line)
+  }
+  const reject = (error: ApiError, status = HTTP_STATUS[error.code], fields: Record<string, unknown> = {}) => {
+    log(status, { outcome: error.code, ...fields })
+    return fail(error, status)
+  }
+
+  if (request.method !== 'POST') return reject(makeError('invalid_input', false), 405, { reason: 'method' })
+
+  if (!deps.apiKey) return reject(makeError('configuration_error', false), undefined, { reason: 'missing GEMINI_API_KEY' })
+
+  // 1) Login check
+  let userId: string | null
+  try {
+    userId = await deps.identifyUser(request)
+  } catch (error) {
+    if (error instanceof ConfigurationError) {
+      return reject(makeError('configuration_error', false), undefined, { reason: error.message })
+    }
+    return reject(makeError('service_unavailable', true), undefined, { reason: 'auth check failed' })
+  }
+  if (!userId) return reject(makeError('unauthenticated', false), undefined, { reason: 'no valid session' })
+  userRef = userId.slice(0, 8)
+
+  // 2) Input validation (invalid request quota consume nahi karti)
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return fail(makeError('invalid_input', false))
+    return reject(makeError('invalid_input', false), undefined, { reason: 'body not json' })
   }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return fail(makeError('invalid_input', false))
-  }
+  const input = validateRequest(body)
+  if (!input) return reject(makeError('invalid_input', false), undefined, { reason: 'validation' })
 
-  const mode = (body as Record<string, unknown>).mode
-  const verificationInput = mode === 'verify' ? validateVerificationRequest(body) : null
-  const diagnosisInput = mode === undefined ? validateDiagnosisRequest(body) : null
-  if (!verificationInput && !diagnosisInput) return fail(makeError('invalid_input', false))
+  // 3) Quota (per-user per-minute, per-user daily, global daily). Fail-closed.
+  let quota: QuotaResult
+  try {
+    quota = await deps.consumeQuota(userId, deps.limits)
+  } catch (error) {
+    if (error instanceof ConfigurationError) {
+      return reject(makeError('configuration_error', false), undefined, { reason: error.message })
+    }
+    return reject(makeError('service_unavailable', true), undefined, { reason: 'quota store failed' })
+  }
+  if (quota === 'user_minute') {
+    return reject(makeError('rate_limited', true, secondsUntilNextMinute(deps.now())), undefined, { quota })
+  }
+  if (quota !== 'ok') return reject(makeError('quota_exceeded', false), undefined, { quota })
 
-  if (diagnosisInput && containsDanger(diagnosisInput.description)) {
-    return respond(200, {
-      ok: true,
-      data: safetyStopDiagnosis(undefined, diagnosisInput.description),
-    })
-  }
-  if (
-    verificationInput &&
-    containsDanger([
-      verificationInput.issueName,
-      verificationInput.description,
-      verificationInput.stepsSummary,
-      verificationInput.note ?? '',
-    ].join(' '))
-  ) {
-    return respond(200, {
-      ok: true,
-      data: {
-        status: 'professional',
-        summary: 'A potential safety hazard was reported. Verification cannot confirm a safe repair.',
-        checks: [{ label: 'Stop work and arrange professional inspection.', passed: false }],
-        nextAdvice: 'Move away from the hazard. Contact emergency services if there is immediate danger, otherwise contact a qualified professional.',
-      },
-    })
-  }
-  if (!deps.apiKey) {
-    console.error('analyze-image: GEMINI_API_KEY is not configured')
-    return fail(makeError('configuration_error', false))
-  }
-
-  const requestInput = diagnosisInput ?? verificationInput
-  if (!requestInput) return fail(makeError('invalid_input', false))
-  const isDiagnosis = 'mediaType' in requestInput
-  const images = isDiagnosis
-    ? [{ imageBase64: requestInput.imageBase64, mediaType: requestInput.mediaType }]
-    : [
-        ...(requestInput.beforeImage ? [requestInput.beforeImage] : []),
-        requestInput.afterImage,
-      ]
-  const prompt = isDiagnosis
-    ? diagnosisPrompt(requestInput.description)
-    : verificationPrompt(requestInput)
-  const schema = isDiagnosis ? diagnosisSchema : verificationSchema
+  // 4) Provider call (server-side, bounded timeout)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), deps.timeoutMs)
+  let response: Response
   try {
-    const response = await deps.fetchFn(
+    response = await deps.fetchFn(
       `https://generativelanguage.googleapis.com/v1beta/models/${deps.model}:generateContent`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              ...images.map((image) => ({
-                inline_data: { mime_type: image.mediaType, data: image.imageBase64 },
-              })),
-              { text: prompt },
-            ],
-          }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: schema,
-            temperature: 0.2,
-            maxOutputTokens: 2048,
-          },
+          contents: [
+            {
+              parts: [
+                { inline_data: { mime_type: input.mediaType, data: input.imageBase64 } },
+                { text: buildPrompt(input.description) },
+              ],
+            },
+          ],
+          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 },
         }),
         signal: controller.signal,
       }
     )
-    if (!response.ok) {
-      let responseText = ''
-      try {
-        responseText = await response.text()
-      } catch {
-        // Status alone still maps to a safe client error.
-      }
-      const apiError = mapProviderFailure(
-        response.status,
-        responseText,
-        response.headers.get('retry-after')
-      )
-      console.error('analyze-image: Gemini provider error', response.status, apiError.code)
-      return fail(apiError)
-    }
-
-    let providerJson: unknown
-    try {
-      providerJson = await response.json()
-    } catch {
-      return fail(makeError('invalid_response', true))
-    }
-    if (hasProviderSafetyBlock(providerJson)) {
-      if (isDiagnosis) {
-        return respond(200, {
-          ok: true,
-          data: safetyStopDiagnosis(undefined, requestInput.description),
-        })
-      }
-      return respond(200, {
-        ok: true,
-        data: {
-          status: 'professional',
-          summary: 'A potential safety hazard was detected. Verification cannot confirm a safe repair.',
-          checks: [{ label: 'Stop work and arrange professional inspection.', passed: false }],
-          nextAdvice: 'Move away from the hazard. Contact emergency services if there is immediate danger, otherwise contact a qualified professional.',
-        },
-      })
-    }
-
-    const text = candidateText(providerJson)
-    const parsed = parseModelJson(text)
-    if (isDiagnosis) {
-      const diagnosis = validateDiagnosis(parsed)
-      if (!diagnosis) {
-        console.error('analyze-image: Gemini diagnosis response failed validation')
-        return fail(makeError('invalid_response', true))
-      }
-      return respond(200, { ok: true, data: diagnosis })
-    }
-
-    if (
-      verificationInput &&
-      containsDanger([
-        verificationInput.issueName,
-        verificationInput.description,
-        verificationInput.stepsSummary,
-        verificationInput.note ?? '',
-      ].join(' '))
-    ) {
-      return respond(200, {
-        ok: true,
-        data: {
-          status: 'professional',
-          summary: 'A potential safety hazard was reported or detected. Verification cannot confirm a safe repair.',
-          checks: [{ label: 'Stop work and arrange professional inspection.', passed: false }],
-          nextAdvice: 'Move away from the hazard. Contact emergency services if there is immediate danger, otherwise contact a qualified professional.',
-        },
-      })
-    }
-
-    const verification = validateVerification(parsed)
-    if (!verification) {
-      console.error('analyze-image: Gemini verification response failed validation')
-      return fail(makeError('invalid_response', true))
-    }
-    return respond(200, { ok: true, data: verification })
   } catch {
     const timedOut = controller.signal.aborted
-    console.error('analyze-image: Gemini request failed', timedOut ? 'timeout' : 'network_error')
-    return fail(makeError('service_unavailable', true), timedOut ? 504 : 503)
+    return reject(makeError('service_unavailable', true), timedOut ? 504 : 503, {
+      reason: timedOut ? 'provider timeout' : 'provider network error',
+    })
   } finally {
     clearTimeout(timer)
   }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    const apiError = mapProviderFailure(response.status, text, response.headers.get('retry-after'))
+    return reject(apiError, undefined, { providerHttpStatus: response.status, ...providerErrorSummary(text) })
+  }
+
+  let providerJson: unknown
+  try {
+    providerJson = await response.json()
+  } catch {
+    return reject(makeError('invalid_response', true), undefined, { reason: 'provider body not json' })
+  }
+  const parts = (providerJson as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[]
+  })?.candidates?.[0]?.content?.parts
+  const text = parts?.map((p) => p.text ?? '').join('') ?? ''
+  if (!text) return reject(makeError('invalid_response', false), undefined, { reason: 'empty or blocked output' })
+
+  const diagnosis = validateDiagnosis(parseModelJson(text))
+  if (!diagnosis) return reject(makeError('invalid_response', true), undefined, { reason: 'output failed validation' })
+
+  log(200, { outcome: 'success' })
+  return respond(200, { ok: true, data: diagnosis })
 }

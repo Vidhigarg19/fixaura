@@ -289,6 +289,11 @@ export default function CameraCapture() {
   }
 
   const analyze = async () => {
+    if (!user) {
+      setAnalysisError(t('capture.analysisSignInRequired'))
+      return
+    }
+
     let startedAnalysis = false
     try {
       setDescriptionTouched(true)
@@ -305,23 +310,33 @@ export default function CameraCapture() {
       if (!isValidDiagnosisResult(diagnosis)) {
         throw new Error('The analysis service did not return a complete diagnosis.')
       }
-      if (!user) throw new Error('Please sign in again before analyzing this image.')
       setDiagnosis(diagnosis, photo.dataUrl, description.trim(), user.id)
       navigate('/diagnosis')
     } catch (error) {
       console.error('Image analysis failed:', error)
-      const errorMessage = error instanceof Error ? error.message : t('capture.analysisError')
-
-      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine
-      const isNetworkFailure =
-        error instanceof TypeError ||
-        (error instanceof AnalysisError && error.code === 'service_unavailable') ||
-        /fetch|network|offline|connection|load failed/i.test(errorMessage)
-
-      if (isOffline || isNetworkFailure) {
-        setAnalysisError('You are offline. Please connect to the internet and try again.')
+      if (error instanceof AnalysisError) {
+        switch (error.code) {
+          case 'unauthenticated':
+            setAnalysisError(t('capture.analysisSignInRequired'))
+            break
+          case 'rate_limited':
+            setAnalysisError(
+              typeof error.retryAfterSeconds === 'number'
+                ? t('capture.analysisRateLimited').replace(
+                    '{seconds}',
+                    String(error.retryAfterSeconds)
+                  )
+                : t('capture.analysisRateLimitedFallback')
+            )
+            break
+          case 'quota_exceeded':
+            setAnalysisError(t('capture.analysisQuotaExceeded'))
+            break
+          default:
+            setAnalysisError(t('capture.analysisError'))
+        }
       } else {
-        setAnalysisError(errorMessage)
+        setAnalysisError(t('capture.analysisError'))
       }
     } finally {
       if (startedAnalysis) setAnalyzing(false)
