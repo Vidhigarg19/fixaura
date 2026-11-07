@@ -1,5 +1,5 @@
 import type { DiagnosisResult, RepairStep } from '../types/repair'
-import { supabase } from './supabase'
+import { supabase } from '../lib/supabase'
 
 export type RepairStatus = 'in_progress' | 'completed'
 export type ChatRole = 'user' | 'assistant'

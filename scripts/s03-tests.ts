@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import {
-  compareSchema, runRlsChecks,
+  compareSchema, runRlsChecks, validateSnapshot,
   type DbApi, type Expected, type Row, type Snapshot,
 } from './s03-lib.ts'
 
@@ -202,6 +202,27 @@ await run('RLS checks: forged inserts are caught', async () => {
 await run('RLS checks: missing link-ownership policy shows as HARDENING gap', async () => {
   const f = failed(await rls({ enforceLinks: false }))
   assert.ok(f.length > 0 && f.every((x) => x.kind === 'HARDENING'))
+})
+
+await run('snapshot validation: incomplete exports are rejected, complete ones accepted', () => {
+  const good = fixedSnapshot()
+  const ok = validateSnapshot(good, Object.keys(expected.tables))
+  assert.equal(ok.ok, true)
+  // missing sections (what an old/edited/cut-off export looks like)
+  const { indexes: __i, functions: __f, ...partial } = good
+  void __i
+  void __f
+  const bad = validateSnapshot(partial, Object.keys(expected.tables))
+  assert.equal(bad.ok, false)
+  assert.ok(!bad.ok && bad.problems.some((p) => p.includes('"indexes"')) && bad.problems.some((p) => p.includes('"functions"')))
+  // tables listed but nothing inside
+  const hollow = validateSnapshot({ ...good, columns: [], rls: [] }, Object.keys(expected.tables))
+  assert.equal(hollow.ok, false)
+  assert.equal(validateSnapshot('nope').ok, false)
+  assert.equal(validateSnapshot([]).ok, false)
+  // a table in the snapshot with zero columns
+  const oneEmpty = validateSnapshot({ ...good, columns: good.columns.filter((c) => c.table !== 'diagnoses') }, Object.keys(expected.tables))
+  assert.ok(!oneEmpty.ok && oneEmpty.problems.some((p) => p.includes('diagnoses')))
 })
 
 console.log('\nAll S03 tests passed.')

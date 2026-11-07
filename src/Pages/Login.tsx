@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
-import { supabase } from '../services/supabase'
+import { supabase } from '../lib/supabase'
 
 export default function Login() {
   useSyncExternalStore(subscribeLocale, getLocale)

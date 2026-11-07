@@ -3,7 +3,7 @@ import type {
   RepairVerification,
 } from '../types/repair'
 
-import { supabase } from './supabase'
+import { supabase } from '../lib/supabase'
 import { AnalysisError } from '../types/analysis'
 import {
   diagnosisFromEnvelope,

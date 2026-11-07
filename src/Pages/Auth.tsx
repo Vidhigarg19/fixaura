@@ -1,7 +1,7 @@
 
 import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { supabase } from '../services/supabase'
+import { supabase } from '../lib/supabase'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
 

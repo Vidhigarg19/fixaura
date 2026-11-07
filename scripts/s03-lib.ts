@@ -74,27 +74,27 @@ export function compareSchema(
       add('FAIL', 'RLS', table, 'Row Level Security is OFF.', 'ALTER TABLE ... ENABLE ROW LEVEL SECURITY and add owner policies.')
     }
 
-   const pols = snap.policies?.filter((p) => p?.table === table) || []
+    const pols = snap.policies.filter((p) => p.table === table)
     for (const op of exp.operations) {
       const ok = pols.some(
-        (p) => (p?.permissive ?? 'PERMISSIVE').toUpperCase() !== 'RESTRICTIVE' && 
-          ((p?.cmd ?? '').toUpperCase() === op.toUpperCase() || (p?.cmd ?? '').toUpperCase() === 'ALL') &&
-          ((p?.roles ?? ['authenticated']).includes('authenticated') || (p?.roles ?? []).includes('public'))
+        (p) => p.permissive.toUpperCase() !== 'RESTRICTIVE' && (p.cmd.toUpperCase() === op.toUpperCase() || p.cmd.toUpperCase() === 'ALL') &&
+          (p.roles.includes('authenticated') || p.roles.includes('public'))
       )
       if (!ok) add('FAIL', 'policies', table, `No policy allows ${op.toUpperCase()} for logged-in users, but the app does it.`, 'Add an owner-only policy for that command.')
     }
     for (const p of pols) {
-      const text = `${p?.using ?? ''} ${p?.check ?? ''}`
-      const isPermissive = (p?.permissive ?? 'PERMISSIVE').toUpperCase() !== 'RESTRICTIVE'
-      if (isPermissive && (p?.using === 'true' || (p?.using === null && p?.check === 'true'))) {
-        add('FAIL', 'policies', table, `Policy "${p?.name ?? 'unnamed'}" (${p?.cmd ?? 'ALL'}) allows everything (true).`, 'Replace with an owner-only check (user_id = auth.uid()).')
+      const text = `${p.using ?? ''} ${p.check ?? ''}`
+      const isPermissive = p.permissive.toUpperCase() !== 'RESTRICTIVE'
+      if (isPermissive && (p.using === 'true' || (p.using === null && p.check === 'true'))) {
+        add('FAIL', 'policies', table, `Policy "${p.name}" (${p.cmd}) allows everything (true).`, 'Replace with an owner-only check (user_id = auth.uid()).')
       } else if (isPermissive && !/auth\.uid|uid\(\)/.test(text)) {
-        add('WARN', 'policies', table, `Policy "${p?.name ?? 'unnamed'}" (${p?.cmd ?? 'ALL'}) does not reference auth.uid().`, 'Review manually: is it really owner-only?')
+        add('WARN', 'policies', table, `Policy "${p.name}" (${p.cmd}) does not reference auth.uid().`, 'Review manually: is it really owner-only?')
       }
-      if (isPermissive && ((p?.roles ?? []).includes('anon') || (p?.roles ?? []).includes('public')) && !/auth\.uid|uid\(\)/.test(text)) {
-        add('WARN', 'policies', table, `Policy "${p?.name ?? 'unnamed'}" applies to anon/public and has no owner check.`, 'Restrict to authenticated users.')
+      if (isPermissive && (p.roles.includes('anon') || p.roles.includes('public')) && !/auth\.uid|uid\(\)/.test(text)) {
+        add('WARN', 'policies', table, `Policy "${p.name}" applies to anon/public and has no owner check.`, 'Restrict to authenticated users.')
       }
     }
+
     const grants = snap.grants.filter((g) => g.table === table)
     const anonPrivs = grants.filter((g) => g.grantee === 'anon').map((g) => g.privilege)
     if (anonPrivs.length) add('WARN', 'grants', table, `anon has privileges: ${anonPrivs.join(', ')}.`, 'REVOKE ALL ... FROM anon (RLS still protects, but remove the exposure).')
@@ -168,6 +168,34 @@ FAIL: ${count('FAIL')} | WARN: ${count('WARN')} | INFO: ${count('INFO')}
 |---|---|---|---|---|
 ${findings.map((f) => `| ${f.status} | ${f.area} | ${esc(f.table)} | ${esc(f.finding)} | ${esc(f.action)} |`).join('\n')}
 `
+}
+
+// ---------------------------------------------------------------- snapshot validation
+// compareSchema ko incomplete snapshot kabhi mat do: missing sections "empty" maan lene se
+// jhoothe FAIL aate hain (aur asli problem chhup jaati hai). Isliye pehle structure verify hota hai.
+const REQUIRED_KEYS = ['tables_present', 'columns', 'constraints', 'indexes', 'rls', 'policies', 'grants', 'functions', 'storage_buckets'] as const
+
+export type SnapshotCheck = { ok: true; snapshot: Snapshot; summary: string } | { ok: false; problems: string[] }
+
+export function validateSnapshot(raw: unknown, expectedTables: string[] = []): SnapshotCheck {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, problems: ['Snapshot is not a JSON object.'] }
+  const obj = raw as Record<string, unknown>
+  const problems: string[] = []
+  for (const key of REQUIRED_KEYS) {
+    if (!Array.isArray(obj[key])) problems.push(`Section "${key}" is missing (or not a list).`)
+  }
+  if (problems.length) return { ok: false, problems }
+
+  const snap = obj as unknown as Snapshot
+  if (snap.tables_present.length > 0 && snap.columns.length === 0) problems.push('Tables are listed but "columns" is empty: the export is incomplete.')
+  if (snap.tables_present.length > 0 && snap.rls.length === 0) problems.push('Tables are listed but "rls" is empty: the export is incomplete.')
+  for (const t of expectedTables) {
+    if (snap.tables_present.includes(t) && !snap.columns.some((c) => c.table === t)) problems.push(`Table "${t}" exists but has no columns in the snapshot.`)
+  }
+  if (problems.length) return { ok: false, problems }
+
+  const n = (k: (typeof REQUIRED_KEYS)[number]) => (snap[k] as unknown[]).length
+  return { ok: true, snapshot: snap, summary: REQUIRED_KEYS.map((k) => `${k}=${n(k)}`).join(', ') }
 }
 
 // ---------------------------------------------------------------- RLS account A/B checks

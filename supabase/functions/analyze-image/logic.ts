@@ -220,10 +220,5 @@ export function providerErrorSummary(bodyText: string): { providerStatus?: strin
   return out
 }
 
-// Missing env / secret ke liye. Handler isse configuration_error bana deta hai.
-export class ConfigurationError extends Error {
-  constructor(message = 'configuration') {
-    super(message)
-    this.name = 'ConfigurationError'
-  }
-}
+// ConfigurationError ab shared hai (S04): Edge Functions ek hi class use karein.
+export { ConfigurationError } from '../_shared/errors.ts'

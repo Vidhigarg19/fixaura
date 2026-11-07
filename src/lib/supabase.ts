@@ -1,8 +1,10 @@
+import { createClient } from '@supabase/supabase-js'
 
-import { supabase as sharedClient } from '../services/supabase'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!sharedClient) {
+if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Check .env.local')
 }
 
-export const supabase = sharedClient
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
