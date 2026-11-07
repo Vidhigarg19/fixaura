@@ -65,10 +65,8 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
 
   const started = Date.now()
   const requestId = crypto.randomUUID().slice(0, 8)
-  let userRef: string | undefined
-
   // Structured, sanitized log: image, description, key, poora user id kabhi nahi.
-  const log = (status: number, fields: Record<string, unknown>) => {
+  const log = (status: number, fields: Record<string, unknown>, userRef?: string) => {
     const line = JSON.stringify({
       event: 'analyze-image',
       requestId,
@@ -81,8 +79,13 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
     if (status >= 400) console.error(line)
     else console.log(line)
   }
-  const reject = (error: ApiError, status = HTTP_STATUS[error.code], fields: Record<string, unknown> = {}) => {
-    log(status, { outcome: error.code, ...fields })
+  const reject = (
+    error: ApiError,
+    status = HTTP_STATUS[error.code],
+    fields: Record<string, unknown> = {},
+    userRef?: string,
+  ) => {
+    log(status, { outcome: error.code, ...fields }, userRef)
     return fail(error, status)
   }
 
@@ -101,17 +104,22 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
     return reject(makeError('service_unavailable', true), undefined, { reason: 'auth check failed' })
   }
   if (!userId) return reject(makeError('unauthenticated', false), undefined, { reason: 'no valid session' })
-  userRef = userId.slice(0, 8)
+  const userRef = userId.slice(0, 8)
+  const rejectAuthenticated = (
+    error: ApiError,
+    status = HTTP_STATUS[error.code],
+    fields: Record<string, unknown> = {},
+  ) => reject(error, status, fields, userRef)
 
   // 2) Input validation (invalid request quota consume nahi karti)
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return reject(makeError('invalid_input', false), undefined, { reason: 'body not json' })
+    return rejectAuthenticated(makeError('invalid_input', false), undefined, { reason: 'body not json' })
   }
   const input = validateRequest(body)
-  if (!input) return reject(makeError('invalid_input', false), undefined, { reason: 'validation' })
+  if (!input) return rejectAuthenticated(makeError('invalid_input', false), undefined, { reason: 'validation' })
 
   // 3) Quota (per-user per-minute, per-user daily, global daily). Fail-closed.
   let quota: QuotaResult
@@ -119,14 +127,14 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
     quota = await deps.consumeQuota(userId, deps.limits)
   } catch (error) {
     if (error instanceof ConfigurationError) {
-      return reject(makeError('configuration_error', false), undefined, { reason: error.message })
+      return rejectAuthenticated(makeError('configuration_error', false), undefined, { reason: error.message })
     }
-    return reject(makeError('service_unavailable', true), undefined, { reason: 'quota store failed' })
+    return rejectAuthenticated(makeError('service_unavailable', true), undefined, { reason: 'quota store failed' })
   }
   if (quota === 'user_minute') {
-    return reject(makeError('rate_limited', true, secondsUntilNextMinute(deps.now())), undefined, { quota })
+    return rejectAuthenticated(makeError('rate_limited', true, secondsUntilNextMinute(deps.now())), undefined, { quota })
   }
-  if (quota !== 'ok') return reject(makeError('quota_exceeded', false), undefined, { quota })
+  if (quota !== 'ok') return rejectAuthenticated(makeError('quota_exceeded', false), undefined, { quota })
 
   // 4) Provider call (server-side, bounded timeout)
   const controller = new AbortController()
@@ -154,7 +162,7 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
     )
   } catch {
     const timedOut = controller.signal.aborted
-    return reject(makeError('service_unavailable', true), timedOut ? 504 : 503, {
+    return rejectAuthenticated(makeError('service_unavailable', true), timedOut ? 504 : 503, {
       reason: timedOut ? 'provider timeout' : 'provider network error',
     })
   } finally {
@@ -164,24 +172,24 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     const apiError = mapProviderFailure(response.status, text, response.headers.get('retry-after'))
-    return reject(apiError, undefined, { providerHttpStatus: response.status, ...providerErrorSummary(text) })
+    return rejectAuthenticated(apiError, undefined, { providerHttpStatus: response.status, ...providerErrorSummary(text) })
   }
 
   let providerJson: unknown
   try {
     providerJson = await response.json()
   } catch {
-    return reject(makeError('invalid_response', true), undefined, { reason: 'provider body not json' })
+    return rejectAuthenticated(makeError('invalid_response', true), undefined, { reason: 'provider body not json' })
   }
   const parts = (providerJson as {
     candidates?: { content?: { parts?: { text?: string }[] } }[]
   })?.candidates?.[0]?.content?.parts
   const text = parts?.map((p) => p.text ?? '').join('') ?? ''
-  if (!text) return reject(makeError('invalid_response', false), undefined, { reason: 'empty or blocked output' })
+  if (!text) return rejectAuthenticated(makeError('invalid_response', false), undefined, { reason: 'empty or blocked output' })
 
   const diagnosis = validateDiagnosis(parseModelJson(text))
-  if (!diagnosis) return reject(makeError('invalid_response', true), undefined, { reason: 'output failed validation' })
+  if (!diagnosis) return rejectAuthenticated(makeError('invalid_response', true), undefined, { reason: 'output failed validation' })
 
-  log(200, { outcome: 'success' })
+  log(200, { outcome: 'success' }, userRef)
   return respond(200, { ok: true, data: diagnosis })
 }

@@ -8,7 +8,7 @@ import {
 } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { clearSession } from '../services/repairSession'
-import { supabase } from '../services/supabase'
+import { supabase } from '../lib/supabase'
 import { AuthContext } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {

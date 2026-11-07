@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createUserIdentifier } from '../_shared/auth.ts'
 import { handleAnalyze } from './handler.ts'
 import {
   ConfigurationError,
@@ -25,19 +26,7 @@ const SERVICE_KEY = env('SUPABASE_SERVICE_ROLE_KEY') ?? env('APP_SUPABASE_SERVIC
 
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false } }
 
-async function identifyUser(request: Request): Promise<string | null> {
-  if (!SUPABASE_URL || !ANON_KEY) throw new ConfigurationError('missing SUPABASE_URL or anon key')
-  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
-  if (!token) return null
-  const client = createClient(SUPABASE_URL, ANON_KEY, clientOptions)
-  const { data, error } = await client.auth.getUser(token)
-  if (error) {
-    // Network/5xx = auth service problem (user ki galti nahi); baaki = invalid/expired session
-    if (!error.status || error.status >= 500) throw new Error('auth service unavailable')
-    return null
-  }
-  return data.user?.id ?? null
-}
+const identifyUser = createUserIdentifier({ url: SUPABASE_URL, anonKey: ANON_KEY, createClient })
 
 async function consumeQuota(userId: string, limits: QuotaLimits): Promise<QuotaResult> {
   if (!SUPABASE_URL || !SERVICE_KEY) throw new ConfigurationError('missing SUPABASE_URL or service key')
