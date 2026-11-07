@@ -1,0 +1,220 @@
+{
+  "_note": "What the APP CODE needs (derived from src/). Edit when code changes. Types use information_schema data_type names.",
+  "tables": {
+    "repair_sessions": {
+      "columns": {
+        "id": "uuid",
+        "user_id": "uuid",
+        "appliance_id": "uuid",
+        "diagnosis_id": "uuid",
+        "title": "text",
+        "description": "text",
+        "issue_name": "text",
+        "diagnosis": "jsonb",
+        "steps": "jsonb",
+        "current_step": "integer",
+        "status": "text",
+        "image_path": "text",
+        "created_at": "timestamp with time zone",
+        "updated_at": "timestamp with time zone",
+        "completed_at": "timestamp with time zone"
+      },
+      "operations": [
+        "select",
+        "insert",
+        "update",
+        "delete"
+      ],
+      "inserts": [
+        {
+          "source": "src/Pages/Diagnosis.tsx",
+          "columns": [
+            "user_id",
+            "appliance_id",
+            "diagnosis_id",
+            "status"
+          ]
+        },
+        {
+          "source": "src/services/historyService.ts createSession",
+          "columns": [
+            "user_id",
+            "title",
+            "description",
+            "issue_name",
+            "diagnosis",
+            "steps",
+            "current_step",
+            "status"
+          ]
+        }
+      ]
+    },
+    "chat_messages": {
+      "columns": {
+        "id": "uuid",
+        "session_id": "uuid",
+        "user_id": "uuid",
+        "role": "text",
+        "content": "text",
+        "created_at": "timestamp with time zone"
+      },
+      "operations": [
+        "select",
+        "insert",
+        "update",
+        "delete"
+      ],
+      "inserts": [
+        {
+          "source": "src/services/historyService.ts",
+          "columns": [
+            "session_id",
+            "user_id",
+            "role",
+            "content"
+          ]
+        }
+      ]
+    },
+    "repair_step_progress": {
+      "columns": {
+        "repair_session_id": "uuid",
+        "step_id": "text",
+        "status": "text",
+        "created_at": "timestamp with time zone",
+        "updated_at": "timestamp with time zone"
+      },
+      "operations": [
+        "select",
+        "insert",
+        "update"
+      ],
+      "inserts": [
+        {
+          "source": "src/services/repairStepProgress.ts upsert",
+          "columns": [
+            "repair_session_id",
+            "step_id",
+            "status",
+            "updated_at"
+          ]
+        }
+      ]
+    },
+    "diagnoses": {
+      "columns": {
+        "id": "uuid",
+        "user_id": "uuid",
+        "appliance_type": "text",
+        "issue_title": "text",
+        "diagnosis_result": "jsonb",
+        "created_at": "timestamp with time zone"
+      },
+      "operations": [
+        "select",
+        "insert"
+      ],
+      "inserts": [
+        {
+          "source": "src/Pages/Diagnosis.tsx",
+          "columns": [
+            "user_id",
+            "appliance_type",
+            "issue_title",
+            "diagnosis_result"
+          ]
+        }
+      ]
+    },
+    "appliances": {
+      "columns": {
+        "id": "uuid",
+        "user_id": "uuid",
+        "name": "text",
+        "appliance_type": "text"
+      },
+      "operations": [
+        "select",
+        "insert"
+      ],
+      "inserts": [
+        {
+          "source": "src/Pages/Diagnosis.tsx",
+          "columns": [
+            "user_id",
+            "name",
+            "appliance_type"
+          ]
+        }
+      ]
+    },
+    "completed_repairs": {
+      "columns": {
+        "id": "uuid",
+        "user_id": "uuid",
+        "diagnosis_id": "uuid",
+        "repair_summary": "text",
+        "completed_at": "timestamp with time zone",
+        "feedback_rating": null
+      },
+      "operations": [
+        "select",
+        "insert"
+      ],
+      "inserts": [
+        {
+          "source": "src/services/completedRepair.ts",
+          "columns": [
+            "user_id",
+            "diagnosis_id",
+            "repair_summary"
+          ]
+        }
+      ],
+      "uniqueOn": [
+        "user_id",
+        "diagnosis_id"
+      ]
+    }
+  },
+  "linkOwnership": [
+    {
+      "table": "repair_sessions",
+      "cmd": "insert",
+      "mustMention": [
+        "appliances",
+        "diagnoses"
+      ]
+    },
+    {
+      "table": "repair_sessions",
+      "cmd": "update",
+      "mustMention": [
+        "appliances",
+        "diagnoses"
+      ]
+    },
+    {
+      "table": "completed_repairs",
+      "cmd": "insert",
+      "mustMention": [
+        "diagnoses"
+      ]
+    },
+    {
+      "table": "chat_messages",
+      "cmd": "insert",
+      "mustMention": [
+        "repair_sessions"
+      ]
+    },
+    {
+      "table": "chat_messages",
+      "cmd": "update",
+      "mustMention": [
+        "repair_sessions"
+      ]
+    }
+  ]
+}
