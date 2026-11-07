@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { useAuth } from './authContext'
 import LanguageToggle from './LanguageToggle'
+import { BrandLockup } from './Logo'
 
 type SectionId = 'features' | 'showcase' | 'why-fixaura'
 
@@ -71,6 +72,17 @@ export default function Navbar() {
       window.removeEventListener('hashchange', updateActiveSection)
     }
   }, [isLandingPage])
+
+  // The mobile menu is hidden from the md breakpoint up; close it so the body
+  // scroll lock below is released when the window is resized or rotated.
+  useEffect(() => {
+    const desktopQuery = window.matchMedia('(min-width: 768px)')
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false)
+    }
+    desktopQuery.addEventListener('change', handleChange)
+    return () => desktopQuery.removeEventListener('change', handleChange)
+  }, [])
 
   useEffect(() => {
     if (!mobileOpen) return
@@ -151,25 +163,13 @@ export default function Navbar() {
       animate={{ opacity: 1, y: 0 }}
       className="sticky top-0 z-40 border-b border-border/80 glass-panel backdrop-blur-xl"
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-0 md:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 md:px-6 lg:px-8">
         <Link
           to="/"
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-primary sm:gap-3"
           aria-label={t('nav.home')}
         >
-          <img
-            src="/homegenie-mark.svg"
-            alt=""
-            className="h-10 w-10 shrink-0 rounded-2xl object-contain"
-          />
-          <span className="min-w-0 leading-none">
-            <span className="block whitespace-nowrap text-[18px] font-bold tracking-tight text-text-primary">
-              {t('common.brandName')}
-            </span>
-            <span className="mt-1 hidden whitespace-nowrap text-[9px] uppercase tracking-[0.1em] text-text-subtle sm:block">
-              {t('landing.footerTagline')}
-            </span>
-          </span>
+          <BrandLockup />
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-6 text-text-secondary md:flex lg:gap-8" aria-label={t('nav.mainMenu')}>

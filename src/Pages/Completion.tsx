@@ -1,22 +1,28 @@
 import { motion } from 'framer-motion'
-import { Link, Navigate } from 'react-router-dom'
-import { CheckCircle2, Share2, RotateCcw, Star } from 'lucide-react'
-import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, Share2, RotateCcw, Star } from 'lucide-react'
+import { useState, useSyncExternalStore } from 'react'
 import PageShell from '../components/PageShell'
 import { clearSession, getSession } from '../services/repairSession'
-import { t } from '../i18n'
-import type { RepairVerification } from '../types/repair'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
 export default function Completion() {
+  useSyncExternalStore(subscribeLocale, getLocale)
   const session = getSession()
   const [rating, setRating] = useState(0)
   const [rated, setRated] = useState(false)
 
   const completion = session?.completedRepair
-  const verification = session?.diagnosis?.verification as
-    | (RepairVerification & { mock?: unknown })
-    | undefined
-  const legacyMockVerification = verification?.mock === true
+  // Success is shown only for a genuine outcome: a real (non-mock) "resolved"
+  // verification plus a saved record that is not a locally fabricated placeholder.
+  const verification = session?.diagnosis?.verification
+  const genuineSuccess = Boolean(
+    completion &&
+      completion.diagnosisId !== 'guest-repair' &&
+      verification &&
+      !verification.mock &&
+      verification.status === 'resolved'
+  )
 
   const share = async () => {
     const text = `${t('completion.sharePrefix')}${completion?.repairSummary ?? t('completion.noSummary')}`
@@ -31,8 +37,37 @@ export default function Completion() {
     clearSession()
   }
 
-  if (legacyMockVerification) return <Navigate to="/verify" replace />
-  if (!completion || !session?.diagnosis) return <Navigate to="/" replace />
+  if (!genuineSuccess || !completion) {
+    return (
+      <PageShell className="pb-16">
+        <div className="mx-auto max-w-lg px-4 pt-16 text-center">
+          <div className="mb-6 inline-flex rounded-full bg-warning/15 p-6">
+            <AlertTriangle className="h-16 w-16 text-warning" aria-hidden="true" />
+          </div>
+          <h1 role="status" className="text-heading-xl mb-3">
+            {t('completion.notCompleted')}
+          </h1>
+          <p className="text-text-secondary mb-10">{t('verify.unavailable')}</p>
+          <div className="flex flex-col gap-3">
+            <Link
+              to="/dashboard"
+              className="flex items-center justify-center rounded-xl bg-primary py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              {t('nav.dashboard')}
+            </Link>
+            <Link
+              to="/capture"
+              onClick={startAnother}
+              className="flex items-center justify-center gap-2 rounded-xl border border-primary/40 py-3 text-primary focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
+              {t('completion.startAnother')}
+            </Link>
+          </div>
+        </div>
+      </PageShell>
+    )
+  }
 
   return (
     <PageShell className="pb-16">

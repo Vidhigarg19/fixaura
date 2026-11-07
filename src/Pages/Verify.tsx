@@ -9,14 +9,13 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  Image as ImageIcon,
+  ImageIcon,
   Loader2,
   RotateCcw,
   ShieldAlert,
   Sparkles,
 } from 'lucide-react'
 import PageShell from '../components/PageShell'
-import PhotoCapture from '../components/PhotoCapture'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { getSession, saveSession, estimateSavings } from '../services/repairSession'
 import { buildRepairPlan } from '../services/repairPlanner'
@@ -26,6 +25,7 @@ import { persistCompletedRepair } from '../services/completedRepair'
 import type { CapturedPhoto } from '../services/photoImage'
 import type { DiagnosisResult, RepairVerification, VerificationStatus } from '../types/repair'
 import { AnalysisError } from '../types/analysis'
+import PhotoCapture from '../components/PhotoCapture'
 
 function storedVerification(value: unknown): RepairVerification | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
@@ -160,12 +160,12 @@ export default function Verify() {
       const completedRepairRecord = repairSessionId && diagnosisId
         ? await persistCompletedRepair(repairSessionId, diagnosisId)
         : {
-          id: crypto.randomUUID(),
-          diagnosisId: 'guest-repair',
-          repairSummary: updatedDiagnosis.recommendedFix || updatedDiagnosis.issueName,
-          completedAt: new Date().toISOString(),
-          feedbackRating: null,
-        }
+            id: crypto.randomUUID(),
+            diagnosisId: 'guest-repair',
+            repairSummary: updatedDiagnosis.recommendedFix || updatedDiagnosis.issueName,
+            completedAt: new Date().toISOString(),
+            feedbackRating: null,
+          }
 
       const savings = estimateSavings(updatedDiagnosis)
       saveSession({
@@ -231,26 +231,17 @@ export default function Verify() {
 
   return (
     <PageShell className="min-h-screen px-4 py-6 sm:py-10">
-      <main className="mx-auto max-w-3xl">
+      <main className="mx-auto max-w-xl">
         <button
           type="button"
           onClick={() => navigate('/guide')}
           className="mb-4 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t('history.back')}
+          {t('common.back')}
         </button>
 
-        <header className="mb-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('verify.title')}
-            </span>
-          </div>
-          <h1 className="mt-2 text-heading-lg text-text-primary">{session.diagnosis.issueName}</h1>
-          <p className="mt-1 text-sm text-text-secondary">{t('verify.subtitle')}</p>
-        </header>
+        <h1 className="text-heading-lg text-text-primary">{t('verify.title')}</h1>
 
         {completionError && (
           <div role="alert" className="mb-6 rounded-xl border border-error/50 bg-error/10 p-4">
@@ -403,7 +394,6 @@ export default function Verify() {
                       {t(statusConfig[result.status].titleKey)}
                     </span>
                   </div>
-
                 </div>
 
                 <p className="mt-4 text-base font-medium text-text-primary">{result.summary}</p>
