@@ -1,15 +1,3 @@
-do $$
-begin
-  if to_regclass('public.appliances') is null
-    or to_regclass('public.diagnoses') is null
-    or to_regclass('public.completed_repairs') is null
-  then
-    raise exception
-      'Expected user-data tables are missing: public.appliances, public.diagnoses, and public.completed_repairs must exist before applying user-data RLS policies.';
-  end if;
-end;
-$$;
-
 alter table public.appliances enable row level security;
 alter table public.diagnoses enable row level security;
 alter table public.completed_repairs enable row level security;
