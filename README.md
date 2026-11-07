@@ -27,7 +27,7 @@ HomeGenie is an AI-powered home repair assistant that helps users identify house
 
 | Feature | Description |
 |---------|-------------|
-| **AI Vision Scan** | Camera or photo upload → Claude Vision identifies the issue with confidence scoring |
+| **AI Vision Scan** | Camera or photo upload → Gemini 3.1 Flash-Lite identifies the issue with confidence scoring |
 | **Safety-First Guidance** | Critical steps gated behind confirmation prompts; safety warnings at every stage |
 | **Tool Checklists** | Auto-generated checklists with essential tool acknowledgment before repair begins |
 | **AR Step Overlays** | On-screen highlights, arrows, and zone indicators guide each repair step visually |
@@ -61,7 +61,7 @@ HomeGenie is an AI-powered home repair assistant that helps users identify house
 | **Database** | Supabase PostgreSQL | Users, repairs, diagnoses, guides, ratings |
 | **Object Storage** | Supabase Storage + AWS S3 | Repair images, AR guide assets |
 | **Edge Functions** | Supabase Edge Functions (Deno) | AI proxy, repair plan generation, webhooks |
-| **AI Vision** | AWS Bedrock (Claude Sonnet) | Image analysis and diagnosis |
+| **AI Vision** | Google Gemini 3.1 Flash-Lite | Image analysis and diagnosis through the Supabase Edge Function |
 | **AI Repair Plans** | AWS Bedrock (Claude Haiku) | Step-by-step repair generation |
 | **CDN** | AWS CloudFront | Global low-latency asset delivery |
 | **Async Processing** | AWS SQS + Lambda | Image preprocessing, batch analytics, notifications |
@@ -322,30 +322,30 @@ CREATE POLICY "Users manage own tools"   ON user_tools FOR ALL    USING (auth.ui
 
 ### Supabase Edge Functions
 
-#### `POST /functions/v1/analyze`
+#### `POST /functions/v1/analyze-image`
 
-Uploads an image and triggers AI diagnosis.
+Uploads an image and problem description to the authenticated Supabase Edge Function. Gemini API credentials remain server-side.
 
 ```json
 // Request
 {
-  "image": "<base64-encoded-image>",
-  "mediaType": "image/jpeg"
+  "imageBase64": "<base64-encoded-image>",
+  "mediaType": "image/jpeg",
+  "description": "The outlet sparks when I plug in the lamp."
 }
 
 // Response (200)
 {
-  "repairId": "uuid",
-  "diagnosis": {
-    "issueName": "Loose mounting bracket",
-    "confidence": 87,
-    "summary": "Fastener fatigue pattern detected...",
-    "severity": "medium",
-    "recommendedFix": "Replace bracket screws...",
-    "recommendedTools": ["Phillips screwdriver", "M4 screws", ...],
-    "safetyWarning": "Disconnect power before disassembly.",
-    "explanation": "Visual cues match common fastener fatigue..."
-  }
+  "issueName": "Potential household safety hazard",
+  "confidence": 95,
+  "summary": "A potentially dangerous household condition was reported or detected. Do not attempt a DIY repair.",
+  "severity": "high",
+  "recommendedFix": "Do not attempt a DIY repair. Contact a qualified professional.",
+  "recommendedTools": [],
+  "nextStepAdvice": "Stay away and do not touch the wires or equipment...",
+  "safetyWarning": "Stay away and do not touch the wires or equipment...",
+  "explanation": "Safety Stop: DIY repair guidance is blocked because this condition may cause serious harm.",
+  "safetyStop": true
 }
 ```
 
@@ -598,11 +598,12 @@ Open [http://localhost:5173](http://localhost:5173).
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-Anthropic diagnosis runs through the `analyze-image` Supabase Edge Function. Configure `ANTHROPIC_API_KEY` as a Supabase function secret; never expose it as a `VITE_` variable. If the function or secret is unavailable, the app uses realistic mock diagnosis data.
 | `VITE_SUPABASE_URL` | No* | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | No* | Supabase anon key (safe for client — protected by RLS) |
 
-*\*Required when Supabase backend is connected. App runs fully client-side without them.*
+*\*Required for Supabase-backed features such as authentication, diagnosis, and repair history.*
+
+Image diagnosis uses the `gemini-3.1-flash-lite` model through the `analyze-image` Supabase Edge Function. Set `GEMINI_API_KEY` as a Supabase Function secret; never add it to frontend environment variables. Without the function or secret, diagnosis returns an error rather than mock AI results.
 
 ### Build for Production
 
@@ -635,7 +636,7 @@ supabase link --project-ref <your-project-ref>
 supabase db push
 
 # Deploy edge functions
-supabase functions deploy analyze
+supabase functions deploy analyze-image
 supabase functions deploy plan
 supabase functions deploy history
 supabase functions deploy feedback

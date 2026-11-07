@@ -243,6 +243,8 @@ export default function Diagnosis() {
   const startRepair = async () => {
     if (
       !isValidDiagnosisSession(session, user?.id) ||
+      session.diagnosis.safetyStop ||
+      session.diagnosis.severity === 'high' ||
       starting ||
       !repairSessionReady
     ) return
@@ -280,6 +282,7 @@ export default function Diagnosis() {
 
   const d = session.diagnosis
   const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
+  const safetyStop = d.safetyStop || d.severity === 'high'
 
   return (
     <PageShell className="pb-24">
@@ -296,7 +299,7 @@ export default function Diagnosis() {
           {saveStatus}
         </p>
 
-        {lowConfidence && (
+        {lowConfidence && !safetyStop && (
           <div className="mb-6">
             <FallbackMode
               onContinue={() => void startRepair()}
@@ -360,6 +363,17 @@ export default function Diagnosis() {
           </div>
         </motion.div>
 
+        {safetyStop && (
+          <div
+            role="alert"
+            className="mb-6 rounded-xl border border-error/40 bg-error/10 p-4 text-sm text-text-secondary"
+          >
+            <p className="font-semibold text-error">{d.safetyWarning}</p>
+            <p className="mt-2">{d.nextStepAdvice}</p>
+            <p className="mt-2">{d.recommendedFix}</p>
+          </div>
+        )}
+
         <motion.button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -386,7 +400,7 @@ export default function Diagnosis() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => void startRepair()}
-            disabled={!repairSessionReady || starting}
+            disabled={!repairSessionReady || starting || safetyStop}
             className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
           >
             {starting ? t('common.loading') : t('diagnosis.ctaTools')}

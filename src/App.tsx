@@ -119,6 +119,7 @@ function GuestRoute({ signup = false }: { signup?: boolean }) {
   return <Auth initialMode={signup ? 'signup' : 'login'} />
 }
 
+
 function AppRoutes() {
   return (
     <Routes>
@@ -126,27 +127,34 @@ function AppRoutes() {
         <Route path="/login" element={<GuestRoute />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
         <Route path="/signup" element={<GuestRoute signup />} />
+
         <Route element={<LandingLayout />}>
           <Route path="/" element={<Landing />} />
         </Route>
+
+        {/* Guest + authenticated repair flow */}
+        <Route path="/capture" element={<CameraCapture />} />
+        <Route path="/camera" element={<CameraCapture />} />
+        <Route path="/diagnosis" element={<Diagnosis />} />
+        <Route path="/tools" element={<ToolChecklist />} />
+        <Route path="/guide" element={<RepairGuide />} />
+        <Route path="/verify" element={<Verify />} />
+        <Route path="/completed" element={<Completion />} />
+
+        {/* Authenticated-only pages */}
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/diagnosis-history" element={<DiagnosisHistory />} />
-          <Route path="/capture" element={<CameraCapture />} />
-          <Route path="/camera" element={<CameraCapture />} />
-          <Route path="/diagnosis" element={<Diagnosis />} />
           <Route path="/nearby-shops" element={<NearbyShopsRoute />} />
-          <Route path="/tools" element={<ToolChecklist />} />
-          <Route path="/guide" element={<RepairGuide />} />
-          <Route path="/verify" element={<Verify />} />
-          <Route path="/completed" element={<Completion />} />
           <Route path="/history" element={<History />} />
         </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )
 }
+
 
 function NearbyShopsRoute() {
   const { user } = useAuth()

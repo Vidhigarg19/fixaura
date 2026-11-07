@@ -37,24 +37,38 @@ export interface ListSessionsResult {
   messageCountWarning: boolean
 }
 
+function hasLegacyMockVerification(diagnosis: DiagnosisResult | null | undefined) {
+  if (!diagnosis?.verification) return false
+  const verification = diagnosis.verification as NonNullable<DiagnosisResult['verification']> & {
+    mock?: unknown
+  }
+  return verification.mock === true
+}
+
 function normalizeSession(row: SessionRow, messageCount = 0): HistorySession {
+  const diagnosis = row.diagnosis ?? null
+  const legacyMockVerification = hasLegacyMockVerification(diagnosis)
   return {
     id: row.id ?? '',
     user_id: row.user_id ?? '',
     title: row.title ?? null,
     description: row.description ?? null,
     issue_name: row.issue_name ?? row.title ?? null,
-    diagnosis: row.diagnosis ?? null,
+    diagnosis: legacyMockVerification && diagnosis
+      ? { ...diagnosis, verification: undefined }
+      : diagnosis,
     steps: Array.isArray(row.steps) ? row.steps : [],
     current_step:
       typeof row.current_step === 'number' && Number.isFinite(row.current_step)
         ? row.current_step
         : 0,
-    status: row.status === 'completed' ? 'completed' : 'in_progress',
+    status: row.status === 'completed' && !legacyMockVerification
+      ? 'completed'
+      : 'in_progress',
     image_path: row.image_path ?? null,
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
-    completed_at: row.completed_at ?? null,
+    completed_at: legacyMockVerification ? null : row.completed_at ?? null,
     message_count:
       Number.isFinite(messageCount) && messageCount >= 0 ? messageCount : 0,
   }

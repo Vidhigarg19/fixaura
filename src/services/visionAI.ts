@@ -1,98 +1,122 @@
-import type { DiagnosisResult, RepairVerification, RiskLevel, VerificationStatus } from '../types/repair'
-import { supabase } from './supabase'
+import type {
+  DiagnosisResult,
+  RepairVerification,
+} from '../types/repair'
 
-const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+import { supabase } from './supabase'
+import { AnalysisError } from '../types/analysis'
+import {
+  diagnosisFromEnvelope,
+  errorFromEnvelope,
+  verificationFromEnvelope,
+} from './analysisContract'
+
+const supportedImageTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+])
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-async function invocationErrorMessage(error: unknown): Promise<string> {
-  if (isRecord(error) && error.context instanceof Response) {
-    const response = error.context
-    try {
-      const body: unknown = await response.json()
-      if (isRecord(body) && typeof body.error === 'string') {
-        return body.error.slice(0, 300)
-      }
-    } catch {
-      // Use the status-only fallback below when the response isn't JSON.
-    }
-    return `The diagnosis service returned an error (HTTP ${response.status}).`
+function invocationError(error: unknown): AnalysisError {
+  const context = isRecord(error) ? error.context : undefined
+  if (context instanceof Response) {
+    return context.status === 401
+      ? new AnalysisError('unauthenticated', false)
+      : context.status === 403
+        ? new AnalysisError('forbidden', false)
+        : context.status === 429
+          ? new AnalysisError('rate_limited', true)
+          : context.status === 400
+            ? new AnalysisError('invalid_input', false)
+            : new AnalysisError('service_unavailable', true)
   }
-  if (isRecord(error) && error.name === 'FunctionsFetchError') {
-    return 'Could not reach the diagnosis service. Check your connection and try again.'
-  }
-  return 'The diagnosis service could not complete the request. Please try again.'
+  return new AnalysisError('service_unavailable', true)
 }
 
-function parseRiskLevel(value: unknown): RiskLevel {
-  const v = String(value ?? 'medium').toLowerCase()
-  if (v === 'low' || v === 'high') return v
-  return 'medium'
-}
-
-function normalizeDiagnosis(raw: Record<string, unknown>): DiagnosisResult {
-  const tools = raw.recommendedTools ?? raw.recommended_tools
-  return {
-    issueName: String(raw.issueName ?? raw.issue_name ?? 'Unknown issue'),
-    confidence: Math.min(100, Math.max(0, Number(raw.confidence ?? 50))),
-    summary: String(raw.summary ?? ''),
-    severity: parseRiskLevel(raw.severity),
-    recommendedFix: String(raw.recommendedFix ?? raw.recommended_fix ?? ''),
-    recommendedTools: Array.isArray(tools)
-      ? tools.map(String)
-      : [],
-    nextStepAdvice: String(raw.nextStepAdvice ?? raw.next_step_advice ?? ''),
-    safetyWarning: String(raw.safetyWarning ?? raw.safety_warning ?? ''),
-    explanation: String(raw.explanation ?? ''),
-  }
-}
-
+// Convert image into Base64
 export async function imageToBase64(blob: Blob): Promise<string> {
-  if (blob.size === 0) throw new Error('The selected image is empty.')
+  if (blob.size === 0) {
+    throw new Error('The selected image is empty.')
+  }
+
+  if (blob.size > MAX_IMAGE_BYTES) {
+    throw new Error('Use an image smaller than 5 MB.')
+  }
+
   if (!supportedImageTypes.has(blob.type.toLowerCase())) {
     throw new Error('Use a JPEG, PNG, or WebP image.')
   }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
+
     reader.onloadend = () => {
       if (typeof reader.result !== 'string') {
         reject(new Error('The selected image could not be read.'))
         return
       }
+
       const result = reader.result
-      const base64 = result.includes(',') ? result.split(',')[1] : result
+      const base64 = result.includes(',')
+        ? result.split(',')[1]
+        : result
+
       resolve(base64)
     }
+
     reader.onerror = reject
     reader.readAsDataURL(blob)
   })
 }
 
+// Real AI image diagnosis
 export async function analyzeImage(
   imageBlob: Blob,
   description: string
 ): Promise<DiagnosisResult> {
   if (!supabase) {
-    throw new Error('Image analysis is unavailable because Supabase is not configured.')
+    throw new AnalysisError('configuration_error', false)
   }
+
   if (!description.trim() || description.length > 500) {
-    throw new Error('Enter a problem description of 500 characters or fewer.')
+    throw new AnalysisError('invalid_input', false)
   }
 
   const base64 = await imageToBase64(imageBlob)
   const mediaType = imageBlob.type.toLowerCase()
-  const { data, error } = await supabase.functions.invoke('analyze-image', {
-    body: { imageBase64: base64, mediaType, description },
-  })
-  if (error) throw new Error(await invocationErrorMessage(error))
-  if (!data || typeof data !== 'object') {
-    throw new Error('The analysis service returned an invalid response.')
-  }
-  return normalizeDiagnosis(data as Record<string, unknown>)
-}
 
+  let data, error;
+  try {
+    const res = await supabase.functions.invoke(
+      'analyze-image',
+      {
+        body: {
+          imageBase64: base64,
+          mediaType,
+          description,
+        },
+      }
+    )
+    data = res.data
+    error = res.error
+  } catch (netError) {
+    // 🔥 Ye line real offline / network failure ko turant pakad legi!
+    throw new Error('You are offline. Please connect to the internet and try again.')
+  }
+
+  if (error || !data) {
+    throw new Error('You are offline. Please connect to the internet and try again.')
+  }
+
+  return diagnosisFromEnvelope(data)
+}
+// Repair verification parameters
 export interface VerifyRepairParams {
   afterImage: Blob | string
   beforeImage?: Blob | string | null
@@ -103,95 +127,80 @@ export interface VerifyRepairParams {
   note?: string
 }
 
-export function getMockVerification(locale: string): RepairVerification {
-  const isHi = locale === 'hi'
-  return {
-    status: 'resolved',
-    summary: isHi
-      ? 'मरम्मत सफल दिख रही है। जोड़ ठीक से लगे हैं और कोई ढीलापन या लीक नहीं दिख रहा है।'
-      : 'Repair appears successful. Fasteners and components are properly seated with no visible gaps or strain.',
-    checks: isHi
-      ? [
-          { label: 'पुर्जे सही स्थिति और संरेखण में हैं', passed: true },
-          { label: 'फ़ास्टनर्स पूरी तरह सुरक्षित रूप से कसे हुए हैं', passed: true },
-          { label: 'कोई दिखाई देने वाला रिसाव, दरार या ढीलापन नहीं है', passed: true },
-        ]
-      : [
-          { label: 'Components aligned and seated in housing', passed: true },
-          { label: 'Fasteners tightened securely', passed: true },
-          { label: 'No visual leaks, gaps, or structural damage', passed: true },
-        ],
-    nextAdvice: isHi
-      ? 'उपकरण का सामान्य रूप से परीक्षण करें। पहले इस्तेमाल के दौरान किसी असामान्य आवाज़ या कंपन पर नज़र रखें।'
-      : 'Safe to test under normal operation. Monitor for 24 hours to ensure stable performance.',
-    mock: true,
-  }
+interface EncodedImage {
+  imageBase64: string
+  mediaType: string
 }
 
-async function resolveBase64(image: Blob | string | null | undefined): Promise<string | undefined> {
+async function resolveImage(
+  image: Blob | string | null | undefined
+): Promise<EncodedImage | undefined> {
   if (!image) return undefined
+
   if (typeof image === 'string') {
-    return image.includes(',') ? image.split(',')[1] : image
+    const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/i)
+    if (!match) throw new AnalysisError('invalid_input', false)
+    return { mediaType: match[1].toLowerCase(), imageBase64: match[2] }
   }
-  return await imageToBase64(image)
+
+  return {
+    mediaType: image.type.toLowerCase(),
+    imageBase64: await imageToBase64(image),
+  }
 }
 
-export async function verifyRepair(params: VerifyRepairParams): Promise<RepairVerification> {
-  const afterBase64 = await resolveBase64(params.afterImage)
-  const beforeBase64 = await resolveBase64(params.beforeImage)
-
-  if (!supabase || !afterBase64) {
-    await delay(1000)
-    return getMockVerification(params.locale)
+export async function verifyRepair(
+  params: VerifyRepairParams
+): Promise<RepairVerification> {
+  // Direct service-level offline check for verify as well
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('You are offline. Please connect to the internet and try again.')
   }
 
+  if (!supabase) {
+    throw new AnalysisError('configuration_error', false)
+  }
+
+  const afterImage = await resolveImage(params.afterImage)
+  const beforeImage = await resolveImage(params.beforeImage)
+
+  if (!afterImage) {
+    throw new AnalysisError('invalid_input', false)
+  }
+
+  let response
   try {
-    const { data, error } = await supabase.functions.invoke('analyze-image', {
-      body: {
-        mode: 'verify',
-        afterImageBase64: afterBase64,
-        beforeImageBase64: beforeBase64,
-        issueName: params.issueName,
-        description: params.description,
-        stepsSummary: params.stepsSummary,
-        locale: params.locale,
-        note: params.note,
-      },
-    })
-    if (error) throw error
-    if (!data || typeof data !== 'object') {
-      throw new Error('Verification service returned an invalid response.')
-    }
-    const raw = data as Record<string, unknown>
-    const rawStatus = String(raw.status ?? 'monitor').toLowerCase()
-    const status: VerificationStatus =
-      rawStatus === 'resolved' || rawStatus === 'monitor' || rawStatus === 'unresolved' || rawStatus === 'professional'
-        ? rawStatus
-        : 'monitor'
-
-    const rawChecks = Array.isArray(raw.checks) ? raw.checks : []
-    const checks = rawChecks.map((item) => {
-      const itemRecord = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {}
-      return {
-        label: String(itemRecord.label ?? 'Inspection check'),
-        passed: Boolean(itemRecord.passed),
+    response = await supabase.functions.invoke(
+      'analyze-image',
+      {
+        body: {
+          mode: 'verify',
+          afterImage,
+          beforeImage,
+          issueName: params.issueName,
+          description: params.description,
+          stepsSummary: params.stepsSummary,
+          locale: params.locale,
+          note: params.note,
+        },
       }
-    })
-
-    return {
-      status,
-      summary: String(raw.summary ?? 'Verification completed.'),
-      checks: checks.length > 0 ? checks : getMockVerification(params.locale).checks,
-      nextAdvice: String(raw.nextAdvice ?? 'Continue monitoring operation.'),
-      mock: Boolean(raw.mock),
-    }
+    )
   } catch (error) {
-    console.warn('Verification service unavailable; using mock result:', error)
-    await delay(800)
-    return getMockVerification(params.locale)
+    throw invocationError(error)
   }
-}
+  const { data, error } = response
 
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
+  if (error) {
+    const context = isRecord(error) ? error.context : undefined
+    if (context instanceof Response) {
+      try {
+        const contractError = errorFromEnvelope(await context.clone().json())
+        if (contractError) throw contractError
+      } catch (parseError) {
+        if (parseError instanceof AnalysisError) throw parseError
+      }
+    }
+    throw invocationError(error)
+  }
+  return verificationFromEnvelope(data)
 }

@@ -16,6 +16,7 @@ import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
 import { analyzeImage } from '../services/visionAI'
+import { AnalysisError } from '../types/analysis'
 import {
   clearSession,
   isValidDiagnosisResult,
@@ -288,11 +289,18 @@ export default function CameraCapture() {
   }
 
   const analyze = async () => {
-    setDescriptionTouched(true)
-    if (!photo || !descriptionValid || analyzing) return
-    setAnalyzing(true)
-    setAnalysisError('')
+    let startedAnalysis = false
     try {
+      setDescriptionTouched(true)
+      if (!photo || !descriptionValid || analyzing) return
+      setAnalyzing(true)
+      startedAnalysis = true
+      setAnalysisError('')
+
+      if (!navigator.onLine) {
+        throw new Error('You are offline. Please connect to the internet and try again.')
+      }
+
       const diagnosis = await analyzeImage(photo.blob, description.trim())
       if (!isValidDiagnosisResult(diagnosis)) {
         throw new Error('The analysis service did not return a complete diagnosis.')
@@ -302,11 +310,21 @@ export default function CameraCapture() {
       navigate('/diagnosis')
     } catch (error) {
       console.error('Image analysis failed:', error)
-      setAnalysisError(
-        error instanceof Error ? error.message : t('capture.analysisError')
-      )
+      const errorMessage = error instanceof Error ? error.message : t('capture.analysisError')
+
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine
+      const isNetworkFailure =
+        error instanceof TypeError ||
+        (error instanceof AnalysisError && error.code === 'service_unavailable') ||
+        /fetch|network|offline|connection|load failed/i.test(errorMessage)
+
+      if (isOffline || isNetworkFailure) {
+        setAnalysisError('You are offline. Please connect to the internet and try again.')
+      } else {
+        setAnalysisError(errorMessage)
+      }
     } finally {
-      setAnalyzing(false)
+      if (startedAnalysis) setAnalyzing(false)
     }
   }
 
