@@ -1,11 +1,22 @@
 import { motion } from 'framer-motion'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react'
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ChangeEvent,
+} from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  AlertTriangle,
   ArrowLeft,
   Camera,
   ImagePlus,
   Loader2,
+  LogIn,
   Mic,
   SwitchCamera,
   Upload,
@@ -23,13 +34,49 @@ import {
   setDiagnosis,
 } from '../services/repairSession'
 import { getLocale, subscribeLocale, t } from '../i18n'
+import {
+  analysisErrorMessageKey,
+  canRetryAnalysis,
+  describeAnalysisFailure,
+  type AnalysisFailure,
+} from '../utils/analysisError'
+import { clearCaptureDraft, loadCaptureDraft, saveCaptureDraft } from '../utils/captureDraft'
+import {
+  IMAGE_PROBLEM_KEYS,
+  JPEG_QUALITY,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_IMAGE_SIDE,
+  MAX_OUTPUT_BYTES,
+  fitWithin,
+  validateDescription,
+  validateImageFile,
+} from '../utils/captureValidation'
+import { ImageProcessingError, processImageFile } from '../utils/imageProcessing'
+import { createRequestGuard } from '../utils/requestGuard'
+import type { FixtureOutcome } from '../dev/analysisFixtures'
 
 type CameraState = 'loading' | 'ready' | 'error'
 type VoiceState = 'idle' | 'listening' | 'error'
+type RequestState = 'idle' | 'validating' | 'submitting' | 'success' | 'error'
+type PhotoSource = 'camera' | 'upload'
+type Photo = { blob: Blob; dataUrl: string }
+type FailureView = AnalysisFailure & { retryAt: number | undefined }
 
-const MAX_IMAGE_SIDE = 1280
-const MAX_DESCRIPTION_LENGTH = 500
-const MIN_DESCRIPTION_LENGTH = 10
+const SLOW_REQUEST_MS = 15000
+
+// DEV-ONLY test hook. Both constants are replaced at build time, so in a production
+// build every branch below is removed and the fixture modules are never emitted.
+const FixturePanel = import.meta.env.DEV ? lazy(() => import('../dev/FixturePanel')) : null
+
+function readFixtureParams(): { name: string; delaySeconds: number } | null {
+  if (!import.meta.env.DEV) return null
+  if (import.meta.env.VITE_ENABLE_FIXTURES !== 'true') return null
+  const params = new URLSearchParams(window.location.search)
+  const name = params.get('fixture')
+  if (!name) return null
+  const delay = Number(params.get('delay') ?? '0')
+  return { name, delaySeconds: Number.isFinite(delay) ? delay : 0 }
+}
 
 function stopTracks(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop())
@@ -40,21 +87,54 @@ function createImageBlob(canvas: HTMLCanvasElement) {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob)
       else reject(new Error('Unable to create an image from the photo.'))
-    }, 'image/jpeg', 0.85)
+    }, 'image/jpeg', JPEG_QUALITY)
   })
-}
-
-function imageDimensions(width: number, height: number) {
-  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(width, height))
-  return {
-    width: Math.round(width * scale),
-    height: Math.round(height * scale),
-  }
 }
 
 export default function CameraCapture() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, loading, error } = useAuth()
+  useSyncExternalStore(subscribeLocale, getLocale)
+
+  // Session restore in progress: show a skeleton. Do not redirect or flash a login screen.
+  if (loading) {
+    return (
+      <PageShell className="flex min-h-screen items-center justify-center p-6">
+        <div role="status" aria-live="polite" className="glass-panel w-full max-w-sm animate-pulse rounded-2xl p-6">
+          <div className="mb-4 h-5 w-2/3 rounded bg-surface-high" />
+          <div className="mb-3 h-3 w-full rounded bg-surface-high" />
+          <div className="h-3 w-3/4 rounded bg-surface-high" />
+          <span className="sr-only">{t('capture.authChecking')}</span>
+        </div>
+      </PageShell>
+    )
+  }
+
+  // Auth finished and nobody is signed in: explain, and let the user choose to log in.
+  if (!user || error) {
+    return (
+      <PageShell className="flex min-h-screen items-center justify-center p-6">
+        <div role="alert" className="glass-panel w-full max-w-md rounded-2xl p-6 text-center">
+          <LogIn className="mx-auto mb-3 h-8 w-8 text-primary" aria-hidden="true" />
+          <h1 className="text-heading-md">{t('capture.loginRequired')}</h1>
+          <button
+            type="button"
+            onClick={() => navigate('/login', { state: { from: { pathname: '/capture' } } })}
+            className="mt-5 min-h-11 rounded-xl bg-primary px-6 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {t('capture.loginAction')}
+          </button>
+        </div>
+      </PageShell>
+    )
+  }
+
+  return <CaptureForm userId={user.id} />
+}
+
+function CaptureForm({ userId }: { userId: string }) {
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
   useSyncExternalStore(subscribeLocale, getLocale)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -62,17 +142,28 @@ export default function CameraCapture() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const errorPanelRef = useRef<HTMLDivElement>(null)
+  const lastSource = useRef<PhotoSource>('upload')
+  const submitLock = useRef(false)
+  const [guard] = useState(createRequestGuard)
+  const [fixtureParams] = useState(readFixtureParams)
+
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const [cameraEnabled, setCameraEnabled] = useState(false)
   const [cameraState, setCameraState] = useState<CameraState>('loading')
   const [cameraErrorKey, setCameraErrorKey] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
   const [retryCount, setRetryCount] = useState(0)
   const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null)
-  const [photo, setPhoto] = useState<{ blob: Blob; dataUrl: string } | null>(null)
-  const [description, setDescription] = useState('')
+  const [photo, setPhoto] = useState<Photo | null>(null)
+  const [photoErrorKey, setPhotoErrorKey] = useState('')
+  const [description, setDescription] = useState(() => loadCaptureDraft(userId))
   const [descriptionTouched, setDescriptionTouched] = useState(false)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [analysisError, setAnalysisError] = useState('')
+  const [requestState, setRequestState] = useState<RequestState>('idle')
+  const [slow, setSlow] = useState(false)
+  const [failure, setFailure] = useState<FailureView | null>(null)
+  const [now, setNow] = useState(0)
+  const [fixtureResult, setFixtureResult] = useState<FixtureOutcome | null>(null)
   const [unsafeWarningKey, setUnsafeWarningKey] = useState('')
   const [showSafety, setShowSafety] = useState(false)
   const [voiceSupported] = useState(
@@ -84,19 +175,77 @@ export default function CameraCapture() {
   const [voiceErrorKey, setVoiceErrorKey] = useState('')
   const [interimTranscript, setInterimTranscript] = useState('')
 
+  const busy = requestState === 'validating' || requestState === 'submitting'
+  const cameraActive = cameraEnabled && !photo
+  const descriptionProblem = validateDescription(description)
+  const descriptionValid = descriptionProblem === null
+  const descriptionValidation =
+    descriptionProblem === 'too_short'
+      ? t('capture.descriptionTooShort')
+      : descriptionProblem === 'too_long'
+        ? t('capture.descriptionTooLong')
+        : ''
+
   useEffect(() => {
     clearSession()
   }, [])
 
-  const descriptionLength = description.trim().length
-  const descriptionValid =
-    descriptionLength >= MIN_DESCRIPTION_LENGTH &&
-    description.length <= MAX_DESCRIPTION_LENGTH
-  const descriptionValidation = descriptionLength < MIN_DESCRIPTION_LENGTH
-    ? t('capture.descriptionTooShort')
-    : description.length > MAX_DESCRIPTION_LENGTH
-      ? t('capture.descriptionTooLong')
-      : ''
+  // A response that arrives after the user left the page must do nothing.
+  useEffect(() => () => guard.invalidate(), [guard])
+
+  // Save only the description (never the photo), shortly after typing stops.
+  useEffect(() => {
+    const timer = window.setTimeout(() => saveCaptureDraft(userId, description), 400)
+    return () => window.clearTimeout(timer)
+  }, [userId, description])
+
+  // Calm "still working" line after a long wait. No countdown is invented.
+  useEffect(() => {
+    if (requestState !== 'submitting') return
+    const timer = window.setTimeout(() => setSlow(true), SLOW_REQUEST_MS)
+    return () => {
+      window.clearTimeout(timer)
+      setSlow(false)
+    }
+  }, [requestState])
+
+  // Move focus to the error panel whenever a new failure is shown.
+  useEffect(() => {
+    if (failure) errorPanelRef.current?.focus()
+  }, [failure])
+
+  // Tick only while a trusted retry-after time is still in the future.
+  useEffect(() => {
+    const retryAt = failure?.retryAt
+    if (retryAt === undefined) return
+    const id = window.setInterval(() => {
+      const current = Date.now()
+      setNow(current)
+      if (current >= retryAt) window.clearInterval(id)
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [failure])
+
+  const stopCamera = useCallback(() => {
+    stopTracks(streamRef.current)
+    streamRef.current = null
+    setStream(null)
+    setCameraState('loading')
+    setVideoSize(null)
+    setUnsafeWarningKey('')
+  }, [])
+
+  // Release the camera whenever the page is hidden (tab switch, app switch, screen off).
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopCamera()
+        setCameraEnabled(false)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [stopCamera])
 
   const startCamera = useCallback(async (cancelled: () => boolean) => {
     setCameraState('loading')
@@ -136,7 +285,7 @@ export default function CameraCapture() {
         })
       }
     } catch (error) {
-      console.error('Unable to start the camera:', error)
+      console.error('Unable to start the camera:', error instanceof Error ? error.name : 'unknown')
       if (cancelled()) return
       const name = error instanceof Error ? error.name : ''
       const errorKey =
@@ -156,6 +305,8 @@ export default function CameraCapture() {
       return
     }
 
+    // A stream that arrives after the effect was cleaned up (StrictMode, fast unmount,
+    // or the camera being switched off) must be stopped, never kept running.
     if (cancelled()) {
       stopTracks(acquiredStream)
       return
@@ -165,6 +316,7 @@ export default function CameraCapture() {
   }, [facingMode])
 
   useEffect(() => {
+    if (!cameraActive) return
     let active = true
     const timer = window.setTimeout(() => {
       void startCamera(() => !active)
@@ -178,7 +330,7 @@ export default function CameraCapture() {
         streamRef.current = null
       }
     }
-  }, [retryCount, startCamera])
+  }, [cameraActive, retryCount, startCamera])
 
   useEffect(() => {
     const video = videoRef.current
@@ -189,7 +341,7 @@ export default function CameraCapture() {
     }
     video.srcObject = stream
     void video.play().catch((error: unknown) => {
-      console.error('Unable to play the camera preview:', error)
+      console.error('Unable to play the camera preview:', error instanceof Error ? error.name : 'unknown')
       setCameraErrorKey('capture.cameraPlaybackError')
       setCameraState('error')
     })
@@ -201,7 +353,7 @@ export default function CameraCapture() {
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (cameraState !== 'ready' || !video || !canvas) return
+    if (cameraState !== 'ready' || !cameraActive || !video || !canvas) return
     const timer = window.setInterval(() => {
       if (!video.videoWidth || !video.videoHeight) return
       const context = canvas.getContext('2d')
@@ -218,129 +370,170 @@ export default function CameraCapture() {
       setUnsafeWarningKey(brightness < 40 ? 'capture.unsafeLighting' : '')
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [cameraState])
+  }, [cameraState, cameraActive])
 
   useEffect(() => () => {
     recognitionRef.current?.stop()
     recognitionRef.current = null
   }, [])
 
-  const savePhoto = async (canvas: HTMLCanvasElement) => {
-    const blob = await createImageBlob(canvas)
-    setPhoto({ blob, dataUrl: canvas.toDataURL('image/jpeg', 0.85) })
-    setAnalysisError('')
+  const chooseCamera = () => {
+    setPhotoErrorKey('')
+    setCameraEnabled(true)
+  }
+
+  const chooseUpload = () => {
+    // Switching to upload releases the camera right away.
+    stopCamera()
+    setCameraEnabled(false)
+    fileInputRef.current?.click()
+  }
+
+  const acceptPhoto = (next: Photo, source: PhotoSource) => {
+    lastSource.current = source
+    stopCamera()
+    if (source === 'upload') setCameraEnabled(false)
+    setPhoto(next)
+    setPhotoErrorKey('')
+    setFailure(null)
+    setFixtureResult(null)
+    setRequestState('idle')
     setDescriptionTouched(false)
   }
 
   const capture = async () => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || cameraState !== 'ready' || analyzing) return
+    if (!video || !canvas || cameraState !== 'ready' || busy) return
     if (unsafeWarningKey) {
       setShowSafety(true)
       return
     }
-    const dimensions = imageDimensions(video.videoWidth, video.videoHeight)
-    if (!dimensions.width || !dimensions.height) return
+    const dimensions = fitWithin(video.videoWidth, video.videoHeight, MAX_IMAGE_SIDE)
+    if (!video.videoWidth || !video.videoHeight) return
     canvas.width = dimensions.width
     canvas.height = dimensions.height
     const context = canvas.getContext('2d')
     if (!context) return
     context.drawImage(video, 0, 0, dimensions.width, dimensions.height)
     try {
-      await savePhoto(canvas)
+      const blob = await createImageBlob(canvas)
+      if (blob.size > MAX_OUTPUT_BYTES) throw new ImageProcessingError('too_large')
+      acceptPhoto({ blob, dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY) }, 'camera')
     } catch (error) {
-      console.error('Unable to process the captured photo:', error)
-      setAnalysisError(t('capture.photoProcessingError'))
+      console.error(
+        'Unable to process the captured photo:',
+        error instanceof ImageProcessingError ? error.problem : 'unknown'
+      )
+      setPhotoErrorKey(
+        error instanceof ImageProcessingError
+          ? IMAGE_PROBLEM_KEYS[error.problem]
+          : 'capture.photoProcessingError'
+      )
     }
   }
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file || analyzing) return
-    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type.toLowerCase())) {
-      setAnalysisError(t('capture.unsupportedImage'))
+    if (!file || busy) return
+
+    const problem = validateImageFile(file)
+    if (problem) {
+      setPhotoErrorKey(IMAGE_PROBLEM_KEYS[problem])
       return
     }
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const url = URL.createObjectURL(file)
+
+    setPhotoErrorKey('')
+    setRequestState('validating')
+    const token = guard.next()
     try {
-      const image = new Image()
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve()
-        image.onerror = () => reject(new Error('Unable to load uploaded image.'))
-        image.src = url
-      })
-      const dimensions = imageDimensions(image.naturalWidth, image.naturalHeight)
-      canvas.width = dimensions.width
-      canvas.height = dimensions.height
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Canvas rendering is unavailable.')
-      context.drawImage(image, 0, 0, dimensions.width, dimensions.height)
-      await savePhoto(canvas)
+      const processed = await processImageFile(file)
+      if (!guard.isCurrent(token)) return
+      acceptPhoto(processed, 'upload')
     } catch (error) {
-      console.error('Unable to process the uploaded photo:', error)
-      setAnalysisError(t('capture.photoProcessingError'))
-    } finally {
-      URL.revokeObjectURL(url)
+      if (!guard.isCurrent(token)) return
+      console.error(
+        'Unable to process the uploaded photo:',
+        error instanceof ImageProcessingError ? error.problem : 'unknown'
+      )
+      setPhotoErrorKey(
+        error instanceof ImageProcessingError
+          ? IMAGE_PROBLEM_KEYS[error.problem]
+          : 'capture.photoProcessingError'
+      )
+      setRequestState('idle')
     }
   }
 
   const analyze = async () => {
-    if (!user) {
-      setAnalysisError(t('capture.analysisSignInRequired'))
-      return
-    }
-
-    let startedAnalysis = false
+    setDescriptionTouched(true)
+    // The ref blocks a second call made before state has updated.
+    if (!photo || !descriptionValid || submitLock.current) return
+    submitLock.current = true
+    const token = guard.next()
+    setRequestState('submitting')
     try {
-      setDescriptionTouched(true)
-      if (!photo || !descriptionValid || analyzing) return
-      setAnalyzing(true)
-      startedAnalysis = true
-      setAnalysisError('')
+      if (navigator.onLine === false) throw new AnalysisError('service_unavailable', true)
 
-      if (!navigator.onLine) {
-        throw new Error('You are offline. Please connect to the internet and try again.')
+      // DEV-ONLY: when every fixture gate passed, never reach the real service.
+      if (import.meta.env.DEV && fixtureParams !== null) {
+        const { runFixture } = await import('../dev/analysisFixtures')
+        const outcome = await runFixture(fixtureParams.name, fixtureParams.delaySeconds)
+        if (!guard.isCurrent(token)) return
+        setFixtureResult(outcome)
+        setFailure(null)
+        setRequestState('success')
+        return
       }
 
       const diagnosis = await analyzeImage(photo.blob, description.trim())
-      if (!isValidDiagnosisResult(diagnosis)) {
-        throw new Error('The analysis service did not return a complete diagnosis.')
-      }
-      setDiagnosis(diagnosis, photo.dataUrl, description.trim(), user.id)
+      if (!guard.isCurrent(token)) return
+      if (!isValidDiagnosisResult(diagnosis)) throw new AnalysisError('invalid_response', true)
+
+      setDiagnosis(diagnosis, photo.dataUrl, description.trim(), userId)
+      clearCaptureDraft()
+      setFailure(null)
+      setRequestState('success')
       navigate('/diagnosis')
     } catch (error) {
-      console.error('Image analysis failed:', error)
-      if (error instanceof AnalysisError) {
-        switch (error.code) {
-          case 'unauthenticated':
-            setAnalysisError(t('capture.analysisSignInRequired'))
-            break
-          case 'rate_limited':
-            setAnalysisError(
-              typeof error.retryAfterSeconds === 'number'
-                ? t('capture.analysisRateLimited').replace(
-                    '{seconds}',
-                    String(error.retryAfterSeconds)
-                  )
-                : t('capture.analysisRateLimitedFallback')
-            )
-            break
-          case 'quota_exceeded':
-            setAnalysisError(t('capture.analysisQuotaExceeded'))
-            break
-          default:
-            setAnalysisError(t('capture.analysisError'))
-        }
-      } else {
-        setAnalysisError(t('capture.analysisError'))
-      }
+      if (!guard.isCurrent(token)) return
+      const described = describeAnalysisFailure(error)
+      // Log only the kind and code: never the photo, description, token or message text.
+      console.error('Image analysis failed:', { kind: described.kind, code: described.code })
+      const current = Date.now()
+      setNow(current)
+      setFailure({
+        ...described,
+        retryAt:
+          described.retryAfterSeconds !== undefined
+            ? current + described.retryAfterSeconds * 1000
+            : undefined,
+      })
+      setRequestState('error')
     } finally {
-      if (startedAnalysis) setAnalyzing(false)
+      submitLock.current = false
     }
+  }
+
+  const retakePhoto = () => {
+    // The description is kept. If the photo came from the camera, the preview restarts.
+    setPhoto(null)
+    setPhotoErrorKey('')
+    setFailure(null)
+    setFixtureResult(null)
+    setRequestState('idle')
+    if (lastSource.current === 'camera') setCameraEnabled(true)
+  }
+
+  const logInAgain = async () => {
+    try {
+      await signOut()
+    } catch {
+      // Continue to the login page even if the session could not be cleared.
+    }
+    clearCaptureDraft()
+    navigate('/login', { state: { from: { pathname: '/capture' } } })
   }
 
   const handleVoiceCommand = (text: string) => {
@@ -403,19 +596,16 @@ export default function CameraCapture() {
     try {
       recognition.start()
     } catch (error) {
-      console.error('Unable to start voice input:', error)
+      console.error('Unable to start voice input:', error instanceof Error ? error.name : 'unknown')
       setVoiceErrorKey('capture.voiceNetworkError')
       setVoiceState('error')
       recognitionRef.current = null
     }
   }
 
-  const clearPhoto = () => {
-    setPhoto(null)
-    setDescription('')
-    setDescriptionTouched(false)
-    setAnalysisError('')
-  }
+  const retryRemaining =
+    failure?.retryAt !== undefined ? Math.max(0, Math.ceil((failure.retryAt - now) / 1000)) : 0
+  const showChooser = !photo && !cameraEnabled
 
   return (
     <PageShell className="relative flex min-h-screen flex-col">
@@ -423,9 +613,10 @@ export default function CameraCapture() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(event) => void handleFileUpload(event)}
       />
 
@@ -438,7 +629,7 @@ export default function CameraCapture() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        {cameraState === 'ready' && videoSize && !photo && (
+        {cameraState === 'ready' && cameraActive && videoSize && (
           <span className="glass-panel rounded-lg px-3 py-1 text-xs text-text-secondary">
             {videoSize.w}x{videoSize.h}
           </span>
@@ -447,6 +638,12 @@ export default function CameraCapture() {
       </header>
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pb-6">
+        {FixturePanel && fixtureParams && (
+          <Suspense fallback={null}>
+            <FixturePanel name={fixtureParams.name} outcome={fixtureResult} />
+          </Suspense>
+        )}
+
         <section className="relative min-h-[38vh] flex-1 overflow-hidden rounded-2xl bg-black sm:min-h-[48vh]">
           <video
             ref={videoRef}
@@ -461,7 +658,7 @@ export default function CameraCapture() {
               setCameraState('ready')
             }}
             onPlaying={() => setCameraState('ready')}
-            className={`absolute inset-0 h-full w-full object-cover ${photo || cameraState !== 'ready' ? 'invisible' : ''}`}
+            className={`absolute inset-0 h-full w-full object-cover ${photo || !cameraActive || cameraState !== 'ready' ? 'invisible' : ''}`}
             style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : undefined }}
           />
           {photo ? (
@@ -470,6 +667,40 @@ export default function CameraCapture() {
               alt={t('capture.photoPreviewAlt')}
               className="absolute inset-0 h-full w-full object-contain"
             />
+          ) : showChooser ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-5 text-center">
+              <p className="text-sm text-text-secondary">{t('capture.chooseSource')}</p>
+              <div className="flex w-full max-w-sm flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={chooseCamera}
+                  disabled={busy}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  <Camera className="h-5 w-5" aria-hidden="true" />
+                  {t('capture.useCamera')}
+                </button>
+                <button
+                  type="button"
+                  onClick={chooseUpload}
+                  disabled={busy}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary px-4 py-3 font-semibold text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  {requestState === 'validating' ? (
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Upload className="h-5 w-5" aria-hidden="true" />
+                  )}
+                  {t('capture.uploadFromDevice')}
+                </button>
+              </div>
+              {photoErrorKey && (
+                <p role="alert" className="flex items-start gap-2 text-sm text-error">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{t(photoErrorKey)}</span>
+                </p>
+              )}
+            </div>
           ) : cameraState === 'ready' ? (
             <>
               <AROverlay variant="capture" />
@@ -479,7 +710,7 @@ export default function CameraCapture() {
             </>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-5 text-center">
-              {cameraState === 'loading' && <Loader2 className="h-9 w-9 animate-spin text-primary" />}
+              {cameraState === 'loading' && <Loader2 className="h-9 w-9 animate-spin text-primary" aria-label={t('common.loading')} />}
               {cameraState === 'error' && (
                 <>
                   <p role="alert" className="max-w-md text-sm text-text-secondary">
@@ -488,7 +719,7 @@ export default function CameraCapture() {
                   <button
                     type="button"
                     onClick={() => setRetryCount((count) => count + 1)}
-                    className="rounded-xl border border-primary px-5 py-2.5 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                    className="min-h-11 rounded-xl border border-primary px-5 py-2.5 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     {t('capture.permissionRetry')}
                   </button>
@@ -496,14 +727,14 @@ export default function CameraCapture() {
               )}
             </div>
           )}
-          {unsafeWarningKey && !photo && cameraState === 'ready' && (
+          {unsafeWarningKey && !photo && cameraState === 'ready' && cameraActive && (
             <p role="status" className="absolute left-3 right-3 top-3 z-20 rounded-lg bg-background/85 p-2 text-center text-sm text-warning">
               {t(unsafeWarningKey)}
             </p>
           )}
         </section>
 
-        {!photo ? (
+        {!photo && cameraEnabled && (
           <section className="glass-panel rounded-2xl p-4">
             <p className="mb-4 text-center text-sm text-text-secondary">{t('capture.title')}</p>
             <div className="flex items-center justify-center gap-5">
@@ -518,7 +749,7 @@ export default function CameraCapture() {
               <button
                 type="button"
                 onClick={() => void capture()}
-                disabled={cameraState !== 'ready' || analyzing}
+                disabled={cameraState !== 'ready' || busy}
                 className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-primary bg-primary/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
                 aria-label={t('capture.capture')}
               >
@@ -526,8 +757,8 @@ export default function CameraCapture() {
               </button>
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={analyzing}
+                onClick={chooseUpload}
+                disabled={busy}
                 className="glass-panel rounded-full p-3 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
                 aria-label={t('capture.uploadPhoto')}
               >
@@ -536,23 +767,32 @@ export default function CameraCapture() {
             </div>
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={analyzing}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+              onClick={chooseUpload}
+              disabled={busy}
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
               aria-label={t('capture.uploadPhoto')}
             >
               <ImagePlus className="h-5 w-5" />
               {t('capture.uploadPhoto')}
             </button>
+            {photoErrorKey && (
+              <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-error">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{t(photoErrorKey)}</span>
+              </p>
+            )}
           </section>
-        ) : (
+        )}
+
+        {photo && (
           <section className="glass-panel space-y-4 rounded-2xl p-4 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <h1 className="text-heading-md">{t('capture.describeProblem')}</h1>
               <button
                 type="button"
-                onClick={clearPhoto}
-                className="rounded-lg border border-border px-3 py-2 text-sm text-text-secondary focus-visible:outline-2 focus-visible:outline-primary"
+                onClick={retakePhoto}
+                disabled={busy}
+                className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm text-text-secondary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {t('capture.retakePhoto')}
               </button>
@@ -560,11 +800,18 @@ export default function CameraCapture() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              disabled={busy}
+              className="min-h-11 w-full rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
               aria-label={t('capture.chooseAnotherPhoto')}
             >
               {t('capture.chooseAnotherPhoto')}
             </button>
+            {photoErrorKey && (
+              <p role="alert" className="flex items-start gap-2 text-sm text-error">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{t(photoErrorKey)}</span>
+              </p>
+            )}
             <label htmlFor="problem-description" className="block text-sm font-medium">
               {t('capture.descriptionLabel')}
             </label>
@@ -578,7 +825,6 @@ export default function CameraCapture() {
                 }}
                 onBlur={() => setDescriptionTouched(true)}
                 rows={4}
-                minLength={MIN_DESCRIPTION_LENGTH}
                 maxLength={MAX_DESCRIPTION_LENGTH}
                 required
                 placeholder={t('capture.descriptionPlaceholder')}
@@ -616,17 +862,88 @@ export default function CameraCapture() {
             ) : (
               <p className="text-xs text-text-subtle">{t('capture.voiceUnsupported')}</p>
             )}
-            {analysisError && <p role="alert" className="text-sm text-error">{analysisError}</p>}
+
+            <p role="status" aria-live="polite" className="sr-only">
+              {requestState === 'validating'
+                ? t('capture.processingPhoto')
+                : requestState === 'submitting'
+                  ? t('capture.analyzing')
+                  : ''}
+            </p>
+            {slow && (
+              <p aria-live="polite" className="text-sm text-text-secondary">
+                {t('capture.analysisSlow')}
+              </p>
+            )}
+
+            {failure && (
+              <div
+                ref={errorPanelRef}
+                role="alert"
+                tabIndex={-1}
+                aria-busy={requestState === 'submitting'}
+                className="glass-panel rounded-xl border border-warning/40 p-4 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <h2 className="font-semibold text-text-primary">{t('capture.analysisErrorTitle')}</h2>
+                    <p className="mt-1 text-sm text-text-secondary">{t(analysisErrorMessageKey(failure))}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {failure.kind === 'unauthenticated' ? (
+                    <button
+                      type="button"
+                      onClick={() => void logInAgain()}
+                      className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      {t('capture.loginAction')}
+                    </button>
+                  ) : (
+                    canRetryAnalysis(failure) && (
+                      <button
+                        type="button"
+                        onClick={() => void analyze()}
+                        disabled={busy || retryRemaining > 0}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-background disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        {requestState === 'submitting' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                        {retryRemaining > 0
+                          ? t('capture.analysisTryAgainIn').replace('{seconds}', String(retryRemaining))
+                          : t('capture.analysisTryAgain')}
+                      </button>
+                    )
+                  )}
+                  <button
+                    type="button"
+                    onClick={retakePhoto}
+                    disabled={busy}
+                    className="min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {t('capture.analysisChangePhoto')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/')}
+                    className="min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {t('capture.analysisBackHome')}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <motion.button
               type="button"
               whileTap={{ scale: 0.98 }}
               onClick={() => void analyze()}
-              disabled={!photo || !descriptionValid || analyzing}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
-              aria-label={t('capture.analyze')}
+              disabled={!photo || !descriptionValid || busy}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-background disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+              aria-label={requestState === 'submitting' ? t('capture.analyzing') : t('capture.analyze')}
             >
-              {analyzing && <Loader2 className="h-5 w-5 animate-spin" />}
-              {analyzing ? t('capture.analyzing') : t('capture.analyze')}
+              {busy && <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />}
+              {requestState === 'submitting' ? t('capture.analyzing') : t('capture.analyze')}
             </motion.button>
           </section>
         )}

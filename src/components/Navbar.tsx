@@ -6,6 +6,7 @@ import { getLocale, subscribeLocale, t } from '../i18n'
 import { useAuth } from './authContext'
 import LanguageToggle from './LanguageToggle'
 import { BrandLockup } from './Logo'
+import { clearCaptureDraft } from '../utils/captureDraft'
 
 type SectionId = 'features' | 'showcase' | 'why-fixaura'
 
@@ -142,6 +143,7 @@ export default function Navbar() {
     setSignOutError('')
     try {
       await signOut()
+      clearCaptureDraft()
       if (mobileOpen) closeMobileMenu()
       else closeAccountMenu()
     } catch (error) {
