@@ -1,0 +1,89 @@
+{
+  "success": {
+    "httpStatus": 200,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": true,
+      "data": {
+        "issueName": "Loose hinge screw",
+        "confidence": 74,
+        "summary": "The hinge looks slightly misaligned; the photo is a little blurry.",
+        "severity": "low",
+        "recommendedFix": "Tighten the hinge screws with a screwdriver.",
+        "recommendedTools": [
+          "Screwdriver"
+        ],
+        "nextStepAdvice": "Check the door alignment after tightening.",
+        "safetyWarning": "Unplug the appliance before working on it.",
+        "explanation": "Visible gap near the upper hinge suggests loose fasteners."
+      }
+    }
+  },
+  "configuration_error": {
+    "httpStatus": 500,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "configuration_error",
+        "retryable": false
+      }
+    }
+  },
+  "invalid_input": {
+    "httpStatus": 400,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "invalid_input",
+        "retryable": false
+      }
+    }
+  },
+  "rate_limited": {
+    "httpStatus": 429,
+    "retryAfterHeader": "34",
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "rate_limited",
+        "retryable": true,
+        "retryAfterSeconds": 34
+      }
+    }
+  },
+  "quota_exceeded": {
+    "httpStatus": 429,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "quota_exceeded",
+        "retryable": false
+      }
+    }
+  },
+  "timeout": {
+    "httpStatus": 504,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "service_unavailable",
+        "retryable": true
+      }
+    }
+  },
+  "invalid_response": {
+    "httpStatus": 502,
+    "retryAfterHeader": null,
+    "body": {
+      "ok": false,
+      "error": {
+        "code": "invalid_response",
+        "retryable": true
+      }
+    }
+  }
+}

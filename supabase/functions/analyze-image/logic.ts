@@ -88,15 +88,9 @@ export function mapProviderFailure(
   }
 
   if (status === 429 || providerStatus === 'RESOURCE_EXHAUSTED') {
-    const exhausted = /per day|daily|billing|plan|quota exceeded|monthly/.test(message)
-    if (exhausted) return makeError('quota_exceeded', false)
-    if (
-      status === 429 ||
-      retryDelay !== undefined ||
-      /per minute|rate limit|requests per/.test(message)
-    ) {
-      return makeError('rate_limited', true, retryDelay)
-    }
+    // Rate limit (thodi der mein theek) aur quota khatam (jaldi theek nahi hoga) alag rakho.
+    const exhausted = /per day|daily|billing|plan/.test(message)
+    if (retryDelay !== undefined && !exhausted) return makeError('rate_limited', true, retryDelay)
     return makeError('quota_exceeded', false)
   }
   if (status === 401 || status === 403 || status === 404) return makeError('configuration_error', false)
@@ -111,111 +105,32 @@ export function mapProviderFailure(
   return makeError('service_unavailable', false)
 }
 
-export const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-export const MAX_BASE64_CHARS = Math.ceil(MAX_IMAGE_BYTES / 3) * 4
+export const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+export const MAX_BASE64_CHARS = 10_000_000
 export const MAX_DESCRIPTION_CHARS = 500
 
-export interface ImageInput {
+export interface AnalyzeRequest {
   imageBase64: string
-  mediaType: (typeof ALLOWED_MEDIA_TYPES)[number]
-}
-
-export interface DiagnoseRequest extends ImageInput {
+  mediaType: string
   description: string
 }
 
-export interface VerifyRequest {
-  mode: 'verify'
-  afterImage: ImageInput
-  beforeImage?: ImageInput
-  issueName: string
-  description: string
-  stepsSummary: string
-  note?: string
-  locale: string
-}
-
-function isValidImage(value: unknown): value is ImageInput {
-  const image = asRecord(value)
-  if (
-    !image ||
-    typeof image.imageBase64 !== 'string' ||
-    image.imageBase64.length === 0 ||
-    image.imageBase64.length > MAX_BASE64_CHARS ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.imageBase64) ||
-    typeof image.mediaType !== 'string' ||
-    !ALLOWED_MEDIA_TYPES.includes(image.mediaType)
-  ) {
-    return false
-  }
-  const padding = image.imageBase64.endsWith('==') ? 2 : image.imageBase64.endsWith('=') ? 1 : 0
-  const byteLength = (image.imageBase64.length / 4) * 3 - padding
-  if (byteLength === 0 || byteLength > MAX_IMAGE_BYTES) return false
-  const bytes = Uint8Array.from(atob(image.imageBase64), (character) => character.charCodeAt(0))
-  if (image.mediaType === 'image/jpeg') {
-    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-  }
-  if (image.mediaType === 'image/png') {
-    return (
-      bytes[0] === 0x89 &&
-      bytes[1] === 0x50 &&
-      bytes[2] === 0x4e &&
-      bytes[3] === 0x47 &&
-      bytes[4] === 0x0d &&
-      bytes[5] === 0x0a &&
-      bytes[6] === 0x1a &&
-      bytes[7] === 0x0a
-    )
-  }
-  return String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
-    String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
-}
-
-function boundedText(value: unknown, maximum: number): value is string {
-  return typeof value === 'string' && value.trim().length > 0 && value.length <= maximum
-}
-
-export function validateDiagnosisRequest(body: unknown): DiagnoseRequest | null {
+export function validateRequest(body: unknown): AnalyzeRequest | null {
   const r = asRecord(body)
   if (!r) return null
-  const image = { imageBase64: r.imageBase64, mediaType: r.mediaType }
-  if (!isValidImage(image) || !boundedText(r.description, MAX_DESCRIPTION_CHARS)) return null
-  return { ...image, description: r.description.trim() }
-}
-
-export function validateVerificationRequest(body: unknown): VerifyRequest | null {
-  const r = asRecord(body)
-  if (!r || r.mode !== 'verify' || !isValidImage(r.afterImage)) return null
-  if (
-    r.beforeImage !== undefined &&
-    r.beforeImage !== null &&
-    !isValidImage(r.beforeImage)
-  ) {
+  const { imageBase64, mediaType, description } = r
+  if (typeof imageBase64 !== 'string' || imageBase64.length === 0 || imageBase64.length > MAX_BASE64_CHARS) {
     return null
   }
-  if (
-    !boundedText(r.issueName, 200) ||
-    typeof r.description !== 'string' ||
-    r.description.length > MAX_DESCRIPTION_CHARS ||
-    typeof r.stepsSummary !== 'string' ||
-    r.stepsSummary.length > 3000 ||
-    typeof r.locale !== 'string' ||
-    r.locale.length > 20 ||
-    (r.note !== undefined && (typeof r.note !== 'string' || r.note.length > 200))
-  ) {
-    return null
+  if (typeof description !== 'string') return null
+  const trimmed = description.trim()
+  if (!trimmed || trimmed.length > MAX_DESCRIPTION_CHARS) return null
+  let type = 'image/jpeg'
+  if (mediaType !== undefined) {
+    if (typeof mediaType !== 'string' || !ALLOWED_MEDIA_TYPES.includes(mediaType)) return null
+    type = mediaType
   }
-  return {
-    mode: 'verify',
-    afterImage: r.afterImage,
-    ...(r.beforeImage ? { beforeImage: r.beforeImage as ImageInput } : {}),
-    issueName: r.issueName.trim(),
-    description: r.description.trim(),
-    stepsSummary: r.stepsSummary,
-    ...(typeof r.note === 'string' && r.note.trim() ? { note: r.note.trim() } : {}),
-    locale: r.locale,
-  }
+  return { imageBase64, mediaType: type, description: trimmed }
 }
 
 export interface DiagnosisPayload {
@@ -228,7 +143,6 @@ export interface DiagnosisPayload {
   nextStepAdvice: string
   safetyWarning: string
   explanation: string
-  safetyStop?: boolean
 }
 
 export function parseModelJson(text: string): unknown {
@@ -236,39 +150,6 @@ export function parseModelJson(text: string): unknown {
   const end = text.lastIndexOf('}')
   if (start === -1 || end <= start) return null
   return parseJson(text.slice(start, end + 1))
-}
-
-const HAZARD_PATTERN =
-  /\b(gas leaks?|leaking gas|gas odors?|gas smells?|smell(?:s|ed|ing)? (?:like |of )?gas|rotten[- ]egg (?:smell|odor)|exposed (?:live )?(?:electrical )?wires?|live wires?|wires? (?:are )?live|electrical sparks?|electrical sparking|sparking (?:outlet|wire|electrical)|sparks? (?:from|at|in) (?:the )?(?:outlet|wire|breaker)|(?:outlet|wire|breaker) sparks?|outlet sparking|burning (?:smell|odor)|smell of burning|smoke|fire|carbon monoxide|co alarm|structural collapse|chemical fumes?)\b/i
-
-export function containsDanger(text: string): boolean {
-  return HAZARD_PATTERN.test(text)
-}
-
-export function safetyStopDiagnosis(
-  issueName = 'Potential household safety hazard',
-  hazardContext = issueName
-): DiagnosisPayload {
-  const hazard = hazardContext.toLowerCase()
-  const nextStepAdvice = /gas|rotten[- ]egg/.test(hazard)
-    ? 'Leave the home immediately. Do not use switches, flames, or appliances. From a safe location, call your gas utility or emergency services.'
-    : /smoke|fire|burning/.test(hazard)
-      ? 'Evacuate and move to a safe location. Call emergency services; do not re-enter or attempt to handle the fire.'
-      : /electr|wire|spark/.test(hazard)
-        ? 'Stay away and do not touch the wires or equipment. Keep others clear and contact emergency services or a licensed electrician from a safe location.'
-        : 'Move away from the hazard. If there is immediate danger, evacuate and contact emergency services from a safe location. Otherwise, contact a qualified professional.'
-  return {
-    issueName,
-    confidence: 95,
-    summary: 'A potentially dangerous household condition was reported or detected. Do not attempt a DIY repair.',
-    severity: 'high',
-    recommendedFix: 'Do not attempt a DIY repair. Contact a qualified professional.',
-    recommendedTools: [],
-    nextStepAdvice,
-    safetyWarning: nextStepAdvice,
-    explanation: 'DIY repair guidance is blocked because this condition may cause serious harm.',
-    safetyStop: true,
-  }
 }
 
 // Strict validation: koi field missing ho to default bharke fake diagnosis nahi banate.
@@ -288,34 +169,8 @@ export function validateDiagnosis(raw: unknown): DiagnosisPayload | null {
   if (!issueName || !summary || !recommendedFix) return null
   if (nextStepAdvice === null || safetyWarning === null || explanation === null) return null
   if (severity !== 'low' && severity !== 'medium' && severity !== 'high') return null
-  if (
-    typeof r.confidence !== 'number' ||
-    !Number.isFinite(r.confidence) ||
-    r.confidence < 0 ||
-    r.confidence > 100 ||
-    (r.safetyStop !== undefined && typeof r.safetyStop !== 'boolean')
-  ) return null
+  if (typeof r.confidence !== 'number' || !Number.isFinite(r.confidence)) return null
   if (!Array.isArray(r.recommendedTools) || !r.recommendedTools.every((t) => typeof t === 'string')) return null
-
-  const safetyContext = [
-    issueName,
-    summary,
-    recommendedFix,
-    nextStepAdvice,
-    safetyWarning,
-    explanation,
-    ...r.recommendedTools,
-  ].join(' ')
-  const safetyStop =
-    r.safetyStop === true ||
-    severity === 'high' ||
-    containsDanger(safetyContext)
-
-  if (safetyStop) {
-    const safeDiagnosis = safetyStopDiagnosis(issueName, safetyContext)
-    safeDiagnosis.confidence = Math.round(Math.min(100, Math.max(0, r.confidence)))
-    return safeDiagnosis
-  }
 
   return {
     issueName,
@@ -327,54 +182,48 @@ export function validateDiagnosis(raw: unknown): DiagnosisPayload | null {
     nextStepAdvice,
     safetyWarning,
     explanation,
-    safetyStop: false,
   }
 }
 
-export interface VerificationPayload {
-  status: 'resolved' | 'monitor' | 'unresolved' | 'professional'
-  summary: string
-  checks: Array<{ label: string; passed: boolean }>
-  nextAdvice: string
+// ---------- S02 additions: quota, config parsing, safe logging ----------
+
+export type QuotaResult = 'ok' | 'user_minute' | 'user_day' | 'global_day'
+
+export interface QuotaLimits {
+  userPerMinute: number
+  userPerDay: number
+  globalPerDay: number
 }
 
-export function validateVerification(raw: unknown): VerificationPayload | null {
-  const r = asRecord(raw)
-  if (!r) return null
-  const statuses = ['resolved', 'monitor', 'unresolved', 'professional']
-  if (
-    typeof r.status !== 'string' ||
-    !statuses.includes(r.status) ||
-    !boundedText(r.summary, 2000) ||
-    !boundedText(r.nextAdvice, 2000) ||
-    !Array.isArray(r.checks) ||
-    r.checks.length === 0 ||
-    r.checks.length > 20
-  ) {
-    return null
-  }
-  const checks: Array<{ label: string; passed: boolean }> = []
-  for (const value of r.checks) {
-    const check = asRecord(value)
-    if (!check || !boundedText(check.label, 500) || typeof check.passed !== 'boolean') return null
-    checks.push({ label: check.label.trim(), passed: check.passed })
-  }
-  const safetyStop =
-    r.status === 'professional' ||
-    containsDanger([r.summary, r.nextAdvice, ...checks.map((check) => check.label)].join(' '))
-  if (safetyStop) {
-    return {
-      status: 'professional',
-      summary: 'A potential safety hazard was identified. Verification cannot confirm a safe repair.',
-      checks: [{ label: 'Stop work and arrange professional inspection.', passed: false }],
-      nextAdvice: 'Move away from the hazard. Contact emergency services if there is immediate danger, otherwise contact a qualified professional.',
-    }
-  }
-  if (r.status === 'resolved' && checks.some((check) => !check.passed)) return null
-  return {
-    status: r.status as VerificationPayload['status'],
-    summary: r.summary.trim(),
-    checks,
-    nextAdvice: r.nextAdvice.trim(),
+// Defaults conservative hain. Asli free-tier limits AI Studio mein apne project ke liye dekho
+// aur globalPerDay ko usse NEECHE rakho. Env se badalna ho to docs/analysis-env.md dekho.
+export const DEFAULT_LIMITS: QuotaLimits = { userPerMinute: 3, userPerDay: 10, globalPerDay: 200 }
+
+export function parsePositiveInt(value: string | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined || value.trim() === '') return fallback
+  const n = Number(value)
+  if (!Number.isInteger(n)) return fallback
+  return Math.min(max, Math.max(min, n))
+}
+
+// Per-minute limit ke liye hum khud jaante hain kab reset hoga -> trusted retry time.
+export function secondsUntilNextMinute(now: Date): number {
+  return Math.max(1, 60 - now.getUTCSeconds())
+}
+
+// Logs ke liye: provider error ka chhota, safe summary (image/key kabhi nahi).
+export function providerErrorSummary(bodyText: string): { providerStatus?: string; message?: string } {
+  const err = asRecord(asRecord(parseJson(bodyText))?.error)
+  const out: { providerStatus?: string; message?: string } = {}
+  if (typeof err?.status === 'string') out.providerStatus = err.status
+  if (typeof err?.message === 'string') out.message = err.message.slice(0, 200)
+  return out
+}
+
+// Missing env / secret ke liye. Handler isse configuration_error bana deta hai.
+export class ConfigurationError extends Error {
+  constructor(message = 'configuration') {
+    super(message)
+    this.name = 'ConfigurationError'
   }
 }

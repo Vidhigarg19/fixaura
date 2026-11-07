@@ -1,0 +1,4 @@
+[
+  { "file": "images/loose-hinge.jpg", "description": "Cabinet door will not close properly", "reality": "loose hinge screws" },
+  { "file": "images/fan-noise.jpg", "description": "Ceiling fan makes a rattling noise", "reality": "loose blade screws" }
+]
