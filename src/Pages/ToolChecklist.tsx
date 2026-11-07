@@ -8,12 +8,14 @@ import {
 import PageShell from '../components/PageShell'
 import SafetyBubble from '../components/SafetyBubble'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import GuideUnavailablePanel from '../components/GuideUnavailablePanel'
 import { saveSession } from '../services/repairSession'
 import { getPrepTimeMinutes, isEssentialTool } from '../services/repairPlanner'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { isBlocked } from '../utils/riskDecision'
+import { getGuideAvailability } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
@@ -102,7 +104,10 @@ export default function ToolChecklist() {
   const navigate = useNavigate()
   const source = useDiagnosisSource()
   const session = source.session
-  const recommended = session?.diagnosis?.recommendedTools
+  // AI free-text tools are not an approved checklist. No approved checklist exists
+  // yet, so the list stays empty and the page fails closed below.
+  const guideAvailable = getGuideAvailability().status !== 'unavailable'
+  const recommended = guideAvailable ? session?.diagnosis?.recommendedTools : undefined
   const tools = useMemo(() => recommended ?? [], [recommended])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [safetyOpen, setSafetyOpen] = useState(false)
@@ -139,6 +144,7 @@ export default function ToolChecklist() {
   }
 
   const continueGuide = () => {
+    if (!guideAvailable) return
     if (session?.diagnosis && isBlocked(buildDiagnosisView(session.diagnosis, source.extras).decision)) return
     // Fixture mode never writes to the stored session.
     if (!source.isFixture) {
@@ -180,6 +186,23 @@ export default function ToolChecklist() {
   if (!session?.diagnosis) {
     navigate('/capture')
     return null
+  }
+
+  // Fail closed: no approved checklist exists, so no tools, essential-tool flags,
+  // preparation time or "continue to guide" action are shown.
+  if (!guideAvailable) {
+    return (
+      <PageShell className="pb-24">
+        <div className="mx-auto max-w-lg px-4 pt-8">
+          {FixtureBanner && source.isFixture && (
+            <Suspense fallback={null}>
+              <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
+            </Suspense>
+          )}
+          <GuideUnavailablePanel issueName={session.diagnosis.issueName} />
+        </div>
+      </PageShell>
+    )
   }
 
   const checkedCount = Object.values(checked).filter(Boolean).length

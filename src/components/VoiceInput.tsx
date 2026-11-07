@@ -47,6 +47,20 @@ export default function VoiceInput({ onCommand, className = '' }: VoiceInputProp
     rec.onerror = () => setListening(false)
     rec.onend = () => setListening(false)
     recognitionRef.current = rec
+    // Stop this instance before a new one replaces it and on unmount, so
+    // leaving the page never leaves the microphone listening.
+    return () => {
+      rec.onresult = null
+      rec.onerror = null
+      rec.onend = null
+      try {
+        rec.stop()
+      } catch {
+        // Not started: nothing to stop.
+      }
+      if (recognitionRef.current === rec) recognitionRef.current = null
+      setListening(false)
+    }
   }, [onCommand])
 
   const toggle = useCallback(() => {

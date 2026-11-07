@@ -180,6 +180,14 @@ export async function askAssistant({
 
   const intent = getIntent(message)
   const step = context?.currentStep
+  // No approved step or tool list to talk about: say so plainly instead of
+  // filling the step or tool templates with placeholders.
+  if (
+    ((intent === 'explain' || intent === 'why') && !step) ||
+    (intent === 'tools' && !step && !context?.recommendedTools.length)
+  ) {
+    return { text: t('assistant.reply.noApprovedGuide', locale), mock: true }
+  }
   const tools = context?.recommendedTools.length
     ? context.recommendedTools.join(locale === 'hi' ? ', ' : ', ')
     : t('assistant.reply.noTools', locale)
