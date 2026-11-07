@@ -1,6 +1,7 @@
 // DEV-ONLY. Loaded with React.lazy behind `import.meta.env.DEV` (see CameraCapture).
 import { FlaskConical } from 'lucide-react'
 import { isValidDiagnosisResult } from '../services/repairSession'
+import { decideFromDiagnosis } from '../utils/riskDecision'
 import type { FixtureOutcome } from './analysisFixtures'
 
 interface FixturePanelProps {
@@ -22,21 +23,30 @@ export default function FixturePanel({ name, outcome }: FixturePanelProps) {
       {outcome && (
         <div className="glass-panel space-y-2 rounded-xl p-4 text-sm text-text-secondary">
           <p className="font-semibold text-text-primary">
-            Fixture result (not saved): risk {outcome.data.riskLevel}, next action {outcome.data.nextAction}
-            {outcome.adapted.safetyStop ? ' (blocked, no DIY)' : ''}
+            Fixture result (not saved): risk {outcome.data.riskLevel}, next action {outcome.data.nextAction},
+            decision {decideFromDiagnosis(outcome.adapted, outcome.data)}
           </p>
           <p>Observations: {outcome.data.observations.join(' ') || 'none'}</p>
           <p>Possible causes: {outcome.data.possibleCauses.join(', ') || 'none'}</p>
           <p>Evidence strength: {outcome.data.evidenceStrength}</p>
           <p>Limitations: {outcome.data.limitations.join(' ') || 'none'}</p>
           <p>Safety reasons: {outcome.data.safetyReasons.join(' ') || 'none'}</p>
-          <p>Follow-up questions: {outcome.data.followUpQuestions.join(' ') || 'none'}</p>
+          <p>
+            Follow-up questions:{' '}
+            {outcome.data.followUpQuestions.map((question) => `${question.id} (${question.type})`).join(', ') ||
+              'none'}
+          </p>
           <p>
             Template: {outcome.data.approvedTemplateId ?? 'none'}, policy {outcome.data.policyVersion}
           </p>
           <p>
             Adapter output accepted by the diagnosis page:{' '}
             {isValidDiagnosisResult(outcome.adapted) ? 'yes' : 'no'}
+          </p>
+          <p>
+            <a className="text-primary underline" href={`/diagnosis?fixture=${encodeURIComponent(name)}`}>
+              Open the diagnosis page with this fixture
+            </a>
           </p>
         </div>
       )}

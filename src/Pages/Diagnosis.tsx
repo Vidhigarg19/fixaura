@@ -1,22 +1,26 @@
 
 import { motion } from 'framer-motion'
-import { useState, useEffect, useSyncExternalStore } from 'react'
+import { Suspense, lazy, useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import PageShell from '../components/PageShell'
-import ConfidenceMeter from '../components/ConfidenceMeter'
 import FallbackMode from '../components/FallbackMode'
-import {
-  getSession,
-  isValidDiagnosisSession,
-  saveSession,
-} from '../services/repairSession'
+import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import FollowUpQuestions from '../components/FollowUpQuestions'
+import { isValidDiagnosisSession, saveSession } from '../services/repairSession'
 import { createSession } from '../services/historyService'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { getLocale, subscribeLocale, t } from '../i18n'
-import type { RiskLevel } from '../types/repair'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../components/authContext'
+import { buildDiagnosisView } from '../utils/diagnosisView'
+import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+import { withFixtureQuery } from '../utils/fixtureGate'
+import { decideFromDiagnosis, isBlocked, type RiskDecision } from '../utils/riskDecision'
+import type { FollowUpResult } from '../services/followUpClient'
+
+// DEV-ONLY banner. In a production build this is `null` and the import is removed.
+const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 const CONFIDENCE_THRESHOLD = 70
 const diagnosisSaveOperations = new Map<string, Promise<void>>()
@@ -34,23 +38,37 @@ function saveDiagnosisOnce(attemptId: string, save: () => Promise<void>) {
   return operation
 }
 
-function riskLabel(severity: RiskLevel) {
-  if (severity === 'low') return t('diagnosis.riskLow')
-  if (severity === 'high') return t('diagnosis.riskHigh')
-  return t('diagnosis.riskMedium')
+const RISK_STYLE: Record<
+  RiskDecision,
+  { labelKey: string; color: string; Icon: typeof CheckCircle2 }
+> = {
+  safe: { labelKey: 'diagnosis.riskSafe', color: 'text-success border-success/40 bg-success/10', Icon: CheckCircle2 },
+  caution: { labelKey: 'diagnosis.riskCaution', color: 'text-warning border-warning/40 bg-warning/10', Icon: AlertTriangle },
+  professional: { labelKey: 'diagnosis.riskProfessional', color: 'text-error border-error/40 bg-error/10', Icon: ShieldAlert },
+  emergency: { labelKey: 'diagnosis.riskEmergency', color: 'text-error border-error/60 bg-error/15', Icon: AlertOctagon },
 }
 
-function riskColor(severity: RiskLevel) {
-  if (severity === 'low') return 'text-success border-success/40 bg-success/10'
-  if (severity === 'high') return 'text-error border-error/40 bg-error/10'
-  return 'text-warning border-warning/40 bg-warning/10'
-}
+const EVIDENCE_KEYS = {
+  low: { labelKey: 'diagnosis.evidenceLow', filled: 1 },
+  medium: { labelKey: 'diagnosis.evidenceMedium', filled: 2 },
+  high: { labelKey: 'diagnosis.evidenceHigh', filled: 3 },
+} as const
 
 export default function Diagnosis() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [session] = useState(getSession)
+  const source = useDiagnosisSource()
+  // Initial session only: the persistence effect below must not re-run when a follow-up
+  // result changes what is displayed.
+  const [session] = useState(() => source.session)
+  const liveSession = source.session
+  // Most severe decision available from the server data. No session means unknown,
+  // which is treated as the safer side.
+  const decision: RiskDecision = liveSession
+    ? decideFromDiagnosis(liveSession.diagnosis, source.extras)
+    : 'professional'
+  const blocked = isBlocked(decision)
   const [expanded, setExpanded] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
   const [repairSessionReady, setRepairSessionReady] = useState(false)
@@ -241,18 +259,19 @@ export default function Diagnosis() {
   }, [session, user?.id])
 
   const startRepair = async () => {
-    if (
-      !isValidDiagnosisSession(session, user?.id) ||
-      session.diagnosis.safetyStop ||
-      session.diagnosis.severity === 'high' ||
-      starting ||
-      !repairSessionReady
-    ) return
+    if (!liveSession || starting) return
+    if (isBlocked(decision)) return
+    if (source.isFixture) {
+      // Fixture mode never creates a real repair session.
+      navigate(withFixtureQuery('/tools'))
+      return
+    }
+    if (!isValidDiagnosisSession(liveSession, user?.id) || !repairSessionReady) return
     setStarting(true)
     setSaveError('')
-    const steps = buildRepairPlan(session.diagnosis)
+    const steps = buildRepairPlan(liveSession.diagnosis)
     try {
-      const saved = await createSession(session.diagnosis, steps, session.description)
+      const saved = await createSession(liveSession.diagnosis, steps, liveSession.description)
       saveSession({
         historySessionId: saved?.id,
         steps,
@@ -266,8 +285,27 @@ export default function Diagnosis() {
     }
   }
 
-  const validDiagnosis = isValidDiagnosisSession(session, user?.id)
-  if (!validDiagnosis) {
+  const handleFollowUpResult = (result: FollowUpResult) => {
+    // A blocked session is never changed by a later response; applyUpdate enforces that.
+    source.applyUpdate({ diagnosis: result.diagnosis, extras: result.extras })
+  }
+
+  if (source.status === 'loading') {
+    return (
+      <PageShell className="flex items-center justify-center p-6">
+        <div role="status" aria-live="polite" className="glass-panel w-full max-w-sm animate-pulse rounded-2xl p-6">
+          <div className="mb-3 h-5 w-2/3 rounded bg-surface-high" />
+          <div className="h-3 w-3/4 rounded bg-surface-high" />
+          <span className="sr-only">{t('blocked.gateChecking')}</span>
+        </div>
+      </PageShell>
+    )
+  }
+
+  const validDiagnosis = source.isFixture
+    ? Boolean(liveSession)
+    : isValidDiagnosisSession(liveSession, user?.id)
+  if (!validDiagnosis || !liveSession) {
     return (
       <PageShell className="flex items-center justify-center p-6">
         <div className="text-center">
@@ -280,13 +318,23 @@ export default function Diagnosis() {
     )
   }
 
-  const d = session.diagnosis
+  const d = liveSession.diagnosis
+  const view = buildDiagnosisView(d, source.extras)
   const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
-  const safetyStop = d.safetyStop || d.severity === 'high'
+  const risk = RISK_STYLE[decision]
+  const evidence = EVIDENCE_KEYS[view.evidence]
+  const showFollowUps = !blocked && view.followUps.length > 0 && view.sessionId !== null
+  const sectionClass = 'glass-panel rounded-xl p-6 mb-6'
 
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
+        {FixtureBanner && source.isFixture && (
+          <Suspense fallback={null}>
+            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
+          </Suspense>
+        )}
+
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -295,93 +343,136 @@ export default function Diagnosis() {
           {t('diagnosis.title')}
         </motion.h1>
 
-        <p role="status" className="text-sm text-text-secondary mb-4">
-          {saveStatus}
-        </p>
+        {!source.isFixture && (
+          <p role="status" className="text-sm text-text-secondary mb-4">
+            {saveStatus}
+          </p>
+        )}
 
-        {lowConfidence && !safetyStop && (
+        {(decision === 'professional' || decision === 'emergency') && (
+          <SafetyBlockedPanel
+            decision={decision}
+            issueName={d.issueName}
+            analysisDetails={view.analysisDetails}
+          />
+        )}
+
+        {lowConfidence && !blocked && (
           <div className="mb-6">
             <FallbackMode
               onContinue={() => void startRepair()}
-              continueDisabled={!repairSessionReady || starting}
+              continueDisabled={(!source.isFixture && !repairSessionReady) || starting}
             />
           </div>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="flex justify-center mb-8"
-        >
-          <ConfidenceMeter value={d.confidence} />
-        </motion.div>
+        <div className={sectionClass}>
+          <p className="text-label-bold text-text-subtle mb-1">{t('diagnosis.yourDescription')}</p>
+          <p className="text-body-md text-text-secondary">{liveSession.description}</p>
+          <p className="text-label-bold text-text-subtle mb-1 mt-5">{t('diagnosis.detectedIssue')}</p>
+          <p className="text-heading-md">{d.issueName}</p>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass-panel rounded-xl p-6 space-y-5 mb-6"
-        >
-          <div>
-            <p className="text-label-bold text-text-subtle mb-1">
-              {t('diagnosis.yourDescription')}
-            </p>
-            <p className="text-body-md text-text-secondary">{session.description}</p>
-          </div>
+        <section aria-labelledby="diagnosis-noticed" className={sectionClass}>
+          <h2 id="diagnosis-noticed" className="text-heading-md mb-3">
+            {t('diagnosis.sectionNoticed')}
+          </h2>
+          <ul className="list-disc space-y-1 pl-5 text-body-md text-text-secondary">
+            {view.observations.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
 
-          <div>
-            <p className="text-label-bold text-text-subtle mb-1">
-              {t('diagnosis.detectedIssue')}
-            </p>
-            <p className="text-heading-md">{d.issueName}</p>
-          </div>
+        <section aria-labelledby="diagnosis-causes" className={sectionClass}>
+          <h2 id="diagnosis-causes" className="text-heading-md mb-1">
+            {t('diagnosis.sectionCauses')}
+          </h2>
+          <p className="mb-3 text-sm text-text-secondary">{t('diagnosis.causesNote')}</p>
+          <ul className="space-y-2">
+            {view.possibleCauses.map((cause) => (
+              <li key={cause} className="flex flex-wrap items-center gap-2 text-body-md">
+                <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-text-subtle">
+                  {t('diagnosis.possibleBadge')}
+                </span>
+                <span>{cause}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-          <div>
-            <p className="text-label-bold text-text-subtle mb-1">
-              {t('diagnosis.summary')}
-            </p>
-            <p className="text-body-md text-text-secondary">{d.summary}</p>
-          </div>
-
-          <div>
-            <p className="text-label-bold text-text-subtle mb-1">
-              {t('diagnosis.recommendedFix')}
-            </p>
-            <p className="text-body-md text-text-secondary">{d.recommendedFix}</p>
-          </div>
-
+        <section aria-labelledby="diagnosis-sure" className={sectionClass}>
+          <h2 id="diagnosis-sure" className="text-heading-md mb-3">
+            {t('diagnosis.sectionSure')}
+          </h2>
           <div className="flex items-center gap-3">
-            <span className="text-label-bold text-text-subtle">
-              {t('diagnosis.riskLevel')}
-            </span>
-            <span
-              className={`text-label-bold px-3 py-1 rounded-full border ${riskColor(d.severity)}`}
-            >
-              {riskLabel(d.severity)}
-            </span>
+            <div className="flex w-24 gap-1" aria-hidden="true">
+              {[1, 2, 3].map((step) => (
+                <span
+                  key={step}
+                  className={`h-2 flex-1 rounded-full ${step <= evidence.filled ? 'bg-primary' : 'bg-surface-high'}`}
+                />
+              ))}
+            </div>
+            <p className="font-semibold">{t(evidence.labelKey)}</p>
           </div>
-        </motion.div>
+          <p className="mt-3 text-sm text-text-secondary">{t('diagnosis.evidenceNote')}</p>
+          {view.limitations.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-label-bold text-text-subtle mb-1">{t('diagnosis.limitationsHeading')}</h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">
+                {view.limitations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
 
-        {safetyStop && (
-          <div
-            role="alert"
-            className="mb-6 rounded-xl border border-error/40 bg-error/10 p-4 text-sm text-text-secondary"
-          >
-            <p className="font-semibold text-error">{d.safetyWarning}</p>
-            <p className="mt-2">{d.nextStepAdvice}</p>
-            <p className="mt-2">{d.recommendedFix}</p>
-          </div>
+        <section aria-labelledby="diagnosis-risk" className={sectionClass}>
+          <h2 id="diagnosis-risk" className="text-heading-md mb-3">
+            {t('diagnosis.sectionRisk')}
+          </h2>
+          <p className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-semibold ${risk.color}`}>
+            <risk.Icon className="h-4 w-4" aria-hidden="true" />
+            {t(risk.labelKey)}
+          </p>
+          <p className="mt-3 text-sm text-text-secondary">
+            {blocked
+              ? t('diagnosis.riskBlockedBody')
+              : decision === 'caution'
+                ? t('diagnosis.riskCautionBody')
+                : t('diagnosis.riskSafeBody')}
+          </p>
+        </section>
+
+        {!blocked && (
+          <section aria-labelledby="diagnosis-fix" className={sectionClass}>
+            <h2 id="diagnosis-fix" className="text-heading-md mb-2">
+              {t('diagnosis.recommendedFix')}
+            </h2>
+            <p className="text-body-md text-text-secondary">{d.recommendedFix}</p>
+          </section>
+        )}
+
+        {showFollowUps && view.sessionId && (
+          <FollowUpQuestions
+            key={`${view.sessionId}:${view.followUps.map((question) => question.id).join(',')}`}
+            questions={view.followUps}
+            sessionId={view.sessionId}
+            onResult={handleFollowUpResult}
+          />
         )}
 
         <motion.button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between glass-panel rounded-xl px-4 py-3 mb-8 text-left"
+          aria-expanded={expanded}
+          className="w-full flex items-center justify-between glass-panel rounded-xl px-4 py-3 mb-8 text-left focus-visible:outline-2 focus-visible:outline-primary"
           whileHover={{ scale: 1.01 }}
         >
           <span className="font-medium">{t('diagnosis.whyResult')}</span>
-          {expanded ? <ChevronUp /> : <ChevronDown />}
+          {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
         </motion.button>
 
         {expanded && (
@@ -394,37 +485,41 @@ export default function Diagnosis() {
           </motion.p>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => void startRepair()}
-            disabled={!repairSessionReady || starting || safetyStop}
-            className="flex-1 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            {starting ? t('common.loading') : t('diagnosis.ctaTools')}
-          </motion.button>
+        {!blocked && (
+          <>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => void startRepair()}
+                disabled={(!source.isFixture && !repairSessionReady) || starting}
+                className="flex-1 min-h-11 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {starting ? t('common.loading') : t('diagnosis.ctaTools')}
+              </motion.button>
 
-          <Link to="/capture" className="flex-1">
-            <motion.span
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="block text-center rounded-xl border border-border py-3 text-text-secondary"
+              <Link to="/capture" className="flex-1">
+                <motion.span
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="block min-h-11 text-center rounded-xl border border-border py-3 text-text-secondary"
+                >
+                  {t('diagnosis.ctaRetake')}
+                </motion.span>
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/nearby-shops?appliance=${encodeURIComponent(d.issueName)}`)
+              }
+              className="mt-3 min-h-11 w-full rounded-xl border border-primary/50 py-3 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
             >
-              {t('diagnosis.ctaRetake')}
-            </motion.span>
-          </Link>
-        </div>
-        <button
-          type="button"
-          onClick={() =>
-            navigate(`/nearby-shops?appliance=${encodeURIComponent(d.issueName)}`)
-          }
-          className="mt-3 w-full rounded-xl border border-primary/50 py-3 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
-        >
-          {t('nearby.findShops')}
-        </button>
+              {t('nearby.findShops')}
+            </button>
+          </>
+        )}
         {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>

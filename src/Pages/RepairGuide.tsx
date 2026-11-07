@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -7,21 +7,36 @@ import StepTimeline from '../components/StepTimeline'
 import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
+import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import { useAssistantContext } from '../components/assistantContext'
-import { getSession, saveSession } from '../services/repairSession'
+import { saveSession } from '../services/repairSession'
 import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { updateProgress } from '../services/historyService'
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
+import { buildDiagnosisView } from '../utils/diagnosisView'
+import { isBlocked } from '../utils/riskDecision'
+import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+
+// DEV-ONLY banner. In a production build this is `null` and the import is removed.
+const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 export default function RepairGuide() {
+  useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
-  const session = useMemo(() => getSession(), [])
+  const source = useDiagnosisSource()
+  const session = source.session
   const { setRepairContext } = useAssistantContext()
+  // Safety check on mount: a blocked session never gets steps, even if /guide is typed in.
+  const gateView = useMemo(
+    () => (session?.diagnosis ? buildDiagnosisView(session.diagnosis, source.extras) : null),
+    [session, source.extras]
+  )
+  const blocked = gateView !== null && isBlocked(gateView.decision)
   const steps = useMemo(
-    () => session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
-    [session?.diagnosis, session?.steps]
+    () => (blocked ? [] : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : [])),
+    [blocked, session]
   )
   const [index, setIndex] = useState(session?.currentStep ?? 0)
   const [paused, setPaused] = useState(false)
@@ -35,6 +50,7 @@ export default function RepairGuide() {
   const total = steps.length
 
   useEffect(() => {
+    if (blocked) return
     setRepairContext(assistantContextFromSession(
       session?.diagnosis,
       session?.description ?? '',
@@ -42,11 +58,11 @@ export default function RepairGuide() {
       index,
       session?.historySessionId
     ))
-  }, [session, steps, index, setRepairContext])
+  }, [blocked, session, steps, index, setRepairContext])
 
   useEffect(() => {
-    if (!session?.diagnosis) navigate('/capture')
-  }, [session, navigate])
+    if (source.status === 'missing') navigate('/capture')
+  }, [source.status, navigate])
 
   const canAdvance = useCallback(() => {
     if (!step) return false
@@ -63,8 +79,10 @@ export default function RepairGuide() {
       nextIndex,
       session?.historySessionId
     ))
-    saveSession({ currentStep: nextIndex })
     setProgressError('')
+    // Fixture mode never writes progress anywhere.
+    if (source.isFixture) return
+    saveSession({ currentStep: nextIndex })
     if (session?.historySessionId) {
       void updateProgress(session.historySessionId, nextIndex).catch((error: unknown) => {
         setProgressError(error instanceof Error ? error.message : t('history.progressError'))
@@ -73,9 +91,14 @@ export default function RepairGuide() {
   }
 
   const next = async () => {
-    if (!step || saveInFlight.current) return
+    if (blocked || !step || saveInFlight.current) return
     if (step.requiresConfirmation && !safetyConfirmed[step.id]) {
       setSafetyOpen(true)
+      return
+    }
+    if (source.isFixture) {
+      // Fixture mode only moves through the steps; nothing is saved and /verify is not opened.
+      if (index < total - 1) moveTo(index + 1)
       return
     }
 
@@ -112,6 +135,33 @@ export default function RepairGuide() {
     else if (text.includes('repeat')) moveTo(index)
   }
 
+  if (source.status === 'loading') {
+    return (
+      <PageShell className="flex items-center justify-center p-6">
+        <div role="status" aria-live="polite" className="glass-panel w-full max-w-sm animate-pulse rounded-2xl p-6">
+          <div className="mb-3 h-5 w-2/3 rounded bg-surface-high" />
+          <div className="h-3 w-3/4 rounded bg-surface-high" />
+          <span className="sr-only">{t('blocked.gateChecking')}</span>
+        </div>
+      </PageShell>
+    )
+  }
+
+  if (session?.diagnosis && gateView && (gateView.decision === 'professional' || gateView.decision === 'emergency')) {
+    return (
+      <PageShell className="pb-24">
+        <div className="mx-auto max-w-lg px-4 pt-8">
+          <SafetyBlockedPanel
+            decision={gateView.decision}
+            issueName={session.diagnosis.issueName}
+            analysisDetails={gateView.analysisDetails}
+            showToolsLocked
+          />
+        </div>
+      </PageShell>
+    )
+  }
+
   if (!session?.diagnosis || !step) {
     return (
       <PageShell className="flex items-center justify-center">
@@ -135,6 +185,11 @@ export default function RepairGuide() {
       )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
+        {FixtureBanner && source.isFixture && (
+          <Suspense fallback={null}>
+            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
+          </Suspense>
+        )}
         {progressError && (
           <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">
             {progressError}

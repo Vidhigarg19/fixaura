@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { Suspense, lazy, useMemo, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Check, AlertCircle, Wrench, Hammer, Scissors,
@@ -7,9 +7,17 @@ import {
 } from 'lucide-react'
 import PageShell from '../components/PageShell'
 import SafetyBubble from '../components/SafetyBubble'
-import { getSession, saveSession } from '../services/repairSession'
+import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import { saveSession } from '../services/repairSession'
 import { getPrepTimeMinutes, isEssentialTool } from '../services/repairPlanner'
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
+import { buildDiagnosisView } from '../utils/diagnosisView'
+import { withFixtureQuery } from '../utils/fixtureGate'
+import { isBlocked } from '../utils/riskDecision'
+import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+
+// DEV-ONLY banner. In a production build this is `null` and the import is removed.
+const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
@@ -90,8 +98,10 @@ function matchTool(tool: string): { icon: React.ElementType } {
   return { icon: Wrench }
 }
 export default function ToolChecklist() {
+  useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
-  const session = getSession()
+  const source = useDiagnosisSource()
+  const session = source.session
   const recommended = session?.diagnosis?.recommendedTools
   const tools = useMemo(() => recommended ?? [], [recommended])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
@@ -129,8 +139,42 @@ export default function ToolChecklist() {
   }
 
   const continueGuide = () => {
-    saveSession({ toolsAcknowledged: Object.keys(checked).filter((k) => checked[k]) })
-    navigate('/guide')
+    if (session?.diagnosis && isBlocked(buildDiagnosisView(session.diagnosis, source.extras).decision)) return
+    // Fixture mode never writes to the stored session.
+    if (!source.isFixture) {
+      saveSession({ toolsAcknowledged: Object.keys(checked).filter((k) => checked[k]) })
+    }
+    navigate(withFixtureQuery('/guide'))
+  }
+
+  // Safety check on mount, before any tool is rendered. No redirect and no flash of tools.
+  if (source.status === 'loading') {
+    return (
+      <PageShell className="flex items-center justify-center p-6">
+        <div role="status" aria-live="polite" className="glass-panel w-full max-w-sm animate-pulse rounded-2xl p-6">
+          <div className="mb-3 h-5 w-2/3 rounded bg-surface-high" />
+          <div className="h-3 w-3/4 rounded bg-surface-high" />
+          <span className="sr-only">{t('blocked.gateChecking')}</span>
+        </div>
+      </PageShell>
+    )
+  }
+  if (session?.diagnosis) {
+    const gate = buildDiagnosisView(session.diagnosis, source.extras)
+    if (isBlocked(gate.decision) && (gate.decision === 'professional' || gate.decision === 'emergency')) {
+      return (
+        <PageShell className="pb-24">
+          <div className="mx-auto max-w-lg px-4 pt-8">
+            <SafetyBlockedPanel
+              decision={gate.decision}
+              issueName={session.diagnosis.issueName}
+              analysisDetails={gate.analysisDetails}
+              showToolsLocked
+            />
+          </div>
+        </PageShell>
+      )
+    }
   }
 
   if (!session?.diagnosis) {
@@ -144,6 +188,11 @@ export default function ToolChecklist() {
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
+        {FixtureBanner && source.isFixture && (
+          <Suspense fallback={null}>
+            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
+          </Suspense>
+        )}
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
