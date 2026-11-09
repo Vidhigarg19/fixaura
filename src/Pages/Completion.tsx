@@ -1,11 +1,14 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Share2, RotateCcw, Star } from 'lucide-react'
+import { Info, ListChecks, RotateCcw, Share2, Star } from 'lucide-react'
 import { useState, useSyncExternalStore } from 'react'
 import PageShell from '../components/PageShell'
 import { clearSession, getSession } from '../services/repairSession'
 import { getLocale, subscribeLocale, t } from '../i18n'
 
+// V07: this page only says that the repair STEPS were marked as finished.
+// It is not a safety check, it does not confirm the repair worked, and it never
+// shows or implies a photo comparison (none is available right now).
 export default function Completion() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const session = getSession()
@@ -13,15 +16,8 @@ export default function Completion() {
   const [rated, setRated] = useState(false)
 
   const completion = session?.completedRepair
-  // Success is shown only for a genuine outcome: a real (non-mock) "resolved"
-  // verification plus a saved record that is not a locally fabricated placeholder.
-  const verification = session?.diagnosis?.verification
-  const genuineSuccess = Boolean(
-    completion &&
-      completion.diagnosisId !== 'guest-repair' &&
-      verification &&
-      verification.status === 'resolved'
-  )
+  // A guest's finish is only recorded on this device, never in an account.
+  const savedToAccount = Boolean(completion && completion.diagnosisId !== 'guest-repair')
 
   const share = async () => {
     const text = `${t('completion.sharePrefix')}${completion?.repairSummary ?? t('completion.noSummary')}`
@@ -36,17 +32,17 @@ export default function Completion() {
     clearSession()
   }
 
-  if (!genuineSuccess || !completion) {
+  if (!completion) {
     return (
       <PageShell className="pb-16">
         <div className="mx-auto max-w-lg px-4 pt-16 text-center">
-          <div className="mb-6 inline-flex rounded-full bg-warning/15 p-6">
-            <AlertTriangle className="h-16 w-16 text-warning" aria-hidden="true" />
+          <div className="mb-6 inline-flex rounded-full bg-surface-high p-6">
+            <Info className="h-12 w-12 text-text-secondary" aria-hidden="true" />
           </div>
           <h1 role="status" className="text-heading-xl mb-3">
             {t('completion.notCompleted')}
           </h1>
-          <p className="text-text-secondary mb-10">{t('verify.unavailable')}</p>
+          <p className="text-text-secondary mb-10">{t('completion.notFinishedBody')}</p>
           <div className="flex flex-col gap-3">
             <Link
               to="/dashboard"
@@ -70,55 +66,22 @@ export default function Completion() {
 
   return (
     <PageShell className="pb-16">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {Array.from({ length: 24 }).map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-primary/60"
-            style={{
-              left: `${(i * 17) % 100}%`,
-              top: `-10%`,
-            }}
-            animate={{
-              y: ['0vh', '110vh'],
-              opacity: [1, 0],
-              rotate: [0, 360],
-            }}
-            transition={{
-              duration: 4 + (i % 3),
-              repeat: Infinity,
-              delay: i * 0.15,
-              ease: 'linear',
-            }}
-          />
-        ))}
-      </div>
-
       <div className="relative mx-auto max-w-lg px-4 pt-16 text-center">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 14 }}
-          className="inline-flex rounded-full bg-success/20 p-6 mb-6 glow-teal"
-        >
-          <CheckCircle2 className="h-16 w-16 text-success" />
-        </motion.div>
+        <div className="mb-6 inline-flex rounded-full bg-surface-high p-6">
+          <ListChecks className="h-12 w-12 text-text-secondary" aria-hidden="true" />
+        </div>
 
-        <motion.h1
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-heading-xl mb-3"
-        >
-          {t('completion.title')}
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-text-secondary mb-10"
-        >
-          {t('completion.subtitle')}
-        </motion.p>
+        <h1 className="text-heading-xl mb-3">{t('completion.title')}</h1>
+        <p className="text-text-secondary mb-6">{t('completion.subtitle')}</p>
+
+        <div role="note" className="mb-8 rounded-xl border border-warning/40 bg-warning/5 p-4 text-left text-sm text-text-primary">
+          <p className="flex items-start gap-2">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span>{t('completion.notSafetyCheck')}</span>
+          </p>
+          <p className="mt-2 text-text-secondary">{t('completion.noComparison')}</p>
+          {!savedToAccount && <p className="mt-2 text-text-secondary">{t('completion.notSaved')}</p>}
+        </div>
 
         <div className="glass-panel rounded-xl p-6 mb-10 text-left">
           <p className="text-label-bold text-text-subtle mb-2">{t('completion.repairSummary')}</p>
@@ -145,15 +108,18 @@ export default function Completion() {
                   setRating(n)
                   setRated(true)
                 }}
-                aria-label={t('completion.rateAria')}
+                aria-label={`${t('completion.rateAria')} ${n}/5`}
+                aria-pressed={n <= rating}
+                className="rounded-lg focus-visible:outline-2 focus-visible:outline-primary"
               >
                 <Star
                   className={`h-8 w-8 ${n <= rating ? 'fill-warning text-warning' : 'text-border'}`}
+                  aria-hidden="true"
                 />
               </motion.button>
             ))}
           </div>
-          {rated && <p className="text-sm text-success mt-3">{t('completion.thanks')}</p>}
+          {rated && <p role="status" className="text-sm text-text-secondary mt-3">{t('completion.thanks')}</p>}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -162,20 +128,18 @@ export default function Completion() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => void share()}
-            className="flex items-center justify-center gap-2 rounded-xl border border-primary/40 py-3 text-primary"
+            className="flex items-center justify-center gap-2 rounded-xl border border-primary/40 py-3 text-primary focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <Share2 className="h-5 w-5" />
+            <Share2 className="h-5 w-5" aria-hidden="true" />
             {t('completion.share')}
           </motion.button>
-          <Link to="/capture" onClick={startAnother}>
-            <motion.span
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-background"
-            >
-              <RotateCcw className="h-5 w-5" />
-              {t('completion.startAnother')}
-            </motion.span>
+          <Link
+            to="/capture"
+            onClick={startAnother}
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            <RotateCcw className="h-5 w-5" aria-hidden="true" />
+            {t('completion.startAnother')}
           </Link>
         </div>
       </div>
