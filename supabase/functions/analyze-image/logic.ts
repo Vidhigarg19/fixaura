@@ -136,13 +136,17 @@ export function validateRequest(body: unknown): AnalyzeRequest | null {
 export interface DiagnosisPayload {
   issueName: string
   confidence: number
-  summary: string
   severity: 'low' | 'medium' | 'high'
+  summary: string
   recommendedFix: string
   recommendedTools: string[]
   nextStepAdvice: string
   safetyWarning: string
   explanation: string
+  // S05: set by the server-side safety gate. The client already coerces
+  // `safetyStop` true when severity === 'high', so this stays an optional
+  // escalation signal that can only make the result safer, never riskier.
+  safetyStop?: boolean
 }
 
 export function parseModelJson(text: string): unknown {
@@ -222,3 +226,122 @@ export function providerErrorSummary(bodyText: string): { providerStatus?: strin
 
 // ConfigurationError ab shared hai (S04): Edge Functions ek hi class use karein.
 export { ConfigurationError } from '../_shared/errors.ts'
+
+// ---------- S05 additions: server-side safety gate ----------
+//
+// Pure moderation screening. This mirrors the client policy in
+// src/lib/safety.ts. Deno Edge Functions cannot import from the Vite `src/`
+// tree, so the rule source is duplicated here deliberately; keep the two in
+// sync and bump SAFETY_POLICY_VERSION in both when the rules change.
+// NOTE: tests in logic_test.ts lock this behavior.
+
+export const SAFETY_POLICY_VERSION = 's05.1'
+
+export type SafetyLevel = 'caution' | 'professional' | 'emergency'
+
+interface SafetyRule {
+  level: SafetyLevel
+  phrases: string[]
+}
+
+const SAFETY_RULES: SafetyRule[] = [
+  {
+    level: 'emergency',
+    phrases: [
+      'gas smell', 'smell of gas', 'smell gas', 'smelling gas', 'gas leak',
+      'lpg leak', 'cylinder leak', 'gas cylinder leak',
+      'burning smell', 'smells burnt', 'smell burning', 'on fire', 'caught fire',
+      'flames', 'sparks', 'spark', 'smoke', 'smoking',
+      'water near electricity', 'water near electrical', 'flooding near electricity',
+      'water on the outlet', 'water in the socket', 'wet outlet', 'wet socket',
+      'electric shock', 'got shocked', 'someone collapsed', 'unconscious',
+      "can't breathe", 'cannot breathe', 'chest pain', 'severe burn',
+      'गैस की गंध', 'गैस की बदबू', 'गैस लीक', 'सिलेंडर लीक',
+      'जलने की गंध', 'जलने की बदबू', 'आग लग', 'आग लगी', 'लपटें',
+      'चिंगारी', 'चिंगारियां', 'धुआँ', 'धुआं',
+      'बिजली के पास पानी', 'बिजली के पास बाढ़', 'पानी और बिजली', 'सॉकेट में पानी',
+      'बेहोश', 'सांस नहीं', 'बिजली का करंट लगा',
+    ],
+  },
+  {
+    level: 'professional',
+    phrases: [
+      'exposed wiring', 'exposed wire', 'live wire', 'bare wire', 'bare wiring',
+      'main electrical panel', 'breaker panel wiring', 'rewire the house',
+      'mains wiring', '240v', '240 volt', 'high voltage',
+      'gas line', 'gas pipe', 'gas connection', 'gas regulator', 'gas valve',
+      'load bearing wall', 'load-bearing wall', 'remove a wall', 'knock down the wall',
+      'ceiling collapse', 'roof collapse', 'foundation crack', 'cracked beam',
+      'mix bleach and ammonia', 'bleach and ammonia', 'refrigerant', 'freon',
+      'asbestos', 'lead paint',
+      'bypass the safety', 'bypass safety', 'disable the breaker', 'defeat the interlock',
+      'remove the ground', 'remove earthing', 'ungrounded on purpose',
+      'खुली तार', 'नंगी तार', 'करंट आ रहा', 'बिजली का झटका',
+      'गैस पाइप', 'गैस लाइन', 'गैस कनेक्शन',
+      'दीवार गिरा', 'छत गिर', 'बीम में दरार',
+      'ब्लीच और अमोनिया', 'एस्बेस्टस', 'सुरक्षा हटा', 'अर्थिंग हटा',
+    ],
+  },
+]
+
+const SAFETY_LEVEL_RANK: Record<SafetyLevel, number> = {
+  caution: 1,
+  professional: 2,
+  emergency: 3,
+}
+
+function safetyMatches(haystack: string, phrase: string): boolean {
+  const idx = haystack.indexOf(phrase)
+  if (idx === -1) return false
+  // ASCII phrases get word-boundary checks; Devanagari phrases do not.
+  if (!/^[\x20-\x7e]+$/.test(phrase)) return true
+  const before = haystack[idx - 1]
+  const after = haystack[idx + phrase.length]
+  const isWord = (ch: string | undefined) => ch !== undefined && /[a-z0-9]/.test(ch)
+  return !isWord(before) && !isWord(after)
+}
+
+/** Highest safety level found in the text, or null when nothing is flagged. */
+export function screenSafety(input: string): SafetyLevel | null {
+  if (typeof input !== 'string' || input.trim() === '') return null
+  const haystack = input.normalize('NFC').toLowerCase()
+  let highest: SafetyLevel | null = null
+  for (const rule of SAFETY_RULES) {
+    if (rule.phrases.some((p) => safetyMatches(haystack, p))) {
+      if (highest === null || SAFETY_LEVEL_RANK[rule.level] > SAFETY_LEVEL_RANK[highest]) {
+        highest = rule.level
+      }
+    }
+  }
+  return highest
+}
+
+/**
+ * Applies the safety gate to a validated diagnosis using the user's description
+ * plus the model's own output. The gate can only ESCALATE: it never lowers
+ * severity, never clears safetyStop, and never rewrites the diagnosis text.
+ *   - any 'professional' or 'emergency' hit  -> severity 'high' + safetyStop
+ *   - 'emergency' additionally forces safetyStop regardless of prior severity
+ */
+export function applySafetyGate(
+  diagnosis: DiagnosisPayload,
+  description: string,
+): DiagnosisPayload {
+  const inputLevel = screenSafety(description)
+  const outputLevel = screenSafety(
+    [diagnosis.issueName, diagnosis.summary, diagnosis.recommendedFix, diagnosis.safetyWarning]
+      .join('\n'),
+  )
+  const levels = [inputLevel, outputLevel].filter((l): l is SafetyLevel => l !== null)
+  if (levels.length === 0) return diagnosis
+
+  const highest = levels.reduce((a, b) => (SAFETY_LEVEL_RANK[b] > SAFETY_LEVEL_RANK[a] ? b : a))
+  const mustBlock = SAFETY_LEVEL_RANK[highest] >= SAFETY_LEVEL_RANK.professional
+  if (!mustBlock && !diagnosis.safetyStop) return diagnosis
+
+  return {
+    ...diagnosis,
+    severity: 'high',
+    safetyStop: true,
+  }
+}
