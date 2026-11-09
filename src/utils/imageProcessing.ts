@@ -97,6 +97,10 @@ export async function processImageFile(file: File): Promise<ProcessedImage> {
     // JPEG has no transparency: paint white first so transparent PNGs do not turn black.
     context.fillStyle = '#ffffff'
     context.fillRect(0, 0, width, height)
+    // Large phone photos are shrunk a lot here; low-quality resampling (the canvas
+    // default) leaves them soft and jagged.
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
     context.drawImage(decoded.source, 0, 0, width, height)
 
     const blob = await canvasToBlob(canvas)

@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
 import StepTimeline from '../components/StepTimeline'
-import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
@@ -17,10 +16,12 @@ import { buildRepairPlan } from '../services/repairPlanner'
 import { commitCurrentStep } from '../services/repairSessionDb'
 import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
-import FixtureBannerSlot from '../components/FixtureBannerSlot'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+import { useResolvedMedia } from '../utils/useResolvedMedia'
+import { useRepairPhoto } from '../utils/useRepairPhoto'
+import RepairPhoto from '../components/RepairPhoto'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
 
@@ -34,20 +35,41 @@ function FreshRepairGuide() {
   const { setRepairContext } = useAssistantContext()
   // Safety check on mount: a blocked session never gets steps, even if /guide is typed in.
   const gateView = useMemo(
-    () => (session?.diagnosis ? buildDiagnosisView(session.diagnosis, source.extras) : null),
+    () =>
+      session?.diagnosis
+        ? withTextScreen(
+            buildDiagnosisView(session.diagnosis, source.extras),
+            session.diagnosis,
+            session.description
+          )
+        : null,
     [session, source.extras]
   )
   const blocked = gateView !== null && isBlocked(gateView.decision)
-  // S07: steps render only against a reviewed, current approved template. The
-  // availability decision comes from server-supplied agreed data (extras),
-  // never from frontend-generated steps.
-  const guideAvail = getGuideAvailability(source.extras, { allowFixtureTemplates: source.isFixture })
+  // Steps render for a non-blocked result that has a reviewed approved template or
+  // validated issue-specific steps. A genuine hazard (blocked) never gets a guide.
+  const guideAvail = getGuideAvailability(source.extras, {
+    allowFixtureTemplates: source.isFixture,
+    diagnosis: session?.diagnosis ?? null,
+    decision: gateView?.decision,
+  })
   const guideAvailable = guideAvail.status === 'available'
+  // Tell the user where non-approved steps came from; approved templates need no notice.
+  const guideNoticeKey =
+    guideAvail.status === 'available' && guideAvail.source === 'ai_generated'
+      ? 'guide.aiGeneratedNotice'
+      : guideAvail.status === 'available' && guideAvail.source === 'fallback'
+        ? 'guide.fallbackNotice'
+        : null
   const steps = useMemo(
     () =>
       blocked || !guideAvailable
         ? []
-        : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
+        : session?.steps?.length
+          ? session.steps
+          : session?.diagnosis
+            ? buildRepairPlan(session.diagnosis)
+            : [],
     [blocked, guideAvailable, session]
   )
   const [index, setIndex] = useState(session?.currentStep ?? 0)
@@ -60,6 +82,12 @@ function FreshRepairGuide() {
 
   const step = steps[index]
   const total = steps.length
+
+  // The picture at the top. Generated steps have no image of their own, so this is the
+  // user's main repair photo; a step image (reviewed templates only) is shown when present
+  // and falls back to the main photo if it is missing or broken.
+  const stepMedia = useResolvedMedia(step?.mediaUrl)
+  const sessionMedia = useRepairPhoto(session)
 
   useEffect(() => {
     // Unapproved steps are never handed to the assistant either.
@@ -210,6 +238,14 @@ function FreshRepairGuide() {
   return (
     <PageShell className="flex flex-col pb-28">
       <StepTimeline total={total} current={index} />
+      {guideNoticeKey && (
+        <p
+          role="note"
+          className="mx-auto mt-3 max-w-lg rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-secondary"
+        >
+          {t(guideNoticeKey)}
+        </p>
+      )}
       {savingProgress && (
         <p role="status" className="mx-auto mt-3 px-4 text-sm text-text-secondary">
           {index === total - 1 ? t('guide.completionSaving') : t('guide.progressSaving')}
@@ -237,23 +273,8 @@ function FreshRepairGuide() {
           <VoiceInput onCommand={handleVoice} />
         </div>
 
-        <div className="relative aspect-video rounded-xl bg-surface-high overflow-hidden mb-6">
-          {session.imageDataUrl && (
-            <img
-              src={session.imageDataUrl}
-              alt=""
-              loading="lazy"
-              className="absolute inset-0 w-full h-full object-cover opacity-40"
-            />
-          )}
-          <AROverlay variant="guide" visualCue={step.visualCue} />
-          <motion.div
-            key={step.id}
-            className="absolute inset-0 flex items-end p-4 bg-linear-to-t from-background/90 to-transparent"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: paused ? 0.6 : 1 }}
-          />
-        </div>
+        {/* The user's own photo, clean: no AR marks, scan lines or gradient on top. */}
+        <RepairPhoto stepMedia={stepMedia} sessionMedia={sessionMedia} className="mb-6" />
 
         <AnimatePresence mode="wait">
           <motion.div

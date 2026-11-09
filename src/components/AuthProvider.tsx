@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { clearSession } from '../services/repairSession'
+import { clearLocalPhotos } from '../services/localPhotoStore'
 import { supabase } from '../lib/supabase'
 import { AuthContext } from './authContext'
 
@@ -30,6 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUser = session?.user ?? null
       if (previousUserId.current && previousUserId.current !== nextUser?.id) {
         clearSession()
+        // Sign-out or a different user: keep no repair photos on this device.
+        void clearLocalPhotos().catch(() => undefined)
       }
       previousUserId.current = nextUser?.id ?? null
       setUser(nextUser)

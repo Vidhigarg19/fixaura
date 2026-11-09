@@ -136,6 +136,9 @@ export function useDiagnosisSource(): DiagnosisSource {
         description: dbSession.description || cached?.description || '',
         steps: dbSteps.length ? dbSteps : cached?.steps,
         currentStep: dbSession.currentStep,
+        // The database path keeps the photo available in a new tab or a resumed session.
+        // A freshly captured photo (cached imageDataUrl) still wins for display.
+        imagePath: dbSession.imagePath ?? cached?.imagePath,
         historySessionId: result.sessionId,
         diagnosisPersistence: {
           userId: cached?.diagnosisPersistence?.userId ?? '',

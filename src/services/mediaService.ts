@@ -13,7 +13,10 @@
 import { supabase } from '../lib/supabase'
 import { MAX_PRIVATE_MEDIA_BYTES } from '../config/limits'
 
-export const PRIVATE_MEDIA_BUCKET = 'repair-private-media'
+import { PRIVATE_MEDIA_BUCKET, extractObjectPath, isDirectMediaUrl, isPrivateObjectPath } from '../utils/mediaPaths'
+import { deletePhotos } from './localPhotoStore'
+
+export { PRIVATE_MEDIA_BUCKET, extractObjectPath, isDirectMediaUrl }
 
 const MAX_FILE_SIZE = MAX_PRIVATE_MEDIA_BYTES // 5 MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
@@ -134,6 +137,8 @@ export async function getPrivateMediaUrl(
  */
 export async function collectSessionAssetPaths(sessionId: string): Promise<string[]> {
   if (!sessionId) return []
+  const paths = new Set<string>()
+
   const { data, error } = await supabase
     .from('repair_observations')
     .select('before_image_url, after_image_url')
@@ -141,26 +146,68 @@ export async function collectSessionAssetPaths(sessionId: string): Promise<strin
 
   if (error) {
     console.warn('Unable to list session media for cleanup:', error.message)
-    return []
-  }
-
-  const paths = new Set<string>()
-  for (const row of data ?? []) {
-    for (const value of [row.before_image_url, row.after_image_url]) {
-      if (isPrivateObjectPath(value)) paths.add(value)
+  } else {
+    for (const row of data ?? []) {
+      for (const value of [row.before_image_url, row.after_image_url]) {
+        const path = extractObjectPath(value)
+        if (path) paths.add(path)
+      }
     }
   }
+
+  // The session's own main photo (repair_sessions.image_path) is a private object too.
+  const { data: session, error: sessionError } = await supabase
+    .from('repair_sessions')
+    .select('image_path')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (sessionError) {
+    console.warn('Unable to read the session photo for cleanup:', sessionError.message)
+  } else {
+    const path = extractObjectPath(session?.image_path)
+    if (path) paths.add(path)
+  }
+
   return [...paths]
 }
 
-/** True only for strings that look like a bucket object path we own (not a URL). */
-function isPrivateObjectPath(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    !value.includes('://') &&
-    !value.startsWith('data:')
-  )
+// ---------- Displaying private media ----------
+
+// Display URLs live an hour and are re-used until shortly before they expire, so moving
+// between steps never re-signs the same photo.
+const DISPLAY_URL_TTL_SECONDS = 60 * 60
+const REFRESH_MARGIN_MS = 5 * 60 * 1000
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+/** Drops a cached signed URL, e.g. after the browser failed to load it. */
+export function forgetSignedUrl(value: string): void {
+  const path = extractObjectPath(value)
+  if (path) signedUrlCache.delete(path)
+}
+
+/**
+ * Turns whatever is stored for a photo into something the browser can load:
+ *  - a data/blob/site/external URL is returned unchanged,
+ *  - a private storage path (or a stored storage URL for the private bucket) becomes a
+ *    short-lived signed URL, so it loads securely without a 403.
+ * Returns null when the object is missing or the user may not read it.
+ */
+export async function resolveMediaUrl(value: string | null | undefined): Promise<string | null> {
+  if (!value || !value.trim()) return null
+  const trimmed = value.trim()
+  if (isDirectMediaUrl(trimmed)) return trimmed
+
+  const path = extractObjectPath(trimmed)
+  if (!path) return null
+
+  const cached = signedUrlCache.get(path)
+  if (cached && cached.expiresAt - Date.now() > REFRESH_MARGIN_MS) return cached.url
+
+  const url = await getPrivateMediaUrl(path, DISPLAY_URL_TTL_SECONDS)
+  if (url) {
+    signedUrlCache.set(path, { url, expiresAt: Date.now() + DISPLAY_URL_TTL_SECONDS * 1000 })
+  }
+  return url
 }
 
 /**
@@ -202,6 +249,9 @@ export async function deleteRepairSessionCompletely(
     .eq('user_id', userId)
 
   if (dbError) throw new Error(`Unable to delete this repair: ${dbError.message}`)
+
+  // The repair is gone, so its on-device photo copy goes too. Best effort.
+  void deletePhotos([sessionId]).catch(() => undefined)
 }
 
 /** Removes objects from the private bucket with a small bounded retry. */

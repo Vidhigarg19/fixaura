@@ -46,7 +46,8 @@ export default function PhotoCapture({ photo, onChange }: PhotoCaptureProps) {
 
     try {
       const acquiredStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: facingMode } },
+        // Same as the main capture: ask for a full-HD frame (default is often 640x480).
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
       })
       if (cancelled()) {
@@ -118,6 +119,8 @@ export default function PhotoCapture({ photo, onChange }: PhotoCaptureProps) {
       setPhotoError('capture.photoProcessingError')
       return
     }
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
     context.drawImage(video, 0, 0, dimensions.width, dimensions.height)
     try {
       onChange(await createPhotoFromCanvas(canvas))

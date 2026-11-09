@@ -1,76 +1,23 @@
 import type { DiagnosisResult, RepairStep } from '../types/repair'
+import { MIN_GUIDE_STEPS, parseGuideSteps } from '../utils/guideSteps'
+import { buildFallbackGuide, buildSafetyStep } from '../utils/fallbackGuide'
 
+/**
+ * Builds the step-by-step guide for a result. Order of preference:
+ *  1. The issue-specific, validated steps the analysis returned for THIS problem.
+ *  2. A fallback guide built from the diagnosis itself (issue, recommended fix, tools,
+ *     next-step advice), so a missing checklist never leaves the user without steps.
+ * A blocked result (safetyStop or high severity), or one whose fix describes a
+ * hazardous action, has NO steps. Every guide starts with a context-aware "get ready
+ * safely" step (unplug, shut off water, protective gear).
+ */
 export function buildRepairPlan(diagnosis: DiagnosisResult): RepairStep[] {
   if (diagnosis.safetyStop || diagnosis.severity === 'high') return []
 
-  const issue = diagnosis.issueName.toLowerCase()
+  const generated = parseGuideSteps(diagnosis.guideSteps)
+  if (generated.length >= MIN_GUIDE_STEPS) return [buildSafetyStep(diagnosis), ...generated]
 
-  const base: RepairStep[] = [
-    {
-      id: 'prep-1',
-      title: 'Prepare workspace',
-      instruction: diagnosis.nextStepAdvice || 'Clear the area and lay out your tools within reach.',
-      safetyNote: diagnosis.safetyWarning,
-      requiresConfirmation: true,
-      visualCue: 'box',
-      estimatedSeconds: 120,
-    },
-    {
-      id: 'inspect-1',
-      title: 'Inspect the damage',
-      instruction: `Examine ${diagnosis.issueName}. ${diagnosis.summary}`,
-      safetyNote: 'Do not force components apart.',
-      requiresConfirmation: false,
-      visualCue: 'circle',
-      estimatedSeconds: 90,
-    },
-    {
-      id: 'fix-1',
-      title: 'Apply the fix',
-      instruction: diagnosis.recommendedFix,
-      safetyNote: diagnosis.safetyWarning,
-      requiresConfirmation: true,
-      visualCue: 'arrow',
-      estimatedSeconds: 300,
-    },
-    {
-      id: 'test-1',
-      title: 'Test operation',
-      instruction: 'Restore power or water gradually and verify normal operation for 2–3 minutes.',
-      safetyNote: 'Stand clear of moving parts during the test.',
-      requiresConfirmation: false,
-      visualCue: 'line',
-      estimatedSeconds: 180,
-    },
-    {
-      id: 'finish-1',
-      title: 'Secure and clean up',
-      instruction: 'Tighten fasteners to spec, replace covers, and dispose of debris safely.',
-      safetyNote: 'Double-check that all panels are seated.',
-      requiresConfirmation: false,
-      visualCue: 'box',
-      estimatedSeconds: 120,
-    },
-  ]
-
-  if (issue.includes('leak') || issue.includes('pipe') || issue.includes('faucet')) {
-    base.splice(1, 0, {
-      id: 'water-1',
-      title: 'Shut off water supply',
-      instruction: 'Locate the shutoff valve and turn clockwise until fully closed.',
-      safetyNote: 'Place a towel beneath connections before loosening.',
-      requiresConfirmation: true,
-      visualCue: 'arrow',
-      estimatedSeconds: 60,
-    })
-  }
-
-  if (issue.includes('electr') || issue.includes('outlet') || issue.includes('wire')) {
-    base[0].safetyNote = 'Turn off power at the breaker and verify with a multimeter.'
-    base[0].requiresConfirmation = true
-  }
-
-  return base
+  return buildFallbackGuide(diagnosis)
 }
 
 export function getPrepTimeMinutes(tools: string[]): number {

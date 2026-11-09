@@ -147,6 +147,9 @@ export interface DiagnosisPayload {
   // `safetyStop` true when severity === 'high', so this stays an optional
   // escalation signal that can only make the result safer, never riskier.
   safetyStop?: boolean
+  // Ordered, issue-specific repair steps for low/medium severity results only.
+  // Validated by parseGuideSteps; omitted when severity is 'high' or malformed.
+  guideSteps?: GuideStepPayload[]
 }
 
 export function parseModelJson(text: string): unknown {
@@ -176,7 +179,11 @@ export function validateDiagnosis(raw: unknown): DiagnosisPayload | null {
   if (typeof r.confidence !== 'number' || !Number.isFinite(r.confidence)) return null
   if (!Array.isArray(r.recommendedTools) || !r.recommendedTools.every((t) => typeof t === 'string')) return null
 
+  // A blocked ('high') result never carries steps. A bad guide is dropped, not fatal.
+  const guideSteps = severity === 'high' ? [] : parseGuideSteps(r.guideSteps)
+
   return {
+    ...(guideSteps.length ? { guideSteps } : {}),
     issueName,
     confidence: Math.round(Math.min(100, Math.max(0, r.confidence))),
     summary,
@@ -227,15 +234,21 @@ export function providerErrorSummary(bodyText: string): { providerStatus?: strin
 // ConfigurationError ab shared hai (S04): Edge Functions ek hi class use karein.
 export { ConfigurationError } from '../_shared/errors.ts'
 
-// ---------- S05 additions: server-side safety gate ----------
+// ---------- S05 additions: server-side safety gate (context-aware) ----------
 //
-// Pure moderation screening. This mirrors the client policy in
-// src/lib/safety.ts. Deno Edge Functions cannot import from the Vite `src/`
-// tree, so the rule source is duplicated here deliberately; keep the two in
-// sync and bump SAFETY_POLICY_VERSION in both when the rules change.
-// NOTE: tests in logic_test.ts lock this behavior.
+// Pure moderation screening. This MIRRORS the client policy in src/lib/safety.ts.
+// Deno Edge Functions cannot import from the Vite `src/` tree, so the rule source
+// is duplicated here deliberately; keep the two in sync and bump
+// SAFETY_POLICY_VERSION in both when the rules change.
+//
+// Calibration: only genuine, life-threatening hazards reach 'professional' /
+// 'emergency' (the levels that BLOCK). Routine repair vocabulary is only
+// 'caution', which never blocks. A phrase counts only when ASSERTED: a precaution
+// such as "if you see sparks, stop" or "do not touch exposed wires" is ignored.
+// The gate screens what the USER reported and what the model OBSERVED, never the
+// model's boilerplate safetyWarning or tool list.
 
-export const SAFETY_POLICY_VERSION = 's05.1'
+export const SAFETY_POLICY_VERSION = 's05.2'
 
 export type SafetyLevel = 'caution' | 'professional' | 'emergency'
 
@@ -248,17 +261,21 @@ const SAFETY_RULES: SafetyRule[] = [
   {
     level: 'emergency',
     phrases: [
-      'gas smell', 'smell of gas', 'smell gas', 'smelling gas', 'gas leak',
-      'lpg leak', 'cylinder leak', 'gas cylinder leak',
-      'burning smell', 'smells burnt', 'smell burning', 'on fire', 'caught fire',
-      'flames', 'sparks', 'spark', 'smoke', 'smoking',
+      'gas smell', 'smell of gas', 'smell gas', 'smelling gas', 'smells like gas', 'smells of gas',
+      'gas leak', 'leaking gas', 'lpg leak', 'cylinder leak', 'gas cylinder leak',
+      'burning smell', 'smells burnt', 'smells burning', 'smell burning', 'smell of burning',
+      'burning plastic', 'burnt plastic', 'on fire', 'caught fire', 'catching fire', 'flames coming',
+      'sparking', 'sparks flying', 'sparks coming', 'throwing sparks', 'shooting sparks', 'arcing',
+      'smoke coming', 'smoke from', 'smoke is', 'smoke pouring', 'smoke out', 'see smoke',
+      'saw smoke', 'seeing smoke', 'there is smoke', 'there was smoke', 'smoking from',
       'water near electricity', 'water near electrical', 'flooding near electricity',
-      'water on the outlet', 'water in the socket', 'wet outlet', 'wet socket',
-      'electric shock', 'got shocked', 'someone collapsed', 'unconscious',
+      'water on the outlet', 'water in the socket', 'water is in the socket', 'water inside the socket',
+      'water in the outlet', 'water is in the outlet', 'water inside the outlet', 'wet outlet', 'wet socket',
+      'electric shock', 'got shocked', 'shocked me', 'someone collapsed', 'unconscious',
       "can't breathe", 'cannot breathe', 'chest pain', 'severe burn',
       'गैस की गंध', 'गैस की बदबू', 'गैस लीक', 'सिलेंडर लीक',
       'जलने की गंध', 'जलने की बदबू', 'आग लग', 'आग लगी', 'लपटें',
-      'चिंगारी', 'चिंगारियां', 'धुआँ', 'धुआं',
+      'चिंगारी निकल', 'चिंगारियां निकल', 'धुआँ निकल', 'धुआं निकल', 'धुआँ आ', 'धुआं आ',
       'बिजली के पास पानी', 'बिजली के पास बाढ़', 'पानी और बिजली', 'सॉकेट में पानी',
       'बेहोश', 'सांस नहीं', 'बिजली का करंट लगा',
     ],
@@ -266,20 +283,30 @@ const SAFETY_RULES: SafetyRule[] = [
   {
     level: 'professional',
     phrases: [
-      'exposed wiring', 'exposed wire', 'live wire', 'bare wire', 'bare wiring',
-      'main electrical panel', 'breaker panel wiring', 'rewire the house',
-      'mains wiring', '240v', '240 volt', 'high voltage',
-      'gas line', 'gas pipe', 'gas connection', 'gas regulator', 'gas valve',
+      'exposed live', 'live wire', 'live wires', 'bare wire', 'bare wires', 'bare wiring',
+      'exposed wire', 'exposed wires', 'exposed wiring',
+      'scorch marks', 'scorched outlet', 'scorched socket', 'melted plug', 'melted socket',
+      'melted outlet', 'main electrical panel', 'breaker panel wiring', 'service panel',
+      'rewire the house', 'mains wiring',
+      'repair the gas', 'replace the gas line', 'replace the gas pipe', 'modify the gas',
+      'gas line repair', 'gas pipe repair', 'install a gas',
       'load bearing wall', 'load-bearing wall', 'remove a wall', 'knock down the wall',
       'ceiling collapse', 'roof collapse', 'foundation crack', 'cracked beam',
-      'mix bleach and ammonia', 'bleach and ammonia', 'refrigerant', 'freon',
-      'asbestos', 'lead paint',
+      'water main burst', 'burst water main', 'water main break', 'main pipe burst',
+      'mix bleach and ammonia', 'bleach and ammonia', 'asbestos', 'lead paint',
       'bypass the safety', 'bypass safety', 'disable the breaker', 'defeat the interlock',
       'remove the ground', 'remove earthing', 'ungrounded on purpose',
       'खुली तार', 'नंगी तार', 'करंट आ रहा', 'बिजली का झटका',
-      'गैस पाइप', 'गैस लाइन', 'गैस कनेक्शन',
-      'दीवार गिरा', 'छत गिर', 'बीम में दरार',
+      'गैस पाइप बदल', 'दीवार गिरा', 'छत गिर', 'बीम में दरार',
       'ब्लीच और अमोनिया', 'एस्बेस्टस', 'सुरक्षा हटा', 'अर्थिंग हटा',
+    ],
+  },
+  {
+    level: 'caution',
+    phrases: [
+      '240v', '240 volt', 'high voltage', 'capacitor', 'magnetron',
+      'gas line', 'gas pipe', 'gas connection', 'gas regulator', 'gas valve',
+      'refrigerant', 'freon',
     ],
   },
 ]
@@ -290,24 +317,55 @@ const SAFETY_LEVEL_RANK: Record<SafetyLevel, number> = {
   emergency: 3,
 }
 
-function safetyMatches(haystack: string, phrase: string): boolean {
-  const idx = haystack.indexOf(phrase)
-  if (idx === -1) return false
-  // ASCII phrases get word-boundary checks; Devanagari phrases do not.
-  if (!/^[\x20-\x7e]+$/.test(phrase)) return true
-  const before = haystack[idx - 1]
-  const after = haystack[idx + phrase.length]
-  const isWord = (ch: string | undefined) => ch !== undefined && /[a-z0-9]/.test(ch)
-  return !isWord(before) && !isWord(after)
+const PRECAUTION_RE =
+  /\b(?:if|in case|should|whenever|unless|never|no|not|without|avoid|avoiding|prevent|preventing|protect|reduce|risk|danger of|check for|check that|checking for|watch for|watch out|look for|look out for|looking for|be alert|signs? of|free of|free from|ensure|make sure)\b|n't\b/
+const HINDI_PRECAUTION = ['अगर', 'यदि', 'कभी न']
+const IGNITER_RE = /\b(?:ignit\w*|lighter|spark plug|candle)\b/
+const CLAUSE_DELIMITER = /[.!?\n;]/
+
+function clauseBounds(text: string, index: number): { start: number; end: number } {
+  let start = index
+  while (start > 0 && !CLAUSE_DELIMITER.test(text[start - 1])) start -= 1
+  let end = index
+  while (end < text.length && !CLAUSE_DELIMITER.test(text[end])) end += 1
+  return { start, end }
 }
 
-/** Highest safety level found in the text, or null when nothing is flagged. */
+function isPrecautionary(prefix: string): boolean {
+  const segment = prefix.split(/\b(?:and|but|however|then|because|so)\b|[,:()]/).pop() ?? ''
+  const tail = segment.slice(-60)
+  return PRECAUTION_RE.test(tail) || HINDI_PRECAUTION.some((marker) => tail.includes(marker))
+}
+
+function isWordChar(ch: string | undefined): boolean {
+  return ch !== undefined && /[a-z0-9]/.test(ch)
+}
+
+function phraseIsActive(haystack: string, phrase: string): boolean {
+  const ascii = /^[\x20-\x7e]+$/.test(phrase)
+  let from = 0
+  for (;;) {
+    const index = haystack.indexOf(phrase, from)
+    if (index === -1) return false
+    from = index + phrase.length
+
+    if (ascii && (isWordChar(haystack[index - 1]) || isWordChar(haystack[index + phrase.length]))) {
+      continue
+    }
+    const { start, end } = clauseBounds(haystack, index)
+    if (isPrecautionary(haystack.slice(start, index))) continue
+    if (phrase.includes('spark') && IGNITER_RE.test(haystack.slice(start, end))) continue
+    return true
+  }
+}
+
+/** Highest safety level ASSERTED in the text, or null when nothing is flagged. */
 export function screenSafety(input: string): SafetyLevel | null {
   if (typeof input !== 'string' || input.trim() === '') return null
-  const haystack = input.normalize('NFC').toLowerCase()
+  const haystack = input.normalize('NFC').toLowerCase().replace(/[\u2018\u2019]/g, "'")
   let highest: SafetyLevel | null = null
   for (const rule of SAFETY_RULES) {
-    if (rule.phrases.some((p) => safetyMatches(haystack, p))) {
+    if (rule.phrases.some((phrase) => phraseIsActive(haystack, phrase))) {
       if (highest === null || SAFETY_LEVEL_RANK[rule.level] > SAFETY_LEVEL_RANK[highest]) {
         highest = rule.level
       }
@@ -317,11 +375,13 @@ export function screenSafety(input: string): SafetyLevel | null {
 }
 
 /**
- * Applies the safety gate to a validated diagnosis using the user's description
- * plus the model's own output. The gate can only ESCALATE: it never lowers
- * severity, never clears safetyStop, and never rewrites the diagnosis text.
- *   - any 'professional' or 'emergency' hit  -> severity 'high' + safetyStop
- *   - 'emergency' additionally forces safetyStop regardless of prior severity
+ * Applies the safety gate to a validated diagnosis. It screens the user's own
+ * description plus what the model OBSERVED (issue, summary, fix, step text). It
+ * does NOT screen the model's generic safetyWarning, step safety notes or tools.
+ * The gate can only ESCALATE and never lowers severity or rewrites text:
+ *   - a 'professional' or 'emergency' finding -> severity 'high' + safetyStop,
+ *     and any generated guide steps are removed (a blocked result has no steps).
+ *   - 'caution' findings never block.
  */
 export function applySafetyGate(
   diagnosis: DiagnosisPayload,
@@ -329,19 +389,71 @@ export function applySafetyGate(
 ): DiagnosisPayload {
   const inputLevel = screenSafety(description)
   const outputLevel = screenSafety(
-    [diagnosis.issueName, diagnosis.summary, diagnosis.recommendedFix, diagnosis.safetyWarning]
-      .join('\n'),
+    [
+      diagnosis.issueName,
+      diagnosis.summary,
+      diagnosis.recommendedFix,
+      ...(diagnosis.guideSteps ?? []).map((step) => `${step.title}. ${step.instruction}`),
+    ].join('\n'),
   )
   const levels = [inputLevel, outputLevel].filter((l): l is SafetyLevel => l !== null)
-  if (levels.length === 0) return diagnosis
-
-  const highest = levels.reduce((a, b) => (SAFETY_LEVEL_RANK[b] > SAFETY_LEVEL_RANK[a] ? b : a))
-  const mustBlock = SAFETY_LEVEL_RANK[highest] >= SAFETY_LEVEL_RANK.professional
+  const highest = levels.length
+    ? levels.reduce((a, b) => (SAFETY_LEVEL_RANK[b] > SAFETY_LEVEL_RANK[a] ? b : a))
+    : null
+  const mustBlock = highest !== null && SAFETY_LEVEL_RANK[highest] >= SAFETY_LEVEL_RANK.professional
   if (!mustBlock && !diagnosis.safetyStop) return diagnosis
 
-  return {
-    ...diagnosis,
-    severity: 'high',
-    safetyStop: true,
+  const blocked: DiagnosisPayload = { ...diagnosis, severity: 'high', safetyStop: true }
+  delete blocked.guideSteps
+  return blocked
+}
+
+// ---------- Guide steps (model-authored, validated, never trusted blindly) ----------
+
+export interface GuideStepPayload {
+  id: string
+  title: string
+  instruction: string
+  safetyNote: string
+  requiresConfirmation: boolean
+  visualCue: 'arrow' | 'box' | 'circle' | 'line'
+  estimatedSeconds: number
+}
+
+const MIN_GUIDE_STEPS = 3
+const MAX_GUIDE_STEPS = 10
+const VISUAL_CUES: ReadonlyArray<GuideStepPayload['visualCue']> = ['arrow', 'box', 'circle', 'line']
+
+/**
+ * Defensive parse of the model's optional `guideSteps`. Malformed entries are
+ * skipped; fewer than MIN_GUIDE_STEPS valid steps means NO guide (an empty array),
+ * so a half-formed guide is never shown. Step ids are assigned here, not trusted.
+ */
+export function parseGuideSteps(raw: unknown): GuideStepPayload[] {
+  if (!Array.isArray(raw)) return []
+  const steps: GuideStepPayload[] = []
+  for (const item of raw) {
+    if (steps.length >= MAX_GUIDE_STEPS) break
+    const record = asRecord(item)
+    if (!record) continue
+    const title = typeof record.title === 'string' ? record.title.trim().slice(0, 80) : ''
+    const instruction = typeof record.instruction === 'string' ? record.instruction.trim().slice(0, 500) : ''
+    if (!title || !instruction) continue
+    const safetyNote = typeof record.safetyNote === 'string' ? record.safetyNote.trim().slice(0, 240) : ''
+    const seconds =
+      typeof record.estimatedSeconds === 'number' && Number.isFinite(record.estimatedSeconds)
+        ? Math.round(Math.min(3600, Math.max(10, record.estimatedSeconds)))
+        : 120
+    const cue = VISUAL_CUES.find((value) => value === record.visualCue) ?? 'circle'
+    steps.push({
+      id: `step-${steps.length + 1}`,
+      title,
+      instruction,
+      safetyNote,
+      requiresConfirmation: record.requiresConfirmation === true,
+      visualCue: cue,
+      estimatedSeconds: seconds,
+    })
   }
+  return steps.length >= MIN_GUIDE_STEPS ? steps : []
 }

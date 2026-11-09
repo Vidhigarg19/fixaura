@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { screenText } from '../lib/safety';
 import type { ObservationPayload, ObservationResult, ObservationStatus } from '../types/observation';
 
 /**
@@ -47,10 +48,12 @@ export async function evaluateRepairObservation(payload: ObservationPayload): Pr
     };
   } catch (err) {
     console.error('Observation evaluation error:', err);
-    return persistAndReturnFailure(sessionId, 'professional_review', [
-      'Automated visual comparison service encountered an unexpected error.'
+    // A service failure is NOT evidence of danger. Report that we could not judge the
+    // photos (insufficient_evidence) instead of escalating to a professional.
+    return persistAndReturnFailure(sessionId, 'insufficient_evidence', [
+      'The automated comparison could not be completed, so nothing was judged from these photos.'
     ], [
-      'Exercise caution and consult a certified technician to confirm safety.'
+      'Please try again. This does not mean the repair is safe or unsafe.'
     ]);
   }
 }
@@ -91,7 +94,11 @@ async function persistAndReturnFailure(
 }
 
 function simulateVisionComparison(_beforeUrl: string, _afterUrl: string, notes?: string) {
-  if (notes && (notes.toLowerCase().includes('spark') || notes.toLowerCase().includes('smoke'))) {
+  // Only a genuinely asserted, life-threatening symptom escalates. The shared screen
+  // ignores precautions and negations ("no smoke", "if you see sparks") and treats
+  // routine vocabulary as caution only, so a normal note never forces professional_review.
+  const verdict = screenText(notes);
+  if (verdict.blocked) {
     return {
       status: 'professional_review' as ObservationStatus,
       confidence: 0.95,

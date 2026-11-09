@@ -47,7 +47,17 @@ function fail(error: ApiError, status = HTTP_STATUS[error.code]) {
 }
 
 function buildPrompt(description: string) {
-  return `You are FixAura, a household repair vision assistant. Analyze the image together with the user's problem description. Do not invent details that are not visible; if the image is unclear, say so in the summary and lower the confidence. User's description of the problem: ${description}. Respond with ONLY valid JSON (no markdown) using this schema:
+  return `You are HomeGenie, a household repair vision assistant. Analyze the image together with the user's problem description. Do not invent details that are not visible; if the image is unclear, say so in the summary and lower the confidence.
+
+Severity rubric. Be accurate, not cautious by default:
+- "low": a routine, safe do-it-yourself fix, such as cleaning a filter, tightening a loose screw or hinge, replacing a battery or bulb, resetting a tripped breaker or appliance, unclogging a drain, or a minor adjustment.
+- "medium": a do-it-yourself fix that needs care or basic tools, such as replacing a small part on an unplugged appliance, or re-sealing a minor leak after shutting off the water.
+- "high": ONLY for a genuine, immediate danger to life or property: exposed or live wires, sparking or arcing, an active gas leak or gas smell, fire, smoke or a burning smell, water in contact with electrics, a burst water main or structural failure, or the user states such a danger. Do NOT use "high" just because the appliance is electrical, has a plug, is old, or because a professional could also do the job.
+General precautions (for example "unplug the appliance first") belong in safetyWarning and must not raise the severity on their own.
+
+When severity is "low" or "medium", also provide "guideSteps": 3 to 8 ordered, concrete, specific steps for THIS issue (not generic filler). The first step must make the work safe (switch off and unplug, or shut off the water supply, when relevant). Each step needs a short title, a clear instruction, and a safetyNote. Set requiresConfirmation to true only for steps where a mistake could cause injury. When severity is "high", return "guideSteps": [].
+
+User's description of the problem: ${description}. Respond with ONLY valid JSON (no markdown) using this schema:
 {
   "issueName": string,
   "confidence": number 0-100,
@@ -57,7 +67,8 @@ function buildPrompt(description: string) {
   "recommendedTools": string[],
   "nextStepAdvice": string,
   "safetyWarning": string,
-  "explanation": string
+  "explanation": string,
+  "guideSteps": [{ "title": string, "instruction": string, "safetyNote": string, "requiresConfirmation": boolean }]
 }`
 }
 
@@ -156,7 +167,7 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
               ],
             },
           ],
-          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 2048 },
+          generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 4096 },
         }),
         signal: controller.signal,
       }

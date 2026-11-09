@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ImagePlus, LogIn, WifiOff } from 'lucide-react'
 import { getLocale, subscribeLocale, t } from '../i18n'
@@ -11,6 +11,8 @@ import { deleteSession } from '../services/historyService'
 import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow'
 import { saveCaptureDraft } from '../utils/captureDraft'
 import { buildDiagnosisView } from '../utils/diagnosisView'
+import { withTextScreen } from '../utils/combinedRisk'
+import { seedRepairCache, type ResumeView } from '../services/sessionResume'
 import { useSessionLoader, type SessionLoaderState } from '../utils/useSessionLoader'
 import FixtureBannerSlot from './FixtureBannerSlot'
 import { loadSessionFixtures } from '../config/devFixtures'
@@ -202,33 +204,68 @@ export function MissingPhotoNotice({ description, isFixture }: { description: st
 }
 
 /**
+ * Opens a saved, non-blocked session in the real tools / guide page. The live pages read
+ * the browser cache, so the loaded database row is written into a fresh cache first and
+ * the user is then sent on (replacing this URL, so Back does not bounce through it).
+ */
+function ResumeIntoGuide({ view, target }: { view: ResumeView; target: '/tools' | '/guide' }) {
+  useSyncExternalStore(subscribeLocale, getLocale)
+  const navigate = useNavigate()
+  const { user, loading } = useAuth()
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (done.current || loading || !user) return
+    done.current = true
+    if (seedRepairCache(view, user.id)) navigate(target, { replace: true })
+  }, [loading, user, view, target, navigate])
+
+  if (!loading && !user) {
+    return <GuideUnavailablePanel issueName={view.diagnosis?.issueName} sessionId={view.id} reasonKey="guide.signInToContinue" />
+  }
+  return <SessionSkeleton />
+}
+
+/**
  * /tools?session and /guide?session. Loads first, then:
- * - blocked session: the V04 blocked panel, no tools or steps
+ * - blocked session (a genuine hazard): the blocked panel, no tools or steps
  * - older row without details: the legacy panel
- * - anything else: the V05 "not available" panel (no approved guide exists).
- * Step restore and progress saving are deferred until approved steps exist.
+ * - anything else: the saved repair opens in the real tools / guide page. A low or
+ *   medium risk session is never stopped here for lack of an exact checklist; a guide
+ *   is built from the saved diagnosis when no checklist exists.
  */
 export function SessionRepairGate() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const { state, sessionId, fixtureName } = useSessionLoader()
+  const location = useLocation()
   let content: ReactNode
   if (state.status !== 'ready') {
     content = <SessionStatePanel state={state} />
   } else if (!state.view.diagnosis) {
     content = <LegacySessionPanel sessionId={state.view.id} isFixture={fixtureName !== null} />
   } else {
-    const gate = buildDiagnosisView(state.view.diagnosis, null)
-    content =
-      gate.decision === 'professional' || gate.decision === 'emergency' ? (
+    const diagnosis = state.view.diagnosis
+    const gate = withTextScreen(buildDiagnosisView(diagnosis, null), diagnosis, state.view.description)
+    if (gate.decision === 'professional' || gate.decision === 'emergency') {
+      content = (
         <SafetyBlockedPanel
           decision={gate.decision}
-          issueName={state.view.diagnosis.issueName}
+          issueName={diagnosis.issueName}
           analysisDetails={gate.analysisDetails}
           showToolsLocked
         />
-      ) : (
-        <GuideUnavailablePanel issueName={state.view.diagnosis.issueName} sessionId={sessionId ?? state.view.id} />
       )
+    } else if (fixtureName !== null) {
+      // Dev session fixtures are not real database rows, so they cannot open the live pages.
+      content = <GuideUnavailablePanel issueName={diagnosis.issueName} sessionId={sessionId ?? state.view.id} />
+    } else {
+      content = (
+        <ResumeIntoGuide
+          view={state.view}
+          target={location.pathname.startsWith('/guide') ? '/guide' : '/tools'}
+        />
+      )
+    }
   }
   return (
     <PageShell className="pb-24">
