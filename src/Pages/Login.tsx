@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
+import { authErrorMessage } from '../utils/authError'
 
 export default function Login() {
   useSyncExternalStore(subscribeLocale, getLocale)
@@ -24,7 +25,7 @@ export default function Login() {
       email,
       options: { emailRedirectTo: `${window.location.origin}/` },
     })
-    if (signInError) setError(signInError.message)
+    if (signInError) setError(authErrorMessage(signInError))
     else {
       setSent(true)
       setMessage(t('history.loginSent'))
@@ -40,9 +41,9 @@ export default function Login() {
         provider: 'google',
         options: { redirectTo: window.location.origin + '/' },
       })
-      if (googleError) setError(googleError.message)
+      if (googleError) setError(authErrorMessage(googleError))
     } catch (googleError) {
-      setError(googleError instanceof Error ? googleError.message : t('common.error'))
+      setError(authErrorMessage(googleError))
     } finally {
       setSending(false)
     }
@@ -50,7 +51,7 @@ export default function Login() {
 
   return (
     <PageShell className="flex min-h-screen items-center justify-center px-4 py-10">
-      <main className="glass-panel w-full max-w-md rounded-xl p-6 sm:p-8">
+      <div className="glass-panel w-full max-w-md rounded-xl p-6 sm:p-8">
         <h1 className="text-heading-lg">{t('history.loginTitle')}</h1>
         <p className="mt-2 text-sm text-text-secondary">{t('history.loginBody')}</p>
         {!sent ? (
@@ -61,9 +62,11 @@ export default function Login() {
                 type="email"
                 required
                 autoComplete="email"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 py-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
               />
             </label>
             <button
@@ -85,11 +88,12 @@ export default function Login() {
         >
           {t('auth.continueWithGoogle')}
         </button>
-        {error && <p role="alert" className="mt-4 text-sm text-warning">{error}</p>}
-        <Link to="/" className="mt-6 inline-block text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">
+        {sending && <p role="status" className="sr-only">{t('common.loading')}</p>}
+        {error && <p id="login-error" role="alert" className="mt-4 break-words text-sm text-warning">{error}</p>}
+        <Link to="/" className="mt-6 inline-flex min-h-11 items-center text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary">
           {t('history.back')}
         </Link>
-      </main>
+      </div>
     </PageShell>
   )
 }

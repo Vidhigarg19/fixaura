@@ -143,7 +143,7 @@ export default function History() {
 
   return (
     <PageShell className="min-h-screen px-4 py-8 sm:py-12">
-      <main className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl">
         {FixtureBanner && fixtureName && (
           <Suspense fallback={null}>
             <FixtureBanner name={fixtureName} />
@@ -151,7 +151,7 @@ export default function History() {
         )}
         <Link
           to="/"
-          className={`mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary ${focusRing}`}
+          className={`mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary ${focusRing}`}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t('history.back')}
@@ -300,7 +300,7 @@ export default function History() {
             </motion.ul>
           </>
         )}
-      </main>
+      </div>
 
       {pendingDelete && (
         <DeleteSessionDialog

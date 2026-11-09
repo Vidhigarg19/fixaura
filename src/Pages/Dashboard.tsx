@@ -1,8 +1,9 @@
+import { useSyncExternalStore } from 'react'
 import { Camera, History, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell'
 import { useAuth } from '../components/authContext'
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
 const dashboardLinks = [
   { to: '/capture', label: 'dashboard.startDiagnosis', icon: Camera },
@@ -12,16 +13,17 @@ const dashboardLinks = [
 
 export default function Dashboard() {
   const { user } = useAuth()
+  useSyncExternalStore(subscribeLocale, getLocale, getLocale)
 
   return (
     <PageShell className="px-4 py-10 sm:py-14">
-      <main className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
           {t('dashboard.eyebrow')}
         </p>
         <h1 className="mt-3 text-heading-lg">{t('dashboard.title')}</h1>
         {user?.email && (
-          <p className="mt-2 text-text-secondary">
+          <p className="mt-2 break-words text-text-secondary">
             {t('dashboard.signedInAs')} {user.email}
           </p>
         )}
@@ -39,7 +41,7 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
-      </main>
+      </div>
     </PageShell>
   )
 }

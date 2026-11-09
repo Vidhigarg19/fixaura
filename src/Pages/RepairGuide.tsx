@@ -15,7 +15,7 @@ import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { commitCurrentStep } from '../services/repairSessionDb'
-import { getLocale, subscribeLocale, t } from '../i18n'
+import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
@@ -102,7 +102,7 @@ function FreshRepairGuide() {
     const repairSessionId = session?.diagnosisPersistence?.repairSessionId
     if (repairSessionId) {
       void commitCurrentStep(repairSessionId, nextIndex).catch((error: unknown) => {
-        setProgressError(error instanceof Error ? error.message : t('history.progressError'))
+        setProgressError(localizedErrorMessage(error, 'history.progressError'))
       })
     }
   }
@@ -133,9 +133,7 @@ function FreshRepairGuide() {
         navigate('/verify')
       }
     } catch (error) {
-      setProgressError(
-        error instanceof Error ? error.message : t('guide.progressSaveError')
-      )
+      setProgressError(localizedErrorMessage(error, 'guide.progressSaveError'))
     } finally {
       saveInFlight.current = false
       setSavingProgress(false)
@@ -283,7 +281,7 @@ function FreshRepairGuide() {
 
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-lg flex items-center gap-3">
           <motion.button
             type="button"
