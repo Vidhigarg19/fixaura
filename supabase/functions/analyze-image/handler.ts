@@ -1,4 +1,5 @@
 import {
+  applySafetyGate,
   ConfigurationError,
   HTTP_STATUS,
   makeError,
@@ -190,6 +191,12 @@ export async function handleAnalyze(request: Request, deps: HandlerDeps): Promis
   const diagnosis = validateDiagnosis(parseModelJson(text))
   if (!diagnosis) return rejectAuthenticated(makeError('invalid_response', true), undefined, { reason: 'output failed validation' })
 
-  log(200, { outcome: 'success' }, userRef)
-  return respond(200, { ok: true, data: diagnosis })
+  // S05 safety gate: screen the user's description and the model's own output.
+  // The gate can only escalate (severity 'high' + safetyStop); it never lowers
+  // risk and never rewrites the diagnosis text.
+  const guarded = applySafetyGate(diagnosis, input.description)
+  const safetyEscalated = guarded.safetyStop === true && diagnosis.safetyStop !== true
+
+  log(200, { outcome: 'success', safetyEscalated }, userRef)
+  return respond(200, { ok: true, data: guarded })
 }

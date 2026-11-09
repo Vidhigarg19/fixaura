@@ -1,4 +1,3 @@
-
 import { motion } from 'framer-motion'
 import { Suspense, lazy, useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -6,6 +5,7 @@ import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Shie
 import PageShell from '../components/PageShell'
 import FallbackMode from '../components/FallbackMode'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
 import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
@@ -17,7 +17,8 @@ import { useAuth } from '../components/authContext'
 import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { withFixtureQuery } from '../utils/fixtureGate'
-import { decideFromDiagnosis, isBlocked, type RiskDecision } from '../utils/riskDecision'
+import { decideFromDiagnosis, isBlocked, mostSevere, type RiskDecision } from '../utils/riskDecision'
+import { safetyRiskSignal, screenFields, type SafetyVerdict } from '../lib/safety'
 import { isGuideAvailable } from '../utils/guideAvailability'
 import type { FollowUpResult } from '../services/followUpClient'
 import type { DiagnosisResult } from '../types/repair'
@@ -73,10 +74,12 @@ function FreshDiagnosis() {
   // result changes what is displayed.
   const [session] = useState(() => source.session)
   const liveSession = source.session
-  // Most severe decision available from the server data. No session means unknown,
-  // which is treated as the safer side.
+  // S05: screen the text that is actually shown (description and result fields).
+  const safetyVerdict = liveSession ? screenDiagnosisText(liveSession.description, liveSession.diagnosis) : null
+  // The MOST SEVERE of the V04 risk decision (server data) and the S05 text screen.
+  // No session means unknown, which is treated as the safer side.
   const decision: RiskDecision = liveSession
-    ? decideFromDiagnosis(liveSession.diagnosis, source.extras)
+    ? combinedDecision(decideFromDiagnosis(liveSession.diagnosis, source.extras), safetyVerdict)
     : 'professional'
   const blocked = isBlocked(decision)
   // No approved checklist or guide exists yet. The diagnosis itself is still saved
@@ -314,7 +317,10 @@ function FreshDiagnosis() {
   }
 
   const handleFollowUpResult = (result: FollowUpResult) => {
-    // A blocked session is never changed by a later response; applyUpdate enforces that.
+    // A blocked session is never changed by a later response. applyUpdate enforces this
+    // for the risk decision; this guard also covers a block that came from the S05 text
+    // screen, so a newer response can never lower it.
+    if (blocked) return
     source.applyUpdate({ diagnosis: result.diagnosis, extras: result.extras })
   }
 
@@ -416,6 +422,7 @@ function FreshDiagnosis() {
           description={liveSession.description}
           view={view}
           decision={decision}
+          safetyVerdict={safetyVerdict}
         />
 
         {showFollowUps && view.sessionId && (
@@ -480,17 +487,39 @@ function FreshDiagnosis() {
 
 const SECTION_CLASS = 'glass-panel rounded-xl p-6 mb-6'
 
+/** S05: screens the same fields main screened (description and result text). */
+function screenDiagnosisText(description: string | undefined, d: DiagnosisResult): SafetyVerdict {
+  return screenFields([
+    description,
+    d.issueName,
+    d.summary,
+    d.recommendedFix,
+    d.safetyWarning,
+    ...(d.recommendedTools ?? []),
+  ])
+}
+
+/**
+ * RULE: when both the V04 risk decision and the S05 text screen give a decision,
+ * take the MOST SEVERE. Never lower than either side.
+ */
+function combinedDecision(risk: RiskDecision, verdict: SafetyVerdict | null): RiskDecision {
+  return verdict ? mostSevere(risk, safetyRiskSignal(verdict)) : risk
+}
+
 /** The result sections, shared by a fresh analysis and a saved session. */
 function DiagnosisSections({
   diagnosis,
   description,
   view,
   decision,
+  safetyVerdict,
 }: {
   diagnosis: DiagnosisResult
   description: string
   view: DiagnosisView
   decision: RiskDecision
+  safetyVerdict: SafetyVerdict | null
 }) {
   const blocked = isBlocked(decision)
   const risk = RISK_STYLE[decision]
@@ -576,6 +605,14 @@ function DiagnosisSections({
               ? t('diagnosis.riskCautionBody')
               : t('diagnosis.riskSafeBody')}
         </p>
+        {/* S05: non-blocking disclaimer. Blocked results use SafetyBlockedPanel instead. */}
+        {!blocked && (
+          <SafetyDisclaimer
+            verdict={safetyVerdict}
+            tone={decision === 'caution' ? 'caution' : 'info'}
+            className="mt-4"
+          />
+        )}
       </section>
 
       {!blocked && (
@@ -653,7 +690,10 @@ function SavedDiagnosis() {
   }
 
   const d = saved.diagnosis
-  const decision = decideFromDiagnosis(d, null)
+  // Same rule as a fresh result: the most severe of the stored risk decision and the
+  // S05 text screen. A stored blocked result can therefore never show as lower.
+  const safetyVerdict = screenDiagnosisText(saved.description, d)
+  const decision = combinedDecision(decideFromDiagnosis(d, null), safetyVerdict)
   const blocked = isBlocked(decision)
   const view = buildDiagnosisView(d, null)
   const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
@@ -677,7 +717,13 @@ function SavedDiagnosis() {
 
         {!saved.hasStoredPhoto && <MissingPhotoNotice description={saved.description} isFixture={isFixture} />}
 
-        <DiagnosisSections diagnosis={d} description={saved.description} view={view} decision={decision} />
+        <DiagnosisSections
+          diagnosis={d}
+          description={saved.description}
+          view={view}
+          decision={decision}
+          safetyVerdict={safetyVerdict}
+        />
 
         <WhyThisResult text={d.explanation || d.summary} />
 
