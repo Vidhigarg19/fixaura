@@ -15,7 +15,7 @@ import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { isBlocked } from '../utils/riskDecision'
-import { getGuideAvailability } from '../utils/guideAvailability'
+import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
@@ -106,9 +106,11 @@ function FreshToolChecklist() {
   const navigate = useNavigate()
   const source = useDiagnosisSource()
   const session = source.session
-  // AI free-text tools are not an approved checklist. No approved checklist exists
-  // yet, so the list stays empty and the page fails closed below.
-  const guideAvailable = getGuideAvailability().status !== 'unavailable'
+  // S07: AI free-text tools are not an approved checklist. The list is only
+  // populated when a reviewed, current approved template validates; otherwise
+  // the page fails closed below.
+  const guideAvail = getGuideAvailability(source.extras, { allowFixtureTemplates: source.isFixture })
+  const guideAvailable = guideAvail.status === 'available'
   const recommended = guideAvailable ? session?.diagnosis?.recommendedTools : undefined
   const tools = useMemo(() => recommended ?? [], [recommended])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
@@ -201,7 +203,14 @@ function FreshToolChecklist() {
               <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
             </Suspense>
           )}
-          <GuideUnavailablePanel issueName={session.diagnosis.issueName} />
+          <GuideUnavailablePanel
+            issueName={session.diagnosis.issueName}
+            reasonKey={
+              guideAvail.status === 'unavailable'
+                ? guideUnavailableReasonKey(guideAvail.reason)
+                : undefined
+            }
+          />
         </div>
       </PageShell>
     )

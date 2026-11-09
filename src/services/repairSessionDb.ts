@@ -22,7 +22,7 @@ import { isValidDiagnosisResult } from './repairSession'
 
 // The columns the authoritative row carries. Mirrors expected-schema.json.
 const SESSION_SELECT =
-  'id, user_id, appliance_id, diagnosis_id, title, description, issue_name, diagnosis, steps, current_step, status, image_path, created_at, updated_at, completed_at'
+  'id, user_id, appliance_id, diagnosis_id, title, description, issue_name, diagnosis, steps, current_step, status, image_path, symptom_answers, created_at, updated_at, completed_at'
 
 interface RepairSessionRow {
   id?: string
@@ -37,10 +37,13 @@ interface RepairSessionRow {
   current_step?: number | null
   status?: string | null
   image_path?: string | null
+  symptom_answers?: unknown
   created_at?: string | null
   updated_at?: string | null
   completed_at?: string | null
 }
+
+export type SymptomAnswers = Record<string, string | string[]>
 
 export interface StepProgressEntry {
   stepId: string
@@ -61,7 +64,7 @@ export type RehydrateResult =
       status: RepairStatus
       session: Pick<
         RepairSession,
-        'diagnosis' | 'description' | 'steps' | 'currentStep'
+        'diagnosis' | 'description' | 'steps' | 'currentStep' | 'symptomAnswers'
       > & { imagePath: string | null }
       stepProgress: StepProgressEntry[]
     }
@@ -94,6 +97,20 @@ function clampStep(value: unknown, stepCount: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return 0
   const max = stepCount > 0 ? stepCount - 1 : 0
   return Math.min(Math.floor(value), max)
+}
+
+/** Defensive parse of the stored follow-up answers jsonb. Drops any bad shapes. */
+function toSymptomAnswers(value: unknown): SymptomAnswers | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const out: SymptomAnswers = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === 'string') {
+      out[key] = raw
+    } else if (Array.isArray(raw) && raw.every((v) => typeof v === 'string')) {
+      out[key] = raw as string[]
+    }
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 /**
@@ -172,6 +189,7 @@ function mapRow(row: RepairSessionRow, userId: string): RehydrateResult {
       description: typeof row.description === 'string' ? row.description : '',
       steps,
       currentStep,
+      symptomAnswers: toSymptomAnswers(row.symptom_answers),
       imagePath: typeof row.image_path === 'string' ? row.image_path : null,
     },
     stepProgress: [],
@@ -220,4 +238,24 @@ export async function commitCurrentStep(
   if (error) throw new Error(`Unable to save repair progress: ${error.message}`)
   const value = (data as { current_step?: unknown } | null)?.current_step
   return typeof value === 'number' ? value : null
+}
+
+/**
+ * S07: persists the user's follow-up symptom answers onto the authoritative
+ * repair_sessions row (jsonb). Scoped by user_id; RLS enforces the same. The
+ * full merged answer map is written so the column always holds the current set.
+ */
+export async function persistSymptomAnswers(
+  repairSessionId: string,
+  answers: SymptomAnswers
+): Promise<void> {
+  if (!supabase || !repairSessionId) return
+  const userId = await getUserId()
+  if (!userId) return
+  const { error } = await supabase
+    .from('repair_sessions')
+    .update({ symptom_answers: answers })
+    .eq('id', repairSessionId)
+    .eq('user_id', userId)
+  if (error) throw new Error(`Unable to save follow-up answers: ${error.message}`)
 }

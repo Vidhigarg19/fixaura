@@ -353,6 +353,8 @@
     "progressAuthRequired": "Sign in again to save your repair progress.",
     "unavailableTitle": "Guided repair is not available for this result yet.",
     "unavailableBody": "No approved checklist or step-by-step guide is available.",
+    "unavailableUnsupported": "This object does not have a reviewed repair guide, so we won't show generic steps that may be unsafe for it.",
+    "unavailableStale": "The repair guide for this result has not been reviewed against the current safety policy, so it is not available.",
     "backToResult": "Back to the result"
   },
   "completion": {

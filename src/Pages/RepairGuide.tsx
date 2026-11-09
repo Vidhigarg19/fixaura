@@ -18,7 +18,7 @@ import { commitCurrentStep } from '../services/repairSessionDb'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { isBlocked } from '../utils/riskDecision'
-import { getGuideAvailability } from '../utils/guideAvailability'
+import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
@@ -38,9 +38,11 @@ function FreshRepairGuide() {
     [session, source.extras]
   )
   const blocked = gateView !== null && isBlocked(gateView.decision)
-  // No approved guide content exists yet, so no steps are built or shown at all.
-  // This check does not depend on async data, so nothing renders before it.
-  const guideAvailable = getGuideAvailability().status !== 'unavailable'
+  // S07: steps render only against a reviewed, current approved template. The
+  // availability decision comes from server-supplied agreed data (extras),
+  // never from frontend-generated steps.
+  const guideAvail = getGuideAvailability(source.extras, { allowFixtureTemplates: source.isFixture })
+  const guideAvailable = guideAvail.status === 'available'
   const steps = useMemo(
     () =>
       blocked || !guideAvailable
@@ -196,7 +198,14 @@ function FreshRepairGuide() {
               <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
             </Suspense>
           )}
-          <GuideUnavailablePanel issueName={session.diagnosis.issueName} />
+          <GuideUnavailablePanel
+            issueName={session.diagnosis.issueName}
+            reasonKey={
+              guideAvail.status === 'unavailable'
+                ? guideUnavailableReasonKey(guideAvail.reason)
+                : undefined
+            }
+          />
         </div>
       </PageShell>
     )
