@@ -7,23 +7,16 @@ import { sessionHref } from '../services/sessionResume'
 
 interface GuideUnavailablePanelProps {
   issueName?: string
-<<<<<<< HEAD
   /** Saved session id: kept in the "back to the result" link. */
   sessionId?: string
-=======
   /** i18n key for the body text explaining WHY the guide is unavailable. */
   reasonKey?: string
->>>>>>> 21f9b48 (feat(S07): implement structured follow-up question loop and approved guide payload validation)
 }
 
 // Shown on /tools and /guide instead of any checklist or repair steps while no
 // approved guide content exists. It makes no claim that the repair is safe,
 // done or checked, and offers only navigation and the existing help route.
-<<<<<<< HEAD
-export default function GuideUnavailablePanel({ issueName, sessionId }: GuideUnavailablePanelProps) {
-=======
-export default function GuideUnavailablePanel({ issueName, reasonKey }: GuideUnavailablePanelProps) {
->>>>>>> 21f9b48 (feat(S07): implement structured follow-up question loop and approved guide payload validation)
+export default function GuideUnavailablePanel({ issueName, sessionId, reasonKey }: GuideUnavailablePanelProps) {
   useSyncExternalStore(subscribeLocale, getLocale)
   const panelRef = useRef<HTMLDivElement>(null)
   const nearbyHref = issueName

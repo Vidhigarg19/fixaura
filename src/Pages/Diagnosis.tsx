@@ -80,17 +80,10 @@ function FreshDiagnosis() {
     ? combinedDecision(decideFromDiagnosis(liveSession.diagnosis, source.extras), safetyVerdict)
     : 'professional'
   const blocked = isBlocked(decision)
-<<<<<<< HEAD
-  // No approved checklist or guide exists yet. The diagnosis itself is still saved
-  // by the effect below; only the guided-repair start is closed.
-  const guideAvailable = isGuideAvailable()
-=======
   // S07: guided repair opens only when the agreed diagnosis carries a reviewed,
   // current approved template. The diagnosis itself is still saved by the effect
   // below; only the guided-repair start is gated on template validation.
   const guideAvailable = isGuideAvailable(source.extras, { allowFixtureTemplates: source.isFixture })
-  const [expanded, setExpanded] = useState(false)
->>>>>>> 21f9b48 (feat(S07): implement structured follow-up question loop and approved guide payload validation)
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
   const [saveFailed, setSaveFailed] = useState(false)
   const [saveAttempt, setSaveAttempt] = useState(0)
@@ -372,17 +365,12 @@ function FreshDiagnosis() {
   }
 
   const handleFollowUpResult = (result: FollowUpResult) => {
-<<<<<<< HEAD
     // A blocked session is never changed by a later response. applyUpdate enforces this
     // for the risk decision; this guard also covers a block that came from the S05 text
     // screen, so a newer response can never lower it.
     if (blocked) return
-    source.applyUpdate({ diagnosis: result.diagnosis, extras: result.extras })
-=======
-    // A blocked session is never changed by a later response; applyUpdate enforces that.
     // S07: the answers flow through so they are persisted and re-screened for risk.
     source.applyUpdate({ diagnosis: result.diagnosis, extras: result.extras, answers: result.answers })
->>>>>>> 21f9b48 (feat(S07): implement structured follow-up question loop and approved guide payload validation)
   }
 
   if (source.status === 'loading') {
