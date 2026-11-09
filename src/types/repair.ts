@@ -2,6 +2,9 @@ export type RiskLevel = 'low' | 'medium' | 'high'
 
 export type VerificationStatus = 'resolved' | 'monitor' | 'unresolved' | 'professional'
 
+/** Lifecycle of a durable repair session row (S06). */
+export type RepairStatus = 'in_progress' | 'completed'
+
 export interface RepairVerification {
   status: VerificationStatus
   summary: string

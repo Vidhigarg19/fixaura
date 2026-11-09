@@ -8,7 +8,6 @@ import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { isValidDiagnosisSession, saveSession } from '../services/repairSession'
-import { createSession } from '../services/historyService'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
@@ -203,6 +202,21 @@ export default function Diagnosis() {
             throw new Error('Multiple repair sessions already exist for this diagnosis.')
           }
 
+          // S06: the repair_sessions row is the single source of truth, so it
+          // carries the full payload (diagnosis/steps/issue_name/current_step)
+          // from creation — not just the appliance/diagnosis links. This is the
+          // same row later used for step progress, completion, AND reload
+          // rehydration, so there is exactly one row per repair.
+          const steps = buildRepairPlan(d)
+          const authoritativeFields = {
+            title: d.issueName,
+            issue_name: d.issueName,
+            description: session.description,
+            diagnosis: d,
+            steps,
+            current_step: 0,
+          }
+
           const existingSession = existingSessions[0]
           if (existingSession) {
             if (existingSession.appliance_id === null) {
@@ -212,8 +226,23 @@ export default function Diagnosis() {
             } else if (existingSession.appliance_id !== applianceId) {
               throw new Error('The repair session is linked to a different appliance.')
             }
+            // Backfill the authoritative payload on a pre-S06 row that may only
+            // have the links. Never downgrade a completed row back to in_progress.
+            const { error: backfillError } = await supabase
+              .from('repair_sessions')
+              .update(authoritativeFields)
+              .eq('id', existingSession.id)
+              .eq('user_id', user.id)
+              .eq('status', 'in_progress')
+            if (backfillError) throw backfillError
             persistence = { ...persistence, repairSessionId: existingSession.id }
-            saveSession({ diagnosisAttemptId: attemptId, diagnosisPersistence: persistence })
+            saveSession({
+              diagnosisAttemptId: attemptId,
+              diagnosisPersistence: persistence,
+              historySessionId: existingSession.id,
+              steps,
+              currentStep: 0,
+            })
           } else {
             const { data: createdSession, error: createSessionError } = await supabase
               .from('repair_sessions')
@@ -222,6 +251,7 @@ export default function Diagnosis() {
                 appliance_id: applianceId,
                 diagnosis_id: diagnosisId,
                 status: 'in_progress',
+                ...authoritativeFields,
               })
               .select('id, user_id, diagnosis_id, appliance_id')
               .single()
@@ -235,7 +265,13 @@ export default function Diagnosis() {
               throw new Error('The repair session was not saved with the expected links.')
             }
             persistence = { ...persistence, repairSessionId: createdSession.id }
-            saveSession({ diagnosisAttemptId: attemptId, diagnosisPersistence: persistence })
+            saveSession({
+              diagnosisAttemptId: attemptId,
+              diagnosisPersistence: persistence,
+              historySessionId: createdSession.id,
+              steps,
+              currentStep: 0,
+            })
           }
         })
 
@@ -274,15 +310,25 @@ export default function Diagnosis() {
       return
     }
     if (!isValidDiagnosisSession(liveSession, user?.id) || !repairSessionReady) return
+    const repairSessionId = liveSession.diagnosisPersistence?.repairSessionId
+    if (!repairSessionId) {
+      setSaveError(t('history.saveError'))
+      return
+    }
     setStarting(true)
     setSaveError('')
-    const steps = buildRepairPlan(liveSession.diagnosis)
+    // S06: the authoritative repair_sessions row (with diagnosis + steps) was
+    // already created/backfilled by the save effect. We no longer create a
+    // second "history" row here; the single row IS the history row. Just make
+    // sure the local cache has the steps and the session id before navigating.
     try {
-      const saved = await createSession(liveSession.diagnosis, steps, liveSession.description)
+      const steps = liveSession.steps?.length
+        ? liveSession.steps
+        : buildRepairPlan(liveSession.diagnosis)
       saveSession({
-        historySessionId: saved?.id,
+        historySessionId: repairSessionId,
         steps,
-        currentStep: 0,
+        currentStep: liveSession.currentStep ?? 0,
       })
       navigate('/tools')
     } catch (error) {

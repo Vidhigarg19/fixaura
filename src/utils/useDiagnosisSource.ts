@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DiagnosisResult, RepairSession } from '../types/repair'
 import { getSession, saveSession } from '../services/repairSession'
+import { getActiveRepairSession, getRepairSessionById } from '../services/repairSessionDb'
+import type { RehydrateResult } from '../services/repairSessionDb'
 import type { AgreedDiagnosis } from './diagnosisView'
 import { applyDiagnosisUpdate } from './diagnosisUpdate'
 import { readFixtureName } from './fixtureGate'
@@ -70,6 +72,82 @@ export function useDiagnosisSource(): DiagnosisSource {
       return () => {
         alive = false
       }
+    }
+  }, [fixtureName])
+
+  // S06: the DB is the source of truth. sessionStorage gave us a synchronous
+  // first paint (no flash); here we reconcile it against the authoritative
+  // repair_sessions row on mount. This is what makes reload / new tab /
+  // authenticated reopen restore the real repair state.
+  useEffect(() => {
+    if (fixtureName) return
+    let alive = true
+
+    async function rehydrate() {
+      const cached = getSession()
+      const cachedId = cached?.diagnosisPersistence?.repairSessionId
+
+      let result: RehydrateResult
+      try {
+        result = cachedId
+          ? await getRepairSessionById(cachedId)
+          : await getActiveRepairSession()
+      } catch (error) {
+        // DB unreachable / transient: keep whatever the cache gave us rather
+        // than blanking a working local session. Never throw to the UI here.
+        console.warn('Repair session rehydration failed:', error)
+        return
+      }
+      if (!alive) return
+
+      if (result.kind === 'needs_recapture') {
+        // The DB row exists but has no usable diagnosis. Do not fabricate one;
+        // send the user back to recapture instead of showing a blank screen.
+        setState({ status: 'missing' })
+        return
+      }
+
+      if (result.kind !== 'ready') {
+        // 'none' | 'unauthenticated': nothing authoritative to apply. If the
+        // local cache had no usable session either, surface 'missing'.
+        if (!cached?.diagnosis && stateRef.current.status !== 'ready') {
+          setState({ status: 'missing' })
+        }
+        return
+      }
+
+      // Merge DB-authoritative fields over the cache. Cache-only fields
+      // (imageDataUrl / ownerUserId / diagnosisAttemptId / persistence) are
+      // preserved so the current flow keeps working; the DB wins on the
+      // durable fields (diagnosis / steps / currentStep).
+      const dbSession = result.session
+      const dbSteps = dbSession.steps ?? []
+      const merged: RepairSession = {
+        ...(cached ?? {}),
+        diagnosis: dbSession.diagnosis,
+        description: dbSession.description || cached?.description || '',
+        steps: dbSteps.length ? dbSteps : cached?.steps,
+        currentStep: dbSession.currentStep,
+        historySessionId: result.sessionId,
+        diagnosisPersistence: {
+          userId: cached?.diagnosisPersistence?.userId ?? '',
+          ...cached?.diagnosisPersistence,
+          repairSessionId: result.sessionId,
+          diagnosisId:
+            result.diagnosisId ?? cached?.diagnosisPersistence?.diagnosisId,
+          applianceId:
+            result.applianceId ?? cached?.diagnosisPersistence?.applianceId,
+        },
+      }
+
+      saveSession(merged)
+      const nextExtras = stateRef.current.status === 'ready' ? stateRef.current.extras : null
+      setState({ status: 'ready', session: merged, extras: nextExtras })
+    }
+
+    void rehydrate()
+    return () => {
+      alive = false
     }
   }, [fixtureName])
 

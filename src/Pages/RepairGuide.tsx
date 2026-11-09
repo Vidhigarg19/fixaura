@@ -14,7 +14,7 @@ import { saveSession } from '../services/repairSession'
 import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { buildRepairPlan } from '../services/repairPlanner'
-import { updateProgress } from '../services/historyService'
+import { commitCurrentStep } from '../services/repairSessionDb'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { isBlocked } from '../utils/riskDecision'
@@ -91,9 +91,13 @@ export default function RepairGuide() {
     setProgressError('')
     // Fixture mode never writes progress anywhere.
     if (source.isFixture) return
+    // sessionStorage is only a cache; the DB row is authoritative. Write the
+    // cache immediately for a responsive UI, then commit current_step to the
+    // single source-of-truth repair_sessions row.
     saveSession({ currentStep: nextIndex })
-    if (session?.historySessionId) {
-      void updateProgress(session.historySessionId, nextIndex).catch((error: unknown) => {
+    const repairSessionId = session?.diagnosisPersistence?.repairSessionId
+    if (repairSessionId) {
+      void commitCurrentStep(repairSessionId, nextIndex).catch((error: unknown) => {
         setProgressError(error instanceof Error ? error.message : t('history.progressError'))
       })
     }
