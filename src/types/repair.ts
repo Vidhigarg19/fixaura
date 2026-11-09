@@ -111,4 +111,6 @@ export interface RepairSession {
   symptomAnswers?: Record<string, string | string[]>
   /** S08: the truthful before/after observation result for this repair. */
   observation?: ObservationResult
+  /** S09: private-storage object paths uploaded for this session (before/after media). */
+  mediaPaths?: string[]
 }
