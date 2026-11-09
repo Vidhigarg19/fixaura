@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DiagnosisResult, RepairSession } from '../types/repair'
 import { getSession, saveSession } from '../services/repairSession'
-import { getActiveRepairSession, getRepairSessionById } from '../services/repairSessionDb'
+import {
+  getActiveRepairSession,
+  getRepairSessionById,
+  persistSymptomAnswers,
+} from '../services/repairSessionDb'
 import type { RehydrateResult } from '../services/repairSessionDb'
 import type { AgreedDiagnosis } from './diagnosisView'
 import { applyDiagnosisUpdate } from './diagnosisUpdate'
+import type { FollowUpAnswers } from './followUpValidation'
 import { readFixtureName } from './fixtureGate'
 
 // Where the diagnosis shown on /diagnosis, /tools and /guide comes from.
@@ -20,6 +25,8 @@ type SourceState =
 export interface DiagnosisUpdate {
   diagnosis: DiagnosisResult
   extras: AgreedDiagnosis | null
+  /** The cleaned answers that produced this update, for persistence + risk re-eval. */
+  answers?: FollowUpAnswers
 }
 
 export interface DiagnosisSource {
@@ -156,20 +163,44 @@ export function useDiagnosisSource(): DiagnosisSource {
       const current = stateRef.current
       if (current.status !== 'ready') return false
 
+      // S07: the answers are screened client-side (escalate-only) inside
+      // applyDiagnosisUpdate, so a material hazard in the answers blocks even if
+      // the server result did not.
       const result = applyDiagnosisUpdate(
         { diagnosis: current.session.diagnosis, extras: current.extras },
-        update
+        update,
+        update.answers
       )
       if (!result.accepted) return false
 
+      // S07: keep the user's answers on the session so they survive reload and
+      // can be persisted to the DB. Merge with any prior answers.
+      const mergedAnswers = update.answers
+        ? { ...(current.session.symptomAnswers ?? {}), ...update.answers }
+        : current.session.symptomAnswers
+
       const next: SourceState = {
         status: 'ready',
-        session: { ...current.session, diagnosis: result.state.diagnosis },
+        session: {
+          ...current.session,
+          diagnosis: result.state.diagnosis,
+          symptomAnswers: mergedAnswers,
+        },
         extras: result.state.extras,
       }
       stateRef.current = next
       setState(next)
-      if (!fixtureName) saveSession({ diagnosis: result.state.diagnosis })
+      if (!fixtureName) {
+        saveSession({ diagnosis: result.state.diagnosis, symptomAnswers: mergedAnswers })
+        // Persist answers to the authoritative DB row. Fire-and-forget: a
+        // failure here must not block the UI update that already happened.
+        const repairSessionId = current.session.diagnosisPersistence?.repairSessionId
+        if (repairSessionId && mergedAnswers) {
+          void persistSymptomAnswers(repairSessionId, mergedAnswers).catch((error: unknown) => {
+            console.warn('Unable to persist follow-up answers:', error)
+          })
+        }
+      }
       return true
     },
     [fixtureName]

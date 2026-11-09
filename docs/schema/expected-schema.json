@@ -15,6 +15,7 @@
         "current_step": "integer",
         "status": "text",
         "image_path": "text",
+        "symptom_answers": "jsonb",
         "created_at": "timestamp with time zone",
         "updated_at": "timestamp with time zone",
         "completed_at": "timestamp with time zone"

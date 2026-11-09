@@ -62,4 +62,6 @@ export interface RepairSession {
   historySessionId?: string
   steps?: RepairStep[]
   currentStep?: number
+  /** S07: follow-up symptom answers keyed by question id. */
+  symptomAnswers?: Record<string, string | string[]>
 }

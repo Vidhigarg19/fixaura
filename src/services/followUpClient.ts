@@ -28,6 +28,8 @@ export interface FollowUpRequest {
 export interface FollowUpResult {
   diagnosis: DiagnosisResult
   extras: AgreedDiagnosis | null
+  /** The cleaned answers that produced this result (for persistence + risk re-eval). */
+  answers: FollowUpAnswers
 }
 
 export class FollowUpUnavailableError extends Error {
@@ -45,7 +47,7 @@ export async function submitFollowUpAnswers(request: FollowUpRequest): Promise<F
     if (fixtureName) {
       const { runFollowUpFixture } = await import('../dev/analysisFixtures')
       const outcome = await runFollowUpFixture(fixtureName, request)
-      return { diagnosis: outcome.adapted, extras: outcome.data }
+      return { diagnosis: outcome.adapted, extras: outcome.data, answers: request.answers }
     }
   }
 
