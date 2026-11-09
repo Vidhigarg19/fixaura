@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useAuth } from './authContext'
 import { clearSession, getSession } from '../services/repairSession'
 import { buildRepairPlan } from '../services/repairPlanner'
+import { isGuideAvailable } from '../utils/guideAvailability'
 import {
   assistantContextFromSession,
   type AssistantContext as RepairAssistantContext,
@@ -9,18 +10,38 @@ import {
 import type { ChatRole } from '../services/historyService'
 import { AssistantContext, type AssistantMessage, type AssistantState } from './assistantContext'
 
+/**
+ * While no approved guide exists, the assistant gets the diagnosis context only
+ * (issue, description, risk, safety warning) and never repair steps or the AI
+ * free-text tool list. This applies on every route, because the context is
+ * global and every setter goes through here.
+ */
+function withoutUnapprovedGuidance(
+  context: RepairAssistantContext | null
+): RepairAssistantContext | null {
+  if (!context || isGuideAvailable()) return context
+  return {
+    ...context,
+    recommendedTools: [],
+    currentStepIndex: 0,
+    totalSteps: 0,
+    currentStep: null,
+  }
+}
+
 function initialRepairContext() {
   const session = getSession()
-  const steps = session?.steps ?? (
-    session?.diagnosis ? buildRepairPlan(session.diagnosis) : []
-  )
-  return assistantContextFromSession(
+  // Saved or generated steps are not read at all while the guide is unavailable.
+  const steps = !isGuideAvailable()
+    ? []
+    : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : [])
+  return withoutUnapprovedGuidance(assistantContextFromSession(
     session?.diagnosis,
     session?.description ?? '',
     steps,
     session?.currentStep ?? 0,
     session?.historySessionId
-  )
+  ))
 }
 
 export default function AssistantProvider({ children }: { children: ReactNode }) {
@@ -28,8 +49,12 @@ export default function AssistantProvider({ children }: { children: ReactNode })
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<AssistantMessage[]>([])
   const [mockMode, setMockMode] = useState(true)
-  const [repairContext, setRepairContext] = useState<RepairAssistantContext | null>(
+  const [repairContext, setRawRepairContext] = useState<RepairAssistantContext | null>(
     initialRepairContext
+  )
+  const setRepairContext = useCallback(
+    (context: RepairAssistantContext | null) => setRawRepairContext(withoutUnapprovedGuidance(context)),
+    []
   )
   const previousUserId = useRef<string | null>(null)
 
@@ -62,7 +87,7 @@ export default function AssistantProvider({ children }: { children: ReactNode })
       }
       previousUserId.current = userId
     }
-  }, [authLoading, user?.id])
+  }, [authLoading, user?.id, setRepairContext])
 
   const value = useMemo<AssistantState>(() => ({
     isOpen,
@@ -83,6 +108,7 @@ export default function AssistantProvider({ children }: { children: ReactNode })
     clearMessages,
     mockMode,
     repairContext,
+    setRepairContext,
     user,
   ])
 

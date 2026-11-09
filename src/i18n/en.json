@@ -350,7 +350,10 @@
     "progressSaveError": "Could not save this step. Check your connection and try again.",
     "progressSessionMissing": "This repair session could not be verified. Return to diagnosis before continuing.",
     "progressSessionUnavailable": "This repair session is unavailable to your account. Return to diagnosis and try again.",
-    "progressAuthRequired": "Sign in again to save your repair progress."
+    "progressAuthRequired": "Sign in again to save your repair progress.",
+    "unavailableTitle": "Guided repair is not available for this result yet.",
+    "unavailableBody": "No approved checklist or step-by-step guide is available.",
+    "backToResult": "Back to the result"
   },
   "completion": {
     "title": "Repair complete",
@@ -521,13 +524,14 @@
       "safe": "I can't confirm safety remotely. Follow this step's safety note: {safety} If anything seems unsafe or you are unsure, stop and contact a qualified professional.",
       "troubleshoot": "If it doesn't work, stop before forcing anything. Check that you followed the instructions and safety checks, then review the diagnosis. If the problem remains or you are unsure, contact a qualified professional.",
       "tools": "The recommended tools for this repair are: {tools}. Use only tools you can handle safely, and don't substitute a tool if that could damage the appliance or create a hazard.",
-      "how": "HomeGenie helps you describe or scan a household problem, understand a suggested diagnosis, and follow guided repair steps with safety reminders. You can ask me questions as you work.",
+      "how": "HomeGenie helps you understand a household problem, review risk information and find nearby help. Approved step-by-step repair guides are not available yet.",
       "repairs": "HomeGenie can help plan common household repairs across appliances, plumbing, furniture, electronics, outdoor items, and fixtures. The suggested diagnosis may be uncertain, so use professional help when needed.",
       "fallback": "I can help explain repair steps, discuss safety notes, and suggest what to check next. Tell me what you are trying to understand, and stop if you notice a safety hazard.",
       "noTools": "No specific tools were listed for this repair.",
       "noSafetyNote": "No step-specific safety note was provided.",
       "noStep": "the current repair step",
-      "currentRepair": "this repair"
+      "currentRepair": "this repair",
+      "noApprovedGuide": "There is no approved step-by-step guide or tool list for this result yet, so I cannot explain repair steps or tools. You can go back to the result, or find a qualified professional nearby."
     }
   },
   "verify": {

@@ -8,6 +8,7 @@ import AROverlay from '../components/AROverlay'
 import VoiceInput from '../components/VoiceInput'
 import SafetyBubble from '../components/SafetyBubble'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import GuideUnavailablePanel from '../components/GuideUnavailablePanel'
 import { useAssistantContext } from '../components/assistantContext'
 import { saveSession } from '../services/repairSession'
 import { assistantContextFromSession } from '../services/assistantService'
@@ -17,6 +18,7 @@ import { updateProgress } from '../services/historyService'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { isBlocked } from '../utils/riskDecision'
+import { getGuideAvailability } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
@@ -34,9 +36,15 @@ export default function RepairGuide() {
     [session, source.extras]
   )
   const blocked = gateView !== null && isBlocked(gateView.decision)
+  // No approved guide content exists yet, so no steps are built or shown at all.
+  // This check does not depend on async data, so nothing renders before it.
+  const guideAvailable = getGuideAvailability().status !== 'unavailable'
   const steps = useMemo(
-    () => (blocked ? [] : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : [])),
-    [blocked, session]
+    () =>
+      blocked || !guideAvailable
+        ? []
+        : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : []),
+    [blocked, guideAvailable, session]
   )
   const [index, setIndex] = useState(session?.currentStep ?? 0)
   const [paused, setPaused] = useState(false)
@@ -50,7 +58,8 @@ export default function RepairGuide() {
   const total = steps.length
 
   useEffect(() => {
-    if (blocked) return
+    // Unapproved steps are never handed to the assistant either.
+    if (blocked || !guideAvailable) return
     setRepairContext(assistantContextFromSession(
       session?.diagnosis,
       session?.description ?? '',
@@ -58,7 +67,7 @@ export default function RepairGuide() {
       index,
       session?.historySessionId
     ))
-  }, [blocked, session, steps, index, setRepairContext])
+  }, [blocked, guideAvailable, session, steps, index, setRepairContext])
 
   useEffect(() => {
     if (source.status === 'missing') navigate('/capture')
@@ -162,10 +171,27 @@ export default function RepairGuide() {
     )
   }
 
-  if (!session?.diagnosis || !step) {
+  if (!session?.diagnosis) {
     return (
       <PageShell className="flex items-center justify-center">
         <p className="shimmer-loading px-6 py-3 rounded-xl">{t('guide.loading')}</p>
+      </PageShell>
+    )
+  }
+
+  // Fail closed: no approved checklist or step-by-step guide exists for any result.
+  // The voice control, step overlay and step text below are never mounted.
+  if (!guideAvailable || !step) {
+    return (
+      <PageShell className="pb-24">
+        <div className="mx-auto max-w-lg px-4 pt-8">
+          {FixtureBanner && source.isFixture && (
+            <Suspense fallback={null}>
+              <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
+            </Suspense>
+          )}
+          <GuideUnavailablePanel issueName={session.diagnosis.issueName} />
+        </div>
       </PageShell>
     )
   }

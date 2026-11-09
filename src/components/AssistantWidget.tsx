@@ -71,7 +71,8 @@ export default function AssistantWidget() {
   const baseDraftRef = useRef('')
   const locale = getLocale()
   const hidden = location.pathname === '/login' || location.pathname === '/signup'
-  const stepContext = location.pathname === '/guide' ? repairContext : null
+  // Step chips and "Step X of Y" only appear when there is a real step to talk about.
+  const stepContext = location.pathname === '/guide' && repairContext?.currentStep ? repairContext : null
   const prompts = stepContext ? repairPrompts : generalPrompts
   const sessionId = user && repairContext?.sessionId ? repairContext.sessionId : null
 

@@ -1,4 +1,3 @@
-
 import { motion } from 'framer-motion'
 import { Suspense, lazy, useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -19,6 +18,7 @@ import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { decideFromDiagnosis, isBlocked, type RiskDecision } from '../utils/riskDecision'
 import { screenFields } from '../lib/safety'
+import { isGuideAvailable } from '../utils/guideAvailability'
 import type { FollowUpResult } from '../services/followUpClient'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
@@ -71,6 +71,9 @@ export default function Diagnosis() {
     ? decideFromDiagnosis(liveSession.diagnosis, source.extras)
     : 'professional'
   const blocked = isBlocked(decision)
+  // No approved checklist or guide exists yet. The diagnosis itself is still saved
+  // by the effect below; only the guided-repair start is closed.
+  const guideAvailable = isGuideAvailable()
   const [expanded, setExpanded] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
   const [repairSessionReady, setRepairSessionReady] = useState(false)
@@ -263,6 +266,8 @@ export default function Diagnosis() {
   const startRepair = async () => {
     if (!liveSession || starting) return
     if (isBlocked(decision)) return
+    // Never build or save frontend-generated steps as a guide.
+    if (!guideAvailable) return
     if (source.isFixture) {
       // Fixture mode never creates a real repair session.
       navigate(withFixtureQuery('/tools'))
@@ -373,7 +378,9 @@ export default function Diagnosis() {
         {lowConfidence && !blocked && (
           <div className="mb-6">
             <FallbackMode
-              onContinue={() => void startRepair()}
+              // Without an approved guide there is nothing to continue to, so the
+              // "continue" action is not offered (FallbackMode hides it).
+              onContinue={guideAvailable ? () => void startRepair() : undefined}
               continueDisabled={(!source.isFixture && !repairSessionReady) || starting}
             />
           </div>
@@ -507,17 +514,25 @@ export default function Diagnosis() {
 
         {!blocked && (
           <>
+            {!guideAvailable && (
+              <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+                <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
+                <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-3">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => void startRepair()}
-                disabled={(!source.isFixture && !repairSessionReady) || starting}
-                className="flex-1 min-h-11 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
-              >
-                {starting ? t('common.loading') : t('diagnosis.ctaTools')}
-              </motion.button>
+              {guideAvailable && (
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => void startRepair()}
+                  disabled={(!source.isFixture && !repairSessionReady) || starting}
+                  className="flex-1 min-h-11 rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+                >
+                  {starting ? t('common.loading') : t('diagnosis.ctaTools')}
+                </motion.button>
+              )}
 
               <Link to="/capture" className="flex-1">
                 <motion.span
