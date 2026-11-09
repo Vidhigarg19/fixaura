@@ -116,28 +116,6 @@
 
 html {
   scroll-behavior: smooth;
-  /* Keep anchor targets clear of the sticky navbar (up to 72px tall). */
-  scroll-padding-top: 5.5rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  /* Loading spinners stay animated: they are the only loading feedback. */
-  .animate-spin {
-    animation-duration: 1.5s !important;
-    animation-iteration-count: infinite !important;
-  }
 }
 
 body {
@@ -184,6 +162,24 @@ html:lang(hi) body * {
 
 #main-content:focus {
   outline: none;
+}
+
+a[id],
+section[id],
+div[id] {
+  scroll-margin-top: 7rem;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 ::selection {

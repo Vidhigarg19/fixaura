@@ -19,8 +19,6 @@
     "backHome": "होम पर वापस जाएं"
   },
   "nav": {
-    "mobileMenu": "मेनू",
-    "signOutError": "साइन आउट नहीं हो सका। कृपया फिर कोशिश करें।",
     "features": "विशेषताएँ",
     "showcase": "मरम्मत",
     "testimonials": "HomeGenie क्यों",
@@ -112,16 +110,17 @@
     "findShops": "आस-पास मरम्मत / खरीद की दुकानें खोजें"
   },
   "landing": {
-    "headline": "Your home our intelligence",
+    "headline": "कुछ भी ठीक करें। कुछ भी न डरें।",
     "subheadline": "अपने फोन के कैमरे को किसी भी टूटी हुई वस्तु पर रखें — तुरंत निदान, AR-मार्गदर्शित कदम, और सुरक्षा-पहले पुष्टि के साथ।",
     "ctaPrimary": "समस्या स्कैन करें",
-    "ctaSecondary": "देखें यह कैसे काम करता है",
+    "ctaSecondary": "डेमो देखें",
     "confidenceLabel": "निदान विश्वास",
 
     "badge": "सटीक रूप से इंजीनियर्ड",
-    "heroLine1": "Your home",
-    "heroLine2": "our intelligence",
-    "trustStat": "रोज़मर्रा की घरेलू समस्याओं के लिए स्पष्ट अगले कदम।",
+    "heroLine1": "कुछ भी ठीक करें।",
+    "heroLine2": "कुछ भी न डरें।",
+    "trustStat": "50k+ DIYers ने FixAura पर भरोसा किया",
+    "trustSubtitle": "स्पष्ट AR मार्गदर्शन के साथ सुरक्षा-पहले मरम्मत।",
 
     "featuresTitle": "मरम्मत बुद्धिमत्ता, अंदर से",
     "featuresKicker": "सटीक रूप से इंजीनियर्ड",
