@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Clock3, MessageCircle, ShieldAlert, Trash2, WifiOff } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -10,6 +10,7 @@ import { deleteSession, listSessions } from '../services/historyService'
 import { sessionHref } from '../services/sessionResume'
 import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow'
 import { readFixtureName } from '../utils/fixtureGate'
+import { isGuideAvailable } from '../utils/guideAvailability'
 import { isNetworkError, isOffline } from '../utils/networkError'
 import {
   historyLinkFor,
@@ -17,9 +18,6 @@ import {
   toHistoryCard,
   type HistoryCard,
 } from '../utils/sessionStatus'
-
-// DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -53,7 +51,7 @@ export default function History() {
   const [flow] = useState(() =>
     createDeleteFlow(async (id) => {
       // Fixture mode only changes local state.
-      if (import.meta.env.DEV && isFixture) return (await import('../dev/sessionFixtures')).fixtureDelete()
+      if (loadSessionFixtures && isFixture) return (await loadSessionFixtures()).fixtureDelete()
       return deleteSession(id)
     })
   )
@@ -65,8 +63,8 @@ export default function History() {
     if (authLoading) return
     let active = true
     const run = async (): Promise<ListState> => {
-      if (import.meta.env.DEV && fixtureName) {
-        const fixtures = await import('../dev/sessionFixtures')
+      if (loadSessionFixtures && fixtureName) {
+        const fixtures = await loadSessionFixtures()
         return { status: 'ready', cards: fixtures.historyFixtureRows(fixtureName).map(toHistoryCard), messageCountWarning: false }
       }
       if (isOffline()) return { status: 'offline' }
@@ -145,15 +143,13 @@ export default function History() {
 
   return (
     <PageShell className="min-h-screen px-4 py-8 sm:py-12">
-      <main className="mx-auto max-w-3xl">
-        {FixtureBanner && fixtureName && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={fixtureName} />
-          </Suspense>
+      <div className="mx-auto max-w-3xl">
+        {fixtureName && (
+          <FixtureBannerSlot name={fixtureName} />
         )}
         <Link
           to="/"
-          className={`mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary ${focusRing}`}
+          className={`mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary ${focusRing}`}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t('history.back')}
@@ -302,7 +298,7 @@ export default function History() {
             </motion.ul>
           </>
         )}
-      </main>
+      </div>
 
       {pendingDelete && (
         <DeleteSessionDialog

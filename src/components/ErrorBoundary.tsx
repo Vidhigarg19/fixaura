@@ -15,7 +15,7 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
   useSyncExternalStore(subscribeLocale, getLocale)
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 text-text-primary">
+    <main id="main-content" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background px-4 py-12 text-text-primary">
       <section
         role="alert"
         className="glass-panel w-full max-w-lg rounded-2xl border border-primary/20 p-6 text-center shadow-[0_0_40px_rgba(0,245,212,0.08)] sm:p-8"

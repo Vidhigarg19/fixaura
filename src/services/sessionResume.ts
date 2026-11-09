@@ -16,9 +16,9 @@ import { buildRepairPlan } from './repairPlanner'
 import { parseGuideSteps } from '../utils/guideSteps'
 import { isNetworkError, isOffline } from '../utils/networkError'
 import { deriveSessionStatus, type SessionStatus } from '../utils/sessionStatus'
+import { MAX_DESCRIPTION_LENGTH, MAX_ISSUE_NAME_LENGTH } from '../config/limits'
 
-export const MAX_DESCRIPTION_LENGTH = 500
-export const MAX_ISSUE_NAME_LENGTH = 80
+export { MAX_DESCRIPTION_LENGTH, MAX_ISSUE_NAME_LENGTH }
 
 // Postgres gen_random_uuid() ids. Anything else is rejected before a request.
 const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -14,9 +14,8 @@ import { assistantContextFromSession } from '../services/assistantService'
 import { saveCompletedRepairStep } from '../services/repairStepProgress'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { commitCurrentStep } from '../services/repairSessionDb'
-import { getLocale, subscribeLocale, t } from '../i18n'
+import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
-import { withTextScreen } from '../utils/combinedRisk'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -27,7 +26,6 @@ import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 function FreshRepairGuide() {
   useSyncExternalStore(subscribeLocale, getLocale)
@@ -132,7 +130,7 @@ function FreshRepairGuide() {
     const repairSessionId = session?.diagnosisPersistence?.repairSessionId
     if (repairSessionId) {
       void commitCurrentStep(repairSessionId, nextIndex).catch((error: unknown) => {
-        setProgressError(error instanceof Error ? error.message : t('history.progressError'))
+        setProgressError(localizedErrorMessage(error, 'history.progressError'))
       })
     }
   }
@@ -163,9 +161,7 @@ function FreshRepairGuide() {
         navigate('/verify')
       }
     } catch (error) {
-      setProgressError(
-        error instanceof Error ? error.message : t('guide.progressSaveError')
-      )
+      setProgressError(localizedErrorMessage(error, 'guide.progressSaveError'))
     } finally {
       saveInFlight.current = false
       setSavingProgress(false)
@@ -223,10 +219,8 @@ function FreshRepairGuide() {
     return (
       <PageShell className="pb-24">
         <div className="mx-auto max-w-lg px-4 pt-8">
-          {FixtureBanner && source.isFixture && (
-            <Suspense fallback={null}>
-              <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-            </Suspense>
+          {source.isFixture && (
+            <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
           )}
           <GuideUnavailablePanel
             issueName={session.diagnosis.issueName}
@@ -264,10 +258,8 @@ function FreshRepairGuide() {
       )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
-        {FixtureBanner && source.isFixture && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          </Suspense>
+        {source.isFixture && (
+          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
         )}
         {progressError && (
           <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">
@@ -306,7 +298,7 @@ function FreshRepairGuide() {
 
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 z-20 glass-panel border-t border-border px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-lg flex items-center gap-3">
           <motion.button
             type="button"

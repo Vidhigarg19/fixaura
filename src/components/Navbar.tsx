@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ChevronRight, LogIn, Menu, X } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { getLocale, subscribeLocale, t } from '../i18n'
@@ -7,6 +7,7 @@ import { useAuth } from './authContext'
 import LanguageToggle from './LanguageToggle'
 import { BrandLockup } from './Logo'
 import { clearCaptureDraft } from '../utils/captureDraft'
+import { useDialogFocus } from './useDialogFocus'
 
 type SectionId = 'features' | 'showcase' | 'why-fixaura'
 
@@ -24,6 +25,7 @@ export default function Navbar() {
   const location = useLocation()
   const { user, signOut } = useAuth()
   useSyncExternalStore(subscribeLocale, getLocale)
+  const reduceMotion = useReducedMotion()
 
   const [activeSection, setActiveSection] = useState<SectionId | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -34,6 +36,8 @@ export default function Navbar() {
   const accountTriggerRef = useRef<HTMLButtonElement>(null)
   const mobilePanelRef = useRef<HTMLDivElement>(null)
   const accountPanelRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
+  const firstMobileLinkRef = useRef<HTMLAnchorElement>(null)
   const isLandingPage = location.pathname === '/'
 
   const closeMobileMenu = useCallback(() => {
@@ -113,6 +117,8 @@ export default function Navbar() {
     }
   }, [mobileOpen, closeMobileMenu])
 
+  useDialogFocus(mobileOpen, headerRef, { initialFocus: firstMobileLinkRef })
+
   useEffect(() => {
     if (!accountOpen) return
 
@@ -148,7 +154,7 @@ export default function Navbar() {
       else closeAccountMenu()
     } catch (error) {
       console.error('Sign out failed:', error)
-      setSignOutError(error instanceof Error ? error.message : t('common.error'))
+      setSignOutError(t('nav.signOutError'))
     } finally {
       setSigningOut(false)
     }
@@ -161,7 +167,8 @@ export default function Navbar() {
 
   return (
     <motion.header
-      initial={{ opacity: 0, y: -16 }}
+      ref={headerRef}
+      initial={reduceMotion ? false : { opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
       className="sticky top-0 z-40 border-b border-border/80 glass-panel backdrop-blur-xl"
     >
@@ -211,17 +218,16 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden shrink-0 items-center gap-2 md:flex lg:gap-3">
-          <LanguageToggle className="h-10 rounded-full px-3" />
+          <LanguageToggle className="rounded-full px-3" />
           {user ? (
             <div className="relative">
               <button
                 ref={accountTriggerRef}
                 type="button"
                 aria-label={t('nav.accountMenu')}
-                aria-haspopup="menu"
                 aria-expanded={accountOpen}
                 onClick={() => setAccountOpen((open) => !open)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface text-sm font-bold text-primary transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-primary"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-sm font-bold text-primary transition-colors hover:border-primary/50 focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {user.email?.trim().charAt(0).toUpperCase() || t('common.brandName').charAt(0)}
               </button>
@@ -229,31 +235,28 @@ export default function Navbar() {
                 {accountOpen && (
                   <motion.div
                     ref={accountPanelRef}
-                    role="menu"
                     initial={{ opacity: 0, y: -6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.16 }}
                     className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-border bg-surface p-2 shadow-xl"
                   >
-                    <p className="truncate px-3 py-2 text-sm text-text-subtle">{user.email ?? ''}</p>
+                    <p className="break-all px-3 py-2 text-sm text-text-subtle">{user.email ?? ''}</p>
                     {signOutError && (
                       <p role="alert" className="px-3 py-2 text-xs text-warning">{signOutError}</p>
                     )}
                     <Link
                       to="/history"
-                      role="menuitem"
                       onClick={closeAccountMenu}
-                      className="block rounded-lg px-3 py-2 text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                      className="block min-h-11 rounded-lg px-3 py-3 text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       {t('history.navHistory')}
                     </Link>
                     <button
                       type="button"
-                      role="menuitem"
                       onClick={() => void handleSignOut()}
                       disabled={signingOut}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+                      className="min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
                     >
                       {t('nav.signOut')}
                     </button>
@@ -264,14 +267,14 @@ export default function Navbar() {
           ) : (
             <Link
               to="/login"
-              className="inline-flex h-10 items-center rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
             >
               {t('nav.logIn')}
             </Link>
           )}
           <Link
             to="/capture"
-            className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-primary px-4 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary"
+            className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full bg-primary px-4 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary"
           >
             {t('nav.scan')}
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -282,10 +285,10 @@ export default function Navbar() {
           ref={mobileTriggerRef}
           type="button"
           aria-label={mobileOpen ? t('nav.closeMenu') : t('nav.openMenu')}
-          aria-haspopup="menu"
+          aria-haspopup="dialog"
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((open) => !open)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-text-primary focus-visible:outline-2 focus-visible:outline-primary md:hidden"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-text-primary focus-visible:outline-2 focus-visible:outline-primary md:hidden"
         >
           {mobileOpen
             ? <X className="h-5 w-5" aria-hidden="true" />
@@ -297,24 +300,26 @@ export default function Navbar() {
         {mobileOpen && (
           <motion.div
             ref={mobilePanelRef}
-            role="menu"
-            initial={{ opacity: 0, y: -8 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('nav.mobileMenu')}
+            initial={reduceMotion ? false : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
-            className="absolute left-0 right-0 top-full max-h-[calc(100vh-4rem)] overflow-y-auto border-b border-border bg-background/95 p-4 shadow-xl backdrop-blur-xl md:hidden"
+            className="absolute left-0 right-0 top-full max-h-[calc(100dvh-4rem)] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] border-b border-border bg-background/95 p-4 shadow-xl backdrop-blur-xl md:hidden"
           >
             <nav className="flex flex-col gap-1" aria-label={t('nav.mainMenu')}>
-              {sectionLinks.map(({ id, label }) => (
+              {sectionLinks.map(({ id, label }, index) => (
                 <a
                   key={id}
+                  ref={index === 0 ? firstMobileLinkRef : undefined}
                   href={sectionHref(id, isLandingPage)}
-                  role="menuitem"
                   onClick={() => {
                     setActiveSection(id)
                     closeMobileMenu()
                   }}
-                  className={`rounded-lg px-3 py-3 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
+                  className={`rounded-lg px-3 py-3 min-h-11 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
                     activeSection === id ? 'bg-primary/10 text-primary' : 'text-text-primary'
                   }`}
                 >
@@ -324,9 +329,8 @@ export default function Navbar() {
               {user && (
                 <Link
                   to="/dashboard"
-                  role="menuitem"
                   onClick={closeMobileMenu}
-                  className={`rounded-lg px-3 py-3 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
+                  className={`rounded-lg px-3 py-3 min-h-11 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
                     location.pathname === '/dashboard' ? 'bg-primary/10 text-primary' : 'text-text-primary'
                   }`}
                 >
@@ -336,9 +340,8 @@ export default function Navbar() {
               {user && (
                 <Link
                   to="/history"
-                  role="menuitem"
                   onClick={closeMobileMenu}
-                  className={`rounded-lg px-3 py-3 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
+                  className={`rounded-lg px-3 py-3 min-h-11 text-sm transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
                     location.pathname === '/history' ? 'bg-primary/10 text-primary' : 'text-text-primary'
                   }`}
                 >
@@ -347,10 +350,10 @@ export default function Navbar() {
               )}
             </nav>
             <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-              <LanguageToggle className="h-10 w-fit rounded-full px-4" />
+              <LanguageToggle className="w-fit rounded-full px-4" />
               {user ? (
                 <>
-                  <p className="truncate px-1 text-sm text-text-subtle">{user.email ?? ''}</p>
+                  <p className="break-all px-1 text-sm text-text-subtle">{user.email ?? ''}</p>
                   {signOutError && (
                     <p role="alert" className="px-1 text-xs text-warning">{signOutError}</p>
                   )}
@@ -358,7 +361,7 @@ export default function Navbar() {
                     type="button"
                     onClick={() => void handleSignOut()}
                     disabled={signingOut}
-                    className="h-10 rounded-full border border-border px-4 text-left text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+                    className="min-h-11 rounded-full border border-border px-4 text-left text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
                   >
                     {t('nav.signOut')}
                   </button>
@@ -367,7 +370,7 @@ export default function Navbar() {
                 <Link
                   to="/login"
                   onClick={closeMobileMenu}
-                  className="inline-flex h-10 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold text-text-secondary transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <LogIn className="h-4 w-4" aria-hidden="true" />
                   {t('nav.logIn')}
@@ -376,7 +379,7 @@ export default function Navbar() {
               <Link
                 to="/capture"
                 onClick={closeMobileMenu}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)] focus-visible:outline-2 focus-visible:outline-primary"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)] focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {t('nav.scan')}
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

@@ -31,8 +31,10 @@ import {
   type NearbyShop,
   type NearbyShopType,
 } from '../services/nearbyShops'
+import { googleMapsDirectionsUrl, OSM_COPYRIGHT_URL } from '../config/externalUrls'
+import { GEOLOCATION_OPTIONS, NEARBY_RADII_KM } from '../config/limits'
 
-const RADII = [3, 5, 10, 20] as const
+const RADII = NEARBY_RADII_KM
 type Radius = (typeof RADII)[number]
 type ShopFilter = 'all' | 'repair' | 'sell'
 type Coordinates = { latitude: number; longitude: number }
@@ -83,7 +85,7 @@ function ExternalSearchLink({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <Search className="h-4 w-4" aria-hidden="true" />
         {t('nearby.searchGoogleMaps')}
@@ -200,7 +202,7 @@ export default function NearbyShops() {
         setLocating(false)
         setLocationIssue(getGeolocationError(positionError))
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      { ...GEOLOCATION_OPTIONS }
     )
   }
 
@@ -261,13 +263,13 @@ export default function NearbyShops() {
 
   return (
     <PageShell className="pb-16">
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
         <div className="mb-8">
           <div className="mb-6 flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {t('nearby.back')}
@@ -550,7 +552,7 @@ export default function NearbyShops() {
 
                     <div className="mt-5 flex flex-wrap gap-3">
                       <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${shop.latitude},${shop.longitude}`}
+                        href={googleMapsDirectionsUrl(shop.latitude, shop.longitude)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -592,7 +594,7 @@ export default function NearbyShops() {
         <p className="mt-8 text-xs text-text-secondary">
           {t('nearby.attributionNote')}{' '}
           <a
-            href="https://www.openstreetmap.org/copyright"
+            href={OSM_COPYRIGHT_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
@@ -600,7 +602,7 @@ export default function NearbyShops() {
             {t('nearby.attributionLink')}
           </a>
         </p>
-      </main>
+      </div>
     </PageShell>
   )
 }

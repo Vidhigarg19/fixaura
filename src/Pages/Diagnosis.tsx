@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Suspense, lazy, useState, useEffect, useSyncExternalStore } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -8,12 +8,11 @@ import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
-import { isValidSessionId, seedRepairCache, sessionDetailsForInsert } from '../services/sessionResume'
-import { buildRepairPlan } from '../services/repairPlanner'
-import { persistImagePath } from '../services/repairSessionDb'
-import { linkPhoto } from '../services/localPhotoStore'
+import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
+import FixtureBannerSlot from '../components/FixtureBannerSlot'
+import { CONFIDENCE_THRESHOLD } from '../config/limits'
 import { useAuth } from '../components/authContext'
 import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -32,9 +31,7 @@ import {
 } from '../components/SessionPanels'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
-const CONFIDENCE_THRESHOLD = 70
 const diagnosisSaveOperations = new Map<string, Promise<void>>()
 
 function saveDiagnosisOnce(attemptId: string, save: () => Promise<void>) {
@@ -83,14 +80,10 @@ function FreshDiagnosis() {
     ? combinedDecision(decideFromDiagnosis(liveSession.diagnosis, source.extras), safetyVerdict)
     : 'professional'
   const blocked = isBlocked(decision)
-  // Guided repair opens for a non-blocked result that has either a reviewed approved
-  // template or validated issue-specific steps. A genuine hazard (blocked) never gets
-  // one. The diagnosis itself is always saved by the effect below.
-  const guideAvailable = isGuideAvailable(source.extras, {
-    allowFixtureTemplates: source.isFixture,
-    diagnosis: liveSession?.diagnosis ?? null,
-    decision,
-  })
+  // S07: guided repair opens only when the agreed diagnosis carries a reviewed,
+  // current approved template. The diagnosis itself is still saved by the effect
+  // below; only the guided-repair start is gated on template validation.
+  const guideAvailable = isGuideAvailable(source.extras, { allowFixtureTemplates: source.isFixture })
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
   const [saveFailed, setSaveFailed] = useState(false)
   const [saveAttempt, setSaveAttempt] = useState(0)
@@ -325,7 +318,7 @@ function FreshDiagnosis() {
         if (!cancelled) {
           setRepairSessionReady(true)
           setSaveFailed(false)
-          setSaveStatus('Diagnosis and repair session saved successfully.')
+          setSaveStatus('saved')
           // So a refresh or a copied link opens this repair from the database.
           const savedId = getCachedSession()?.diagnosisPersistence?.repairSessionId
           if (isValidSessionId(savedId)) {
@@ -339,11 +332,7 @@ function FreshDiagnosis() {
 
         if (!cancelled) {
           setSaveFailed(true)
-          setSaveStatus(
-            error instanceof Error
-              ? `Could not save diagnosis: ${error.message}`
-              : 'Could not save diagnosis.'
-          )
+          setSaveStatus('failed')
         }
       }
     }
@@ -388,7 +377,7 @@ function FreshDiagnosis() {
       })
       navigate('/tools')
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : t('history.saveError'))
+      setSaveError(localizedErrorMessage(error, 'history.saveError'))
     } finally {
       setStarting(false)
     }
@@ -439,10 +428,8 @@ function FreshDiagnosis() {
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
-        {FixtureBanner && source.isFixture && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          </Suspense>
+        {source.isFixture && (
+          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
         )}
 
         <motion.h1
@@ -455,7 +442,7 @@ function FreshDiagnosis() {
 
         {!source.isFixture && (
           <p role="status" className="text-sm text-text-secondary mb-4">
-            {saveStatus}
+            {t(`diagnosis.saveStatus.${saveStatus}`)}
           </p>
         )}
 
@@ -467,6 +454,7 @@ function FreshDiagnosis() {
                 type="button"
                 onClick={() => {
                   setSaveFailed(false)
+                  setSaveStatus('saving')
                   setSaveAttempt((value) => value + 1)
                 }}
                 className="min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm font-semibold text-warning focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -558,7 +546,7 @@ function FreshDiagnosis() {
             </button>
           </>
         )}
-        {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
+        {saveError && <p role="alert" className="mt-4 break-words text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>
   )

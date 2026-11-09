@@ -1,6 +1,6 @@
 // Description-only draft for the capture page. The photo is never stored.
-const DRAFT_KEY = 'homegenie-capture-draft'
-const MAX_DRAFT_LENGTH = 500
+import { CAPTURE_DRAFT_STORAGE_KEY as DRAFT_KEY } from '../config/storageKeys'
+import { MAX_DRAFT_LENGTH } from '../config/limits'
 
 interface Draft {
   userId: string

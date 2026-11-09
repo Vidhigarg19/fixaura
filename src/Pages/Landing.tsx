@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useSyncExternalStore } from 'react'
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
@@ -21,8 +21,9 @@ import {
   GlassWater,
 } from "lucide-react";
 import ConfidenceMeter from "../components/ConfidenceMeter";
+import { LANDING_CATEGORY_IMAGES, LANDING_FEATURE_IMAGES, LANDING_PREVIEW_IMAGE } from '../config/landingMedia';
 import Logo from "../components/Logo";
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -67,41 +68,41 @@ const features = [
     icon: Camera,
     titleKey: "landing.feature.aiVisionScan.title",
     descriptionKey: "landing.feature.aiVisionScan.description",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
+    image: LANDING_FEATURE_IMAGES.aiVisionScan,
   },
   {
     icon: Shield,
     titleKey: "landing.feature.safetyGuidance.title",
     descriptionKey: "landing.feature.safetyGuidance.description",
-    image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=80",
+    image: LANDING_FEATURE_IMAGES.safetyGuidance,
   },
   {
     icon: Wrench,
     titleKey: "landing.feature.toolChecklists.title",
     descriptionKey: "landing.feature.toolChecklists.description",
-    image: "https://images.unsplash.com/photo-1581166397057-235af2b3c6dd?w=400&q=80",
+    image: LANDING_FEATURE_IMAGES.toolChecklists,
   },
   {
     icon: Zap,
     titleKey: "landing.feature.arStepOverlays.title",
     descriptionKey: "landing.feature.arStepOverlays.description",
-    image: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&q=80",
+    image: LANDING_FEATURE_IMAGES.arStepOverlays,
   },
 ]
 
 const categories = [
   { nameKey: "landing.category.appliances", icon: Refrigerator, tone: "from-cyan-400/20 to-teal-400/10",
-    image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.appliances },
   { nameKey: "landing.category.plumbing", icon: Droplets, tone: "from-sky-400/20 to-cyan-400/10",
-    image: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.plumbing },
   { nameKey: "landing.category.furniture", icon: Sofa, tone: "from-emerald-400/20 to-teal-400/10",
-    image: "https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.furniture },
   { nameKey: "landing.category.electronics", icon: MonitorSmartphone, tone: "from-violet-400/20 to-fuchsia-400/10",
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.electronics },
   { nameKey: "landing.category.outdoor", icon: Fan, tone: "from-lime-400/20 to-emerald-400/10",
-    image: "https://images.unsplash.com/photo-1527684651001-731c474bbb5a?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.outdoor },
   { nameKey: "landing.category.fixtures", icon: GlassWater, tone: "from-amber-400/20 to-orange-400/10",
-    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&q=80" },
+    image: LANDING_CATEGORY_IMAGES.fixtures },
 ]
 
 const whyFixaura = [
@@ -129,6 +130,8 @@ const whyFixaura = [
 ];
 
 export default function Landing() {
+  // Re-render when the language toggle changes.
+  useSyncExternalStore(subscribeLocale, getLocale, getLocale)
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -136,7 +139,7 @@ export default function Landing() {
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
 
-      <main className="relative">
+      <main id="main-content" tabIndex={-1} className="relative">
         <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
           <motion.div
             variants={stagger}
@@ -220,7 +223,7 @@ export default function Landing() {
                     <img
                       alt={t("landing.preview.alt")}
                       className="absolute inset-0 w-full h-full object-cover opacity-88"
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzkx241-OG9bs7JVkdeP8sKDiMiw6RPKYI29l4oYQ6R6f3-5gxj8rNnCWMMohWMbT0fhGNFbKKZch0qVWSPvKJfS8A-SOQIq7-4MS8rTLxJxi0Xi1bLWpo-heldzx0Zvr_FgdOoBHopqVZ_7PuTN7GDfww6cGPiKjbvBk4AJN5QIQZwcDYR_V-17Zca0LHbtUTijn6Irzfv3HkifsGmD8PA89GF0z6rVuw8DjLmPKUeNS7-KYBwU2Ue972MEnNWYdeO7fvmFuC"
+                      src={LANDING_PREVIEW_IMAGE}
                     />
                     <div className="absolute inset-0">
                       <div className="absolute top-[16%] left-[16%] h-[42%] w-[48%] rounded-2xl border border-primary/60 shadow-[0_0_26px_rgba(0,245,212,0.20)]" />
@@ -481,9 +484,9 @@ export default function Landing() {
           </div>
 
           <div>
-            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+            <h2 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
               {t("landing.footerProductHeading")}
-            </h4>
+            </h2>
             <ul className="space-y-3 text-text-secondary">
               <li>
                 <a className="hover:text-primary transition-colors" href="#features">
@@ -509,29 +512,29 @@ export default function Landing() {
           </div>
 
           <div>
-            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+            <h2 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
               {t("landing.footerLegalHeading")}
-            </h4>
+            </h2>
             <ul className="space-y-3 text-text-secondary">
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalPrivacyPolicy")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalTermsOfService")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalCookiePolicy")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalSafetyDisclosure")}
-                </a>
+                </span>
               </li>
             </ul>
           </div>

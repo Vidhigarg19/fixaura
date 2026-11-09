@@ -14,7 +14,7 @@
   --color-warning: #ffd43b;
   --color-error: #ffb4ab;
   --color-success: #51cf66;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", "Noto Sans Devanagari", system-ui, sans-serif;
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
   --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(39, 53, 76, 0.8);
@@ -146,6 +146,44 @@ body {
   color: var(--color-text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  /* Long words, URLs and Hindi compounds wrap instead of forcing sideways scroll at 320 px. */
+  overflow-wrap: break-word;
+}
+
+/*
+ * Devanagari needs room for matras above and below the line, and letter-spacing
+ * breaks conjuncts. These rules apply only when the Hindi locale is active.
+ */
+html:lang(hi) body,
+html:lang(hi) body * {
+  letter-spacing: normal !important;
+  line-height: 1.65 !important;
+}
+
+/* Skip link: hidden until it receives keyboard focus. */
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 0.75rem;
+  background: var(--color-primary);
+  color: var(--color-background);
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  min-height: 44px;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 3px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+#main-content:focus {
+  outline: none;
 }
 
 ::selection {

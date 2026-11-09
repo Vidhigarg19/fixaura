@@ -1,8 +1,9 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell'
 import { supabase } from '../lib/supabase'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
 type DiagnosisRecord = {
   id: string
@@ -17,10 +18,26 @@ type DiagnosisRecord = {
   created_at: string
 }
 
+type HistoryMessage = 'loginRequired' | 'loadError' | null
+
+const SEVERITY_KEYS: Record<string, string> = {
+  low: 'diagnosis.riskLow',
+  medium: 'diagnosis.riskMedium',
+  high: 'diagnosis.riskHigh',
+}
+
+function severityLabel(severity: string): string {
+  const key = SEVERITY_KEYS[severity.trim().toLowerCase()]
+  // Unknown values from older records are shown as stored rather than hidden.
+  return key ? t(key) : severity
+}
+
 export default function DiagnosisHistory() {
+  const locale = useSyncExternalStore(subscribeLocale, getLocale, getLocale)
   const [records, setRecords] = useState<DiagnosisRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState('')
+  // Store which message to show, not its text, so it follows the language toggle.
+  const [message, setMessage] = useState<HistoryMessage>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -34,7 +51,7 @@ export default function DiagnosisHistory() {
 
         if (!user) {
           if (!cancelled) {
-            setMessage('Please log in to view your diagnosis history.')
+            setMessage('loginRequired')
           }
           return
         }
@@ -51,12 +68,9 @@ export default function DiagnosisHistory() {
           setRecords((data ?? []) as DiagnosisRecord[])
         }
       } catch (error) {
+        console.error('Diagnosis history failed to load:', error)
         if (!cancelled) {
-          setMessage(
-            error instanceof Error
-              ? error.message
-              : 'Could not load diagnosis history.'
-          )
+          setMessage('loadError')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -70,29 +84,31 @@ export default function DiagnosisHistory() {
     }
   }, [])
 
+  const dateLocale = locale === 'hi' ? 'hi-IN' : 'en-IN'
+
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
-        <h1 className="text-heading-lg mb-2">Diagnosis History</h1>
+        <h1 className="text-heading-lg mb-2 break-words">{t('diagnosisHistory.title')}</h1>
         <p className="text-text-secondary mb-6">
-          Your previously saved repair diagnoses.
+          {t('diagnosisHistory.subtitle')}
         </p>
 
         {loading && (
-          <p className="text-text-secondary">Loading history...</p>
+          <p role="status" className="text-text-secondary">{t('diagnosisHistory.loading')}</p>
         )}
 
         {!loading && message && (
-          <p role="status" className="text-text-secondary mb-4">
-            {message}
+          <p role="status" className="text-text-secondary mb-4 break-words">
+            {t(`diagnosisHistory.${message}`)}
           </p>
         )}
 
         {!loading && !message && records.length === 0 && (
           <div className="glass-panel rounded-xl p-5">
-            <p>No saved diagnoses yet.</p>
-            <Link to="/capture" className="text-primary underline mt-3 inline-block">
-              Start a new diagnosis
+            <p>{t('diagnosisHistory.empty')}</p>
+            <Link to="/capture" className="text-primary underline mt-3 inline-flex min-h-11 items-center">
+              {t('diagnosisHistory.startNew')}
             </Link>
           </div>
         )}
@@ -103,37 +119,37 @@ export default function DiagnosisHistory() {
               key={record.id}
               className="glass-panel rounded-xl p-5 space-y-2"
             >
-              <h2 className="text-heading-md">{record.issue_title}</h2>
+              <h2 className="text-heading-md break-words">{record.issue_title}</h2>
 
-              <p className="text-text-secondary text-sm">
-                Appliance: {record.appliance_type}
+              <p className="text-text-secondary text-sm break-words">
+                {t('diagnosisHistory.appliance')}: {record.appliance_type}
               </p>
 
               <p className="text-text-secondary text-sm">
-                Date: {new Date(record.created_at).toLocaleString()}
+                {t('diagnosisHistory.date')}: {new Date(record.created_at).toLocaleString(dateLocale)}
               </p>
 
               {record.diagnosis_result?.severity && (
                 <p className="text-text-secondary text-sm">
-                  Risk: {record.diagnosis_result.severity}
+                  {t('diagnosisHistory.risk')}: {severityLabel(record.diagnosis_result.severity)}
                 </p>
               )}
 
               {typeof record.diagnosis_result?.confidence === 'number' && (
                 <p className="text-text-secondary text-sm">
-                  Confidence: {record.diagnosis_result.confidence}%
+                  {t('diagnosisHistory.confidence')}: {record.diagnosis_result.confidence}%
                 </p>
               )}
 
               {record.diagnosis_result?.summary && (
-                <p className="text-text-secondary">
+                <p className="text-text-secondary break-words">
                   {record.diagnosis_result.summary}
                 </p>
               )}
 
               {record.diagnosis_result?.recommendedFix && (
-                <p className="text-text-secondary text-sm">
-                  Recommended fix: {record.diagnosis_result.recommendedFix}
+                <p className="text-text-secondary text-sm break-words">
+                  {t('diagnosisHistory.recommendedFix')}: {record.diagnosis_result.recommendedFix}
                 </p>
               )}
             </article>
@@ -142,16 +158,16 @@ export default function DiagnosisHistory() {
 
         <Link
           to="/capture"
-          className="block text-center rounded-xl bg-primary py-3 font-semibold text-background mt-6"
+          className="block min-h-11 text-center rounded-xl bg-primary py-3 font-semibold text-background mt-6"
         >
-          New Diagnosis
+          {t('diagnosisHistory.newDiagnosis')}
         </Link>
 
         <Link
           to="/"
-          className="block text-center text-text-secondary underline mt-4"
+          className="block min-h-11 py-3 text-center text-text-secondary underline mt-4"
         >
-          Back to home
+          {t('diagnosisHistory.backHome')}
         </Link>
       </div>
     </PageShell>

@@ -11,13 +11,14 @@
 // read, overwrite, or delete another user's media.
 
 import { supabase } from '../lib/supabase'
+import { MAX_PRIVATE_MEDIA_BYTES } from '../config/limits'
 
 import { PRIVATE_MEDIA_BUCKET, extractObjectPath, isDirectMediaUrl, isPrivateObjectPath } from '../utils/mediaPaths'
 import { deletePhotos } from './localPhotoStore'
 
 export { PRIVATE_MEDIA_BUCKET, extractObjectPath, isDirectMediaUrl }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+const MAX_FILE_SIZE = MAX_PRIVATE_MEDIA_BYTES // 5 MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 type AllowedMime = (typeof ALLOWED_MIME_TYPES)[number]
 

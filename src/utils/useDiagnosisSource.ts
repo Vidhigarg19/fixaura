@@ -11,6 +11,7 @@ import type { AgreedDiagnosis } from './diagnosisView'
 import { applyDiagnosisUpdate } from './diagnosisUpdate'
 import type { FollowUpAnswers } from './followUpValidation'
 import { readFixtureName } from './fixtureGate'
+import { loadAnalysisFixtures } from '../config/devFixtures'
 
 // Where the diagnosis shown on /diagnosis, /tools and /guide comes from.
 // - Normal use: the stored session (sessionStorage), read synchronously on first render so
@@ -59,9 +60,9 @@ export function useDiagnosisSource(): DiagnosisSource {
 
   useEffect(() => {
     // DEV-ONLY branch; removed from production builds together with the dynamic import.
-    if (import.meta.env.DEV && fixtureName) {
+    if (loadAnalysisFixtures && fixtureName) {
       let alive = true
-      void import('../dev/analysisFixtures')
+      void loadAnalysisFixtures()
         .then((fixtures) => fixtures.runFixture(fixtureName, 0))
         .then((outcome) => {
           if (!alive) return

@@ -5,6 +5,7 @@ import type {
 
 import { supabase } from '../lib/supabase'
 import { AnalysisError } from '../types/analysis'
+import { MAX_DESCRIPTION_LENGTH, MAX_IMAGE_BYTES } from '../config/limits'
 import {
   diagnosisFromEnvelope,
   errorFromEnvelope,
@@ -16,8 +17,6 @@ const supportedImageTypes = new Set([
   'image/png',
   'image/webp',
 ])
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -101,7 +100,7 @@ export async function analyzeImage(
     throw new AnalysisError('configuration_error', false)
   }
 
-  if (!description.trim() || description.length > 500) {
+  if (!description.trim() || description.length > MAX_DESCRIPTION_LENGTH) {
     throw new AnalysisError('invalid_input', false)
   }
 

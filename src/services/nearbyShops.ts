@@ -1,3 +1,11 @@
+import { GOOGLE_MAPS_SEARCH_URL, OVERPASS_ENDPOINTS } from '../config/externalUrls'
+import {
+  NEARBY_CACHE_MAX_ENTRIES,
+  NEARBY_CACHE_TTL_MS,
+  NEARBY_ENDPOINT_TIMEOUT_MS,
+  NEARBY_TOTAL_TIMEOUT_MS,
+} from '../config/limits'
+
 export type NearbyShopType = 'repair' | 'sell' | 'both'
 
 export interface NearbyShop {
@@ -61,23 +69,19 @@ interface OverpassResponse {
   remark?: string
 }
 
-// Only the two endpoints that were already in use. Do not add more public mirrors.
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-]
+// Only the two endpoints that were already in use (see config/externalUrls.ts). Do not add more public mirrors.
 
 const SHOP_VALUES = 'appliance|electronics|hardware|mobile_phone|computer'
 const CRAFT_VALUES = 'electronics_repair|electrician'
 
 /** Upper bound for the whole search, including the failover attempt. */
-const TOTAL_TIMEOUT_MS = 30000
-const ENDPOINT_TIMEOUT_MS = 18000
+const TOTAL_TIMEOUT_MS = NEARBY_TOTAL_TIMEOUT_MS
+const ENDPOINT_TIMEOUT_MS = NEARBY_ENDPOINT_TIMEOUT_MS
 
 // Short-lived, in-memory only (never written to storage). Keyed by location + radius.
 // The repair/sell filter is applied on the client, so it does not change the request.
-const CACHE_TTL_MS = 2 * 60 * 1000
-const CACHE_MAX_ENTRIES = 10
+const CACHE_TTL_MS = NEARBY_CACHE_TTL_MS
+const CACHE_MAX_ENTRIES = NEARBY_CACHE_MAX_ENTRIES
 const elementCache = new Map<string, { expiresAt: number; elements: OverpassElement[] }>()
 
 function cacheKey(latitude: number, longitude: number, radiusKm: number) {
@@ -396,5 +400,5 @@ export function buildExternalSearchUrl(
     parts.push(`${coordinates.latitude.toFixed(3)},${coordinates.longitude.toFixed(3)}`)
   }
   const query = parts.filter(Boolean).join(' ').slice(0, 200)
-  return `https://www.google.com/maps/search/?${new URLSearchParams({ api: '1', query }).toString()}`
+  return `${GOOGLE_MAPS_SEARCH_URL}?${new URLSearchParams({ api: '1', query }).toString()}`
 }
