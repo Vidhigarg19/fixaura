@@ -6,740 +6,260 @@
 
 <p align="center">
   <strong>Your home our intelligence</strong><br/>
-  AI-powered home repair assistant for intelligent guidance, safety insights, and nearby professionals<br/>
-  Scan a broken item → get instant AI diagnosis → gather tools → follow AR-guided step-by-step repair
-</p>
-
-<p align="center">
-  <a href="https://fixaura.vercel.app">Live Demo</a> · 
-  <a href="#cloud-architecture">Architecture</a> · 
-  <a href="#getting-started">Getting Started</a> · 
-  <a href="#api-reference">API Reference</a>
+  A browser app that helps people understand a household problem from a photo and a short description,
+  see the risk first, and find nearby help.
 </p>
 
 ---
 
-## Overview
+## Contents
 
-HomeGenie is an AI-powered home repair assistant that helps users identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals. Users can scan an item, review an AI-powered diagnosis with confidence scoring, get a safety-first tool checklist, and follow step-by-step repair guidance with AR overlays — all from their browser.
-
-### Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **AI Vision Scan** | Camera or photo upload → Gemini 3.1 Flash-Lite identifies the issue with confidence scoring |
-| **Safety-First Guidance** | Critical steps gated behind confirmation prompts; safety warnings at every stage |
-| **Tool Checklists** | Auto-generated checklists with essential tool acknowledgment before repair begins |
-| **AR Step Overlays** | On-screen highlights, arrows, and zone indicators guide each repair step visually |
-| **Voice Commands** | Hands-free navigation via Web Speech API — say "next", "previous", or "capture" |
-| **Multilingual** | English + Hindi with instant language switching |
-| **Image Upload Fallback** | Upload a photo when camera is unavailable — full flow still works |
-
----
-
-## Tech Stack
-
-### Frontend
-
-| Technology | Version | Purpose |
-|-----------|---------|---------|
-| React | 19 | UI framework with lazy-loaded routes |
-| TypeScript | 6 | Type safety across the entire codebase |
-| Vite | 8 | Build tooling + dev server + HMR |
-| Tailwind CSS | v4 | Utility-first styling with `@theme` design tokens |
-| Framer Motion | 12 | Page transitions, micro-animations, AnimatePresence |
-| React Router | v7 | Client-side routing with animated transitions |
-| Lucide React | — | Icon system |
-| react-countup | — | Animated statistics counters |
-| react-intersection-observer | — | Scroll-triggered reveal animations |
-
-### Backend & Cloud
-
-| Service | Provider | Purpose |
-|---------|----------|---------|
-| **Auth** | Supabase Auth | Email/password, Google OAuth, Apple Sign-In |
-| **Database** | Supabase PostgreSQL | Users, repairs, diagnoses, guides, ratings |
-| **Object Storage** | Supabase Storage + AWS S3 | Repair images, AR guide assets |
-| **Edge Functions** | Supabase Edge Functions (Deno) | AI proxy, repair plan generation, webhooks |
-| **AI Vision** | Google Gemini 3.1 Flash-Lite | Image analysis and diagnosis through the Supabase Edge Function |
-| **AI Repair Plans** | AWS Bedrock (Claude Haiku) | Step-by-step repair generation |
-| **CDN** | AWS CloudFront | Global low-latency asset delivery |
-| **Async Processing** | AWS SQS + Lambda | Image preprocessing, batch analytics, notifications |
-| **Monitoring** | AWS CloudWatch | Logs, metrics, alarms, dashboards |
-| **Email/Push** | AWS SES + SNS | Transactional emails, push notifications |
-| **Secrets** | AWS Secrets Manager | API keys, credentials (never in client bundle) |
+1. [What it does today](#what-it-does-today)
+2. [Limitations and things that do not exist](#limitations-and-things-that-do-not-exist)
+3. [Tech stack](#tech-stack)
+4. [Getting started](#getting-started)
+5. [Scripts](#scripts)
+6. [Environment variables](#environment-variables)
+7. [Routes](#routes)
+8. [Architecture and folder conventions](#architecture-and-folder-conventions)
+9. [Safety restrictions](#safety-restrictions)
+10. [Backend (Supabase)](#backend-supabase)
+11. [Testing](#testing)
+12. [Languages (i18n)](#languages-i18n)
+13. [Design tokens](#design-tokens)
+14. [Camera troubleshooting](#camera-troubleshooting)
+15. [Deployment](#deployment)
+16. [Documentation index](#documentation-index)
+17. [Contributing and license](#contributing-and-license)
 
 ---
 
-## Cloud Architecture
-
-### High-Level Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER DEVICE                                    │
-│          Browser / PWA  ←──  Camera + Web Speech API                        │
-└──────────────────────────────┬──────────────────────────────────────────────┘
-                               │ HTTPS
-                               ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                           EDGE / CDN LAYER                                   │
-│                                                                              │
-│   ┌──────────────┐     ┌──────────────────────┐     ┌──────────────────┐    │
-│   │   Vercel      │     │   AWS CloudFront      │     │ Supabase Realtime│    │
-│   │   Edge Network│     │   (Static Assets/CDN)  │     │ (WebSocket)      │    │
-│   └──────┬───────┘     └──────────┬───────────┘     └────────┬─────────┘    │
-└──────────┼────────────────────────┼──────────────────────────┼──────────────┘
-           │                        │                          │
-           ▼                        ▼                          ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                         SUPABASE (Core Backend)                              │
-│                                                                              │
-│   ┌────────────┐   ┌──────────────┐   ┌─────────────┐   ┌──────────────┐   │
-│   │    Auth     │   │  PostgreSQL   │   │   Storage    │   │    Edge      │   │
-│   │            │   │  (Database)   │   │  (Images)    │   │  Functions   │   │
-│   │ • Email    │   │              │   │              │   │              │   │
-│   │ • Google   │   │ • users      │   │ • repair-    │   │ • /analyze   │   │
-│   │ • Apple    │   │ • repairs    │   │   images     │   │ • /plan      │   │
-│   │ • JWT/RLS  │   │ • diagnoses  │   │ • guide-     │   │ • /history   │   │
-│   │            │   │ • guides     │   │   assets     │   │ • /feedback  │   │
-│   │            │   │ • ratings    │   │              │   │              │   │
-│   │            │   │ • tools      │   │              │   │              │   │
-│   └────────────┘   └──────────────┘   └─────────────┘   └──────┬───────┘   │
-│                                                                 │           │
-└─────────────────────────────────────────────────────────────────┼───────────┘
-                                                                  │
-                                                                  ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                             AWS CLOUD                                        │
-│                                                                              │
-│   ┌──────────────────┐   ┌───────────────────┐   ┌──────────────────────┐   │
-│   │   AWS Bedrock     │   │   AWS Lambda       │   │   AWS SQS            │   │
-│   │                  │   │                   │   │   (Message Queue)     │   │
-│   │ • Claude Sonnet  │   │ • Image resize    │   │                      │   │
-│   │   (Vision AI)    │   │ • Batch analysis  │   │ • Async image jobs   │   │
-│   │ • Claude Haiku   │   │ • Notification    │   │ • Notification queue  │   │
-│   │   (Repair Plans) │   │   dispatcher      │   │ • Analytics events   │   │
-│   │ • Titan Embed    │   │ • Analytics agg.  │   │                      │   │
-│   │   (Embeddings)   │   │                   │   │                      │   │
-│   └──────────────────┘   └───────────────────┘   └──────────────────────┘   │
-│                                                                              │
-│   ┌──────────────────┐   ┌───────────────────┐   ┌──────────────────────┐   │
-│   │   AWS S3          │   │  AWS CloudWatch    │   │   AWS SES + SNS      │   │
-│   │                  │   │                   │   │                      │   │
-│   │ • Image archive  │   │ • API metrics     │   │ • Email (SES)        │   │
-│   │ • Model artifacts│   │ • Error alerts    │   │ • Push notifs (SNS)  │   │
-│   │ • Backup storage │   │ • Cost dashboards │   │ • SMS alerts         │   │
-│   └──────────────────┘   └───────────────────┘   └──────────────────────┘   │
-│                                                                              │
-│   ┌──────────────────┐   ┌───────────────────┐                              │
-│   │ Secrets Manager   │   │  API Gateway       │                              │
-│   │                  │   │                   │                              │
-│   │ • Anthropic key  │   │ • Rate limiting   │                              │
-│   │ • Supabase keys  │   │ • Throttling      │                              │
-│   │ • Service creds  │   │ • API key auth    │                              │
-│   └──────────────────┘   └───────────────────┘                              │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
-
-### AI Diagnosis Pipeline
-
-```
-User Device                  Supabase                         AWS
-───────────                  ────────                         ───
-
-1. Capture photo
-   ──────────────────────►  2. Upload to Storage
-                               (repair-images bucket)
-                                       │
-                            3. Edge Function: /analyze
-                               • Validate auth (JWT)
-                               • Check rate limits
-                               • Generate signed URL
-                                       │
-                                       ├──────────────────►  4. Lambda: preprocess
-                                       │                        • Resize to 1280px
-                                       │                        • Strip EXIF metadata
-                                       │                        • Optimize quality
-                                       │                              │
-                                       │                     5. Bedrock: Claude Sonnet
-                                       │                        • Vision analysis
-                                       │                        • Structured JSON output
-                                       │                        • Confidence scoring
-                                       │                              │
-                            6. Store diagnosis ◄─────────────────────┘
-                               (PostgreSQL)
-                                       │
-                            7. Edge Function: /plan
-                               ──────────────────────►  8. Bedrock: Claude Haiku
-                                                           • Generate repair steps
-                                                           • Safety warnings
-                                                           • Tool requirements
-                                                           • AR overlay zones
-                                                                  │
-                            9. Store plan ◄────────────────────────┘
-                               (PostgreSQL)
-                                       │
-10. Receive results  ◄────────────────┘
-    (via Supabase Realtime)
-```
-
-### Security Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   SECURITY LAYERS                    │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  ┌─── Client ───────────────────────────────────┐   │
-│  │ • No API keys in bundle                      │   │
-│  │ • Supabase anon key only (RLS protected)     │   │
-│  │ • HTTPS enforced                             │   │
-│  │ • CSP headers                                │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                     │
-│  ┌─── Supabase ─────────────────────────────────┐   │
-│  │ • Row Level Security (RLS) on all tables     │   │
-│  │ • JWT verification on Edge Functions         │   │
-│  │ • Storage policies (user-scoped buckets)     │   │
-│  │ • Rate limiting per user                     │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                     │
-│  ┌─── AWS ──────────────────────────────────────┐   │
-│  │ • Secrets Manager for all API keys           │   │
-│  │ • IAM roles with least-privilege             │   │
-│  │ • VPC for Lambda ↔ Bedrock                   │   │
-│  │ • API Gateway throttling                     │   │
-│  │ • CloudTrail audit logging                   │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-## Database Schema
-
-### Supabase PostgreSQL
-
-```sql
--- Users (extends Supabase Auth)
-CREATE TABLE profiles (
-  id            UUID PRIMARY KEY REFERENCES auth.users(id),
-  display_name  TEXT,
-  avatar_url    TEXT,
-  locale        TEXT DEFAULT 'en',
-  created_at    TIMESTAMPTZ DEFAULT now(),
-  updated_at    TIMESTAMPTZ DEFAULT now()
-);
-
--- Repair sessions
-CREATE TABLE repairs (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  status        TEXT CHECK (status IN ('scanning','diagnosed','repairing','completed','abandoned'))
-                DEFAULT 'scanning',
-  image_path    TEXT,                    -- Supabase Storage path
-  created_at    TIMESTAMPTZ DEFAULT now(),
-  completed_at  TIMESTAMPTZ
-);
-
--- AI diagnosis results
-CREATE TABLE diagnoses (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  repair_id         UUID REFERENCES repairs(id) ON DELETE CASCADE,
-  issue_name        TEXT NOT NULL,
-  confidence        SMALLINT CHECK (confidence BETWEEN 0 AND 100),
-  summary           TEXT,
-  severity          TEXT CHECK (severity IN ('low','medium','high')),
-  recommended_fix   TEXT,
-  recommended_tools TEXT[],
-  safety_warning    TEXT,
-  explanation       TEXT,
-  model_version     TEXT,                -- e.g., 'claude-sonnet-4-20250514'
-  latency_ms        INT,
-  created_at        TIMESTAMPTZ DEFAULT now()
-);
-
--- Generated repair plans
-CREATE TABLE repair_plans (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  diagnosis_id  UUID REFERENCES diagnoses(id) ON DELETE CASCADE,
-  steps         JSONB NOT NULL,          -- Array of RepairStep objects
-  safety_warnings TEXT[],
-  tools         JSONB NOT NULL,          -- Array of Tool objects
-  model_version TEXT,
-  created_at    TIMESTAMPTZ DEFAULT now()
-);
-
--- User ratings & feedback
-CREATE TABLE ratings (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  repair_id     UUID REFERENCES repairs(id) ON DELETE CASCADE,
-  user_id       UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  stars         SMALLINT CHECK (stars BETWEEN 1 AND 5),
-  comment       TEXT,
-  created_at    TIMESTAMPTZ DEFAULT now()
-);
-
--- User tool inventory
-CREATE TABLE user_tools (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  tool_name     TEXT NOT NULL,
-  category      TEXT,
-  owned         BOOLEAN DEFAULT true,
-  created_at    TIMESTAMPTZ DEFAULT now()
-);
-
--- Row Level Security
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE repairs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE diagnoses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ratings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_tools ENABLE ROW LEVEL SECURITY;
-
--- Users can only access their own data
-CREATE POLICY "Users read own profile"   ON profiles   FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users update own profile" ON profiles   FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Users read own repairs"   ON repairs    FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users insert own repairs" ON repairs    FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users read own ratings"   ON ratings    FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users insert own ratings" ON ratings    FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users manage own tools"   ON user_tools FOR ALL    USING (auth.uid() = user_id);
-```
-
-### Storage Buckets
-
-| Bucket | Access | Policy |
-|--------|--------|--------|
-| `repair-images` | Private | User can upload/read their own files only |
-| `guide-assets` | Public | Read-only for all; admin-write for AR overlay images |
-
----
-
-## API Reference
-
-### Supabase Edge Functions
-
-#### `POST /functions/v1/analyze-image`
-
-Uploads an image and problem description to the authenticated Supabase Edge Function. Gemini API credentials remain server-side.
-
-```json
-// Request
-{
-  "imageBase64": "<base64-encoded-image>",
-  "mediaType": "image/jpeg",
-  "description": "The outlet sparks when I plug in the lamp."
-}
-
-// Response (200)
-{
-  "issueName": "Potential household safety hazard",
-  "confidence": 95,
-  "summary": "A potentially dangerous household condition was reported or detected. Do not attempt a DIY repair.",
-  "severity": "high",
-  "recommendedFix": "Do not attempt a DIY repair. Contact a qualified professional.",
-  "recommendedTools": [],
-  "nextStepAdvice": "Stay away and do not touch the wires or equipment...",
-  "safetyWarning": "Stay away and do not touch the wires or equipment...",
-  "explanation": "Safety Stop: DIY repair guidance is blocked because this condition may cause serious harm.",
-  "safetyStop": true
-}
-```
-
-#### `POST /functions/v1/plan`
-
-Generates a step-by-step repair plan from a diagnosis.
-
-```json
-// Request
-{
-  "diagnosisId": "uuid"
-}
-
-// Response (200)
-{
-  "planId": "uuid",
-  "steps": [
-    {
-      "id": "prep-1",
-      "title": "Prepare workspace",
-      "instruction": "Clear the area and lay out tools...",
-      "safetyNote": "Disconnect power at the breaker.",
-      "requiresConfirmation": true,
-      "visualCue": "box",
-      "estimatedSeconds": 120
-    }
-  ],
-  "safetyWarnings": ["Disconnect power before disassembly."],
-  "tools": [
-    { "name": "Phillips screwdriver", "icon": "screwdriver", "optional": false }
-  ]
-}
-```
-
-#### `GET /functions/v1/history`
-
-Returns paginated repair history for the authenticated user.
-
-```json
-// Response (200)
-{
-  "repairs": [
-    {
-      "id": "uuid",
-      "status": "completed",
-      "diagnosis": { ... },
-      "moneySaved": 95,
-      "completedAt": "2026-05-27T12:00:00Z"
-    }
-  ],
-  "total": 12,
-  "page": 1
-}
-```
-
-#### `POST /functions/v1/feedback`
-
-Submits a rating and optional comment for a completed repair.
-
-```json
-// Request
-{
-  "repairId": "uuid",
-  "stars": 5,
-  "comment": "AR arrows were super helpful!"
-}
-```
-
----
-
-## User Flow
-
-```
- ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
- │          │     │          │     │          │     │          │     │          │     │          │
- │ Landing  │────▶│ Capture  │────▶│Diagnosis │────▶│  Tools   │────▶│  Guide   │────▶│   Done   │
- │   /      │     │ /capture │     │/diagnosis│     │  /tools  │     │  /guide  │     │   /done  │
- │          │     │          │     │          │     │          │     │          │     │          │
- └──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘     └──────────┘
-                   Camera or                         Interactive      AR overlays      Savings +
-                   Photo upload     AI confidence     checklist +      + voice          share +
-                                    + risk level      safety gates     commands         rating
-```
-
-| Route | Page | Description |
-|-------|------|-------------|
-| `/` | Landing | Marketing page with features, testimonials, stats, CTA |
-| `/capture` | Camera Capture | Live camera feed or photo upload with AR scan overlay |
-| `/diagnosis` | AI Diagnosis | Issue name, confidence meter, severity, recommended fix |
-| `/tools` | Tool Checklist | Interactive checklist with safety tool acknowledgment |
-| `/guide` | AR Repair Guide | Step-by-step instructions with AR overlays + voice control |
-| `/done` | Completion | Animated celebration, savings metrics, share, rating |
-
----
-
-## Project Structure
-
-```
-fixaura/
-├── public/                      # Static assets (logo, favicon, icons)
-├── src/
-│   ├── main.tsx                 # React root render
-│   ├── App.tsx                  # Router + AnimatePresence + locale sync
-│   ├── index.css                # Tailwind @theme tokens + keyframes + utilities
-│   ├── vite-env.d.ts            # Env types + SpeechRecognition globals
-│   │
-│   ├── Pages/
-│   │   ├── Landing.tsx          # Marketing landing page
-│   │   ├── CameraCapture.tsx    # Camera access + photo upload + AI analysis
-│   │   ├── Diagnosis.tsx        # AI diagnosis results display
-│   │   ├── ToolChecklist.tsx    # Pre-repair tool checklist
-│   │   ├── RepairGuide.tsx      # Step-by-step AR-guided repair
-│   │   └── Completion.tsx       # Success screen with metrics
-│   │
-│   ├── components/
-│   │   ├── AROverlay.tsx        # AR zone overlay (capture + guide modes)
-│   │   ├── CameraDiagnostics.tsx# Camera hardware debug panel
-│   │   ├── ConfidenceMeter.tsx  # Animated circular SVG gauge
-│   │   ├── FallbackMode.tsx     # Low-confidence warning with retake option
-│   │   ├── LanguageToggle.tsx   # EN ↔ HI language switcher
-│   │   ├── PageShell.tsx        # Page layout wrapper with transitions
-│   │   ├── SafetyBubble.tsx     # Safety confirmation modal
-│   │   ├── StepTimeline.tsx     # Vertical step progress indicator
-│   │   └── VoiceInput.tsx       # Web Speech API voice commands
-│   │
-│   ├── services/
-│   │   ├── visionAI.ts          # AI image analysis (Bedrock proxy / mock fallback)
-│   │   ├── repairPlanner.ts     # Repair plan generator
-│   │   └── repairSession.ts     # Session state management
-│   │
-│   ├── types/
-│   │   └── repair.ts            # DiagnosisResult, RepairStep, RepairSession types
-│   │
-│   └── i18n/
-│       ├── index.ts             # Custom i18n: t(), locale store, pub/sub
-│       ├── en.json              # English translations
-│       └── hi.json              # Hindi translations
-│
-├── supabase/                    # Supabase project config (future)
-│   ├── migrations/              # SQL migration files
-│   ├── functions/               # Deno edge functions
-│   │   ├── analyze/index.ts     # AI diagnosis proxy
-│   │   ├── plan/index.ts        # Repair plan generator
-│   │   ├── history/index.ts     # Repair history API
-│   │   └── feedback/index.ts    # Rating submission
-│   └── config.toml              # Supabase project config
-│
-├── infra/                       # AWS infrastructure (future)
-│   ├── template.yaml            # SAM / CloudFormation template
-│   ├── lambda/                  # Lambda function code
-│   │   ├── preprocess/          # Image resize + optimize
-│   │   └── notify/              # Notification dispatcher
-│   └── bedrock/                 # Bedrock model configs + prompts
-│
-├── tailwind.config.js           # Tailwind v4 theme
-├── vite.config.ts               # Vite + React + Tailwind + @ alias
-├── vercel.json                  # Vercel: SPA rewrites + Permissions-Policy
-├── tsconfig.json                # TypeScript config
-└── package.json                 # Dependencies + scripts
-```
-
----
-
-## Design System
-
-### Color Palette (Dark Theme)
-
-| Token | Hex | Preview | Usage |
-|-------|-----|---------|-------|
-| `background` | `#041329` | 🟫 | Page background — deep navy |
-| `surface` | `#112036` | 🟫 | Card and panel backgrounds |
-| `surface-high` | `#1C2A41` | 🟫 | Elevated surfaces |
-| `primary` | `#00F5D4` | 🟩 | CTAs, glows, accent highlights |
-| `primary-light` | `#80F7E0` | 🟩 | Soft highlights |
-| `text-primary` | `#D6E3FF` | 🔵 | Main body text |
-| `text-secondary` | `#B9CAC4` | ⬜ | Muted text |
-| `warning` | `#FFD43B` | 🟨 | Safety warnings |
-| `error` | `#FFB4AB` | 🟥 | Error states |
-| `success` | `#51CF66` | 🟩 | Completion / success |
-
-### Typography
-
-- **Font**: [Inter](https://fonts.google.com/specimen/Inter) — weights 400, 600, 700, 800
-- Fluid type scale using `clamp()` for responsive sizing
-
-### Animations
-
-| Animation | Duration | Usage |
-|-----------|----------|-------|
-| `fadeIn` | 0.4s | General content reveal |
-| `slideUp` | 0.4s | Cards appearing from below |
-| `scaleIn` | 0.4s | Modal / dialog entrance |
-| `pulse-glow` | 2s ∞ | Capture button glow |
-| `float` | 4s ∞ | Floating elements |
-| `shimmer` | 1.5s ∞ | Loading skeleton |
-
----
-
-## i18n (Internationalization)
-
-Custom lightweight system — no external library.
-
-| Language | File | Status |
-|----------|------|--------|
-| English | `src/i18n/en.json` | ✅ Complete |
-| Hindi | `src/i18n/hi.json` | ✅ Complete |
-
-**Usage:**
-```tsx
-import { t } from '../i18n'
-
-// Dot-notation key lookup
-<h1>{t('landing.headline')}</h1>
-
-// Locale persisted to localStorage
-import { setLocale, getLocale } from '../i18n'
-setLocale('hi')  // Switch to Hindi
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** ≥ 18
-- **npm** ≥ 9
-
-### Local Development
+## What it does today
+
+This list describes what the code in this repository does now.
+
+- **Photo and description diagnosis.** A signed-in user takes or uploads a photo (JPEG, PNG or WebP) and describes the problem (10 to 500 characters). The image is sent to the `analyze-image` Supabase Edge Function, which calls Gemini and returns a diagnosis. The result is AI-generated and can be wrong.
+- **Risk first.** Every result gets a risk decision (safe, caution, professional, emergency). Professional and emergency results are blocked: no tools, no steps, and a panel that points to nearby help (and to `112` for emergencies).
+- **Follow-up screen states.** The diagnosis screen can show follow-up questions, but only when the backend sends them. No backend sends them today (see limitations).
+- **Saved repairs.** For signed-in users the diagnosis and a repair session are saved to Supabase. `/history` lists repairs and `/diagnosis?session=<id>` reopens one from the database. Photos are stored in a private storage bucket and removed when the repair is deleted.
+- **Nearby help.** `/nearby-shops` looks up repair and parts shops in OpenStreetMap data (Overpass) after the user presses a button and allows location. It can also open a Google Maps search for a typed city or area.
+- **Accounts.** Email and password, and Google sign-in, through Supabase Auth.
+- **English and Hindi**, switchable at any time, with keyboard, screen-reader and small-screen support (see [docs/v09-i18n-coverage.md](docs/v09-i18n-coverage.md)).
+- **Assistant widget** for signed-in users. Replies are local demo replies written in the app and are labelled as such. There is no AI backend behind it.
+
+## Limitations and things that do not exist
+
+Read this before relying on a feature. Items marked "not implemented" are **not** in this repository.
+
+| Area | Current state |
+|------|---------------|
+| Guided repair (`/tools`, `/guide`) | **Closed on purpose.** It opens only for a reviewed, approved template. The approved-template list is empty, so every live result shows a "not available" panel with no checklist and no steps. |
+| Before/after photo comparison (`/verify`) | **No comparison service exists.** The screen collects the photos, but pressing Compare sends nothing and shows "not available". It never says a repair worked. "Finish steps" only records that the user marked the steps finished. |
+| Follow-up questions | The client code is ready, but the `analyze-image` function has no follow-up mode. They appear only with dev fixtures. |
+| Observation / verify modes of `analyze-image` | Not implemented in the function. The function accepts a photo and a description only. |
+| AI assistant | Not implemented. Replies are local demo replies (`mockMode`). |
+| Cost estimates | The older README had cost tables. They were not based on this code and were removed. |
+| AWS (Bedrock, S3, SQS, Lambda, CloudFront, SES, SNS, Secrets Manager) | **Not implemented.** No AWS code or infrastructure files are in this repository. |
+| Apple sign-in | Not implemented. |
+| Extra edge functions (`plan`, `history`, `feedback`) | Not implemented. Only `analyze-image` exists. |
+| Offline use / PWA | Not implemented. |
+| Shop data | Community map data. It can be incomplete or out of date and is not verified by HomeGenie. |
+| Voice | Uses the browser's speech recognition where available. Support varies by browser. Voice commands on the repair guide are matched in English only. Every action also works with buttons. |
+| Tests | Characterization tests exist for routing, locale parity, V05, V07, V08, danger gates and service helpers. There are no end-to-end tests and the camera, microphone and database save flows are not covered. |
+| Deployed header | `vercel.json` sets `Permissions-Policy: microphone=()`. Whether voice input works in a deployed build with that header has not been checked. |
+
+## Tech stack
+
+| Technology | Version (see `package.json`) | Use |
+|-----------|------------------------------|-----|
+| React | 19 | UI, lazy-loaded routes |
+| TypeScript | 6 | Types (the app config is not in `strict` mode yet) |
+| Vite | 8 | Dev server and build |
+| Tailwind CSS | 4 | Styling with `@theme` tokens in `src/index.css` |
+| Framer Motion | 12 | Transitions (respects reduced motion) |
+| React Router | 7 | Routing |
+| `@supabase/supabase-js` | 2 | Auth, database, storage and edge function calls |
+| Lucide React | 1 | Icons |
+| `react-intersection-observer` | 10 | Landing page reveal animations |
+| Vitest, jsdom, Testing Library | dev only | Tests |
+
+`lottie-react` and `react-countup` are listed in `package.json` but are not imported by any source file.
+
+Backend: Supabase (Auth, Postgres, Storage, Edge Functions on Deno). AI: Google Gemini, called only from the edge function (default model name is set in `supabase/functions/analyze-image/index.ts` and can be overridden with `GEMINI_MODEL`).
+
+## Getting started
+
+Requirements: Node.js and npm (developed with Node 24; use a Node version supported by Vite 8) and a Supabase project.
 
 ```bash
-# Clone the repo
-git clone https://github.com/Vidhigarg19/fixaura.git
-cd fixaura/fixaura
-
-# Install dependencies
+git clone <your repository URL>
+cd FixAura
 npm install
 
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your Supabase project settings (optional — app works with mock data)
+# Create your local env file (git-ignored) and fill in your own Supabase values
+cp .env.example .env.local        # PowerShell: Copy-Item .env.example .env.local
 
-# Start dev server
-npm run dev
+npm run dev                       # http://localhost:5173
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+The app **cannot start without** `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`: `src/lib/supabase.ts` throws at load. There is no mock-data mode.
 
-### Environment Variables
+Camera access needs HTTPS or `localhost`.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_SUPABASE_URL` | No* | Supabase project URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | No* | Supabase publishable key (safe for client — protected by RLS) |
+## Scripts
 
-*\*Required for Supabase-backed features such as authentication, diagnosis, and repair history.*
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` | Vite dev server (opens the browser). |
+| `npm run build` | `tsc -b` (type check) then `vite build`. Output goes to `dist/`. |
+| `npm run preview` | Serves the production build locally. |
+| `npm run lint` | ESLint over the whole repository. |
+| `npm test` | Runs the Vitest suite once (`vitest run`). |
+| `npm run test:watch` | Vitest in watch mode. |
+| `npm run typecheck:tests` | Type-checks the tests (`tsconfig.test.json`). Not part of `npm run build`. |
 
-Image diagnosis uses the `gemini-3.1-flash-lite` model through the `analyze-image` Supabase Edge Function. Set `GEMINI_API_KEY` as a Supabase Function secret; never add it to frontend environment variables. Without the function or secret, diagnosis returns an error rather than mock AI results.
+Scripts in `scripts/` (`s01` to `s04`) are evidence and tooling for the backend work. They are not wired to npm scripts. Their headers say how to run them (`npx tsx scripts/<file>.ts`); `tsx` is not a project dependency.
 
-### Build for Production
+## Environment variables
+
+Names and safe placeholders only. Real values live in your own `.env.local` (git-ignored), in Vercel project settings, or in Supabase secrets. Never commit them.
+
+**Browser (Vite). These are bundled into the page, so never put a secret in a `VITE_` variable.**
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `VITE_SUPABASE_URL` | Yes | Your Supabase project URL. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Yes | The publishable (client-safe) key. Row-level security protects the data. |
+| `VITE_ENABLE_FIXTURES` | No | Development only. `true` allows `?fixture=<name>` test data in a dev build. Has no effect in a production build. Keep `false` otherwise. |
+
+**Supabase Edge Function secrets** (set with `supabase secrets set NAME=value`, never in the browser): `GEMINI_API_KEY` (required), `GEMINI_MODEL`, `ANALYSIS_TIMEOUT_MS`, `ANALYSIS_USER_PER_MINUTE_LIMIT`, `ANALYSIS_USER_DAILY_LIMIT`, `ANALYSIS_GLOBAL_DAILY_LIMIT`. Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` itself. Defaults and limits: [docs/analysis-env.md](docs/analysis-env.md).
+
+**Scripts only:** `EVAL_EMAIL`, `EVAL_PASSWORD`, `EVAL_DELAY_MS` (`scripts/s02-eval.ts`) and `S04_EMAIL`, `S04_PASSWORD` (`scripts/s04-auth-probe.ts`). Use dedicated test accounts.
+
+## Routes
+
+Defined in `src/App.tsx`. Routes must not be renamed or removed without a decision.
+
+| Path | Page | Access |
+|------|------|--------|
+| `/` | Landing | Public |
+| `/login`, `/signup` | Sign in / sign up | Guests only (a signed-in user is redirected on) |
+| `/auth` | Redirects to `/login` | Public |
+| `/capture`, `/camera` | Photo and description (same page) | Public page, but analysis needs sign-in |
+| `/diagnosis` | Diagnosis result (also `?session=<id>`) | Public route, needs a valid session |
+| `/tools`, `/guide` | Guided repair | Public route; shows the "not available" panel today |
+| `/verify` | Before/after screen | Public route; comparison unavailable |
+| `/completed` | Steps-finished screen | Public route |
+| `/dashboard`, `/history`, `/diagnosis-history` | Account pages | Signed-in only |
+| `/nearby-shops` | Nearby help | Signed-in only, and needs a valid diagnosis session (otherwise `/dashboard`) |
+| `*` | Redirects to `/` | Public |
+
+## Architecture and folder conventions
+
+Full detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Naming and coding rules: [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
+
+```
+src/
+├── main.tsx, App.tsx          Entry, router, route guards, providers
+├── index.css                  Tailwind tokens, keyframes, Hindi and skip-link rules
+├── Pages/                     One file per route (screens)
+├── components/                Shared UI, providers/contexts, one focus hook
+├── services/                  Supabase, edge function and network access, session logic
+├── utils/                     Pure logic (risk, validation, state machines) and two hooks
+├── lib/                       Supabase client, safety text policy, startup health check
+├── types/                     Shared types
+├── i18n/                      t(), en.json, hi.json
+└── dev/                       Development-only fixtures (never in a production build)
+supabase/                      Edge function (analyze-image), migrations, audit SQL
+scripts/                       Backend evidence and tooling (not part of the app)
+tests/                         Vitest characterization tests and mocks
+docs/                          Architecture, conventions and evidence reports
+```
+
+Boundaries in one line each: pages compose and render; components render; services talk to the outside world; utils are pure; types hold shapes; `t()` is the only source of user-facing text. Some current files do not follow this yet; the architecture document lists where.
+
+## Safety restrictions
+
+These are deliberate and must keep working. Details and file references are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#safety-restrictions).
+
+- **Danger gates:** the most severe risk signal always wins and a blocked result can never be lowered. Dangerous wording in a description or answer escalates the result. The same text policy runs in the browser and in the edge function.
+- **V05, guide restriction:** no checklist or repair steps unless a reviewed, approved template exists. Generated steps are never shown or saved.
+- **V07, honest comparison:** a photo comparison cannot confirm that a repair worked, so none is run and no success wording is used.
+- **V08, nearby help:** failures and empty results are stated plainly, shop data is labelled unverified, and maps are an external handoff.
+
+## Backend (Supabase)
+
+- **Edge function** `supabase/functions/analyze-image` (Deno). It checks the signed-in user, applies per-user and global quotas, calls Gemini with a timeout, validates the answer, and applies the safety gate. Request: `{ imageBase64, mediaType?, description }`. Response: `{ ok: true, data }` or `{ ok: false, error: { code, retryable, retryAfterSeconds? } }`. It has no `verify`, `follow_up` or observation mode.
+- **Migrations** in `supabase/migrations/` (SQL). The client reads and writes: `appliances`, `diagnoses`, `repair_sessions`, `repair_step_progress`, `chat_messages`, `completed_repairs`, `repair_observations`, the storage bucket `repair-private-media`, and the quota function used by the edge function. Whether a given Supabase project has all migrations applied is checked with the S03 tooling, not by this README; see [docs/schema-comparison.md](docs/schema-comparison.md).
+- **Do not change** the function contract, table or column names, or migrations as part of front-end or documentation work.
+
+## Testing
 
 ```bash
-npm run build     # TypeScript check + Vite production build
-npm run preview   # Preview production build locally
+npm test                  # 7 test files, runs once
+npm run test:watch
+npm run typecheck:tests
 ```
 
----
+The tests describe how the app behaves **today** (routing, locale parity, V05, V07, V08, danger gates, service helpers). They use stand-ins for Supabase, edge functions, geolocation, media and `fetch`, and any real network request fails the test. They load no `.env` files. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing) for mock rules and what is not covered.
+
+## Languages (i18n)
+
+A small built-in system, no external library. `src/i18n/en.json` and `src/i18n/hi.json` must keep **identical keys** (currently 616 each) and the same `{placeholders}`; a test enforces this. Always use `t('group.key')`. The chosen language is stored in the browser and `<html lang>` follows it.
+
+```tsx
+import { t } from '../i18n'
+<h1>{t('dashboard.title')}</h1>
+```
+
+Hindi safety wording is listed in [docs/v09-i18n-coverage.md](docs/v09-i18n-coverage.md) for human review.
+
+## Design tokens
+
+Defined in `src/index.css` (`@theme`). Dark theme.
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `background` | `#041329` | Page background |
+| `surface` / `surface-high` | `#112036` / `#1c2a41` | Cards and raised panels |
+| `primary` | `#00f5d4` | Main actions and accents |
+| `text-primary` / `text-secondary` | `#d6e3ff` / `#b9cac4` | Text |
+| `warning` / `error` / `success` | `#ffd43b` / `#ffb4ab` / `#51cf66` | States (never colour alone) |
+
+Fonts: Inter, plus Noto Sans Devanagari for Hindi (loaded from Google Fonts in `index.html`). Animations respect the reduced-motion setting.
+
+## Camera troubleshooting
+
+Camera access needs **HTTPS** (or `localhost`) and the user's permission. If the camera is unavailable, the user can upload a photo instead.
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `NotAllowedError` | Permission denied | Allow the camera in the browser's site settings |
+| `NotFoundError` | No camera | Use a device with a camera or upload a photo |
+| `NotReadableError` | Camera in use | Close other apps using the camera |
+| `SecurityError` | Not HTTPS | Open the site over `https://` |
+
+More notes: [CAMERA_TROUBLESHOOTING.md](CAMERA_TROUBLESHOOTING.md). The other root-level notes (`BLACK_SCREEN_FIX.md`, `CAMERA_FIX_SUMMARY.md`, `CAMERA_PERMISSION_FIX.md`, `QUICK_FIX_GUIDE.md`, `DEPLOYMENT_CHECKLIST.md`) are earlier working notes and have not been re-checked against the current code.
 
 ## Deployment
 
-### Vercel (Frontend)
+- **Frontend:** built for Vercel. `vercel.json` rewrites all paths to `index.html` (single-page app) and sets `Permissions-Policy` and `X-Content-Type-Options` headers. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in the Vercel project settings. Do not set `VITE_ENABLE_FIXTURES` to `true` there.
+- **Backend:** with the Supabase CLI, `supabase link`, `supabase db push` for migrations (review [docs/migration-approval.md](docs/migration-approval.md) first), set the function secrets, then `supabase functions deploy analyze-image`.
+- No other deployment targets exist in this repository.
 
-1. Push code to GitHub
-2. Import project in [Vercel](https://vercel.com)
-3. Set environment variables in Vercel dashboard
-4. Deploy — Vercel auto-provides HTTPS (required for camera)
+## Documentation index
 
-### Supabase (Backend)
+| Document | Content |
+|----------|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, boundaries, state, safety restrictions, backend contract, testing |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | Naming, errors, state and API rules |
+| [docs/analysis-env.md](docs/analysis-env.md) | Edge function secret names and defaults |
+| [docs/v09-i18n-coverage.md](docs/v09-i18n-coverage.md) | Locale coverage and Hindi safety strings |
+| [docs/v09-device-accessibility-checklist.md](docs/v09-device-accessibility-checklist.md) | Manual device and accessibility checks |
+| `docs/S01` to `docs/S04`, `docs/schema*`, `docs/rls-test-evidence.md`, `docs/provider-evaluation.md`, `docs/migration-approval.md` | Backend evidence reports |
 
-```bash
-# Install Supabase CLI
-npm install -g supabase
+## Contributing and license
 
-# Link to your project
-supabase link --project-ref <your-project-ref>
-
-# Run migrations
-supabase db push
-
-# Deploy edge functions
-supabase functions deploy analyze-image
-supabase functions deploy plan
-supabase functions deploy history
-supabase functions deploy feedback
-```
-
-### AWS (Infrastructure)
-
-```bash
-# Deploy with SAM CLI
-cd infra/
-sam build
-sam deploy --guided
-
-# Required AWS services:
-# • Bedrock (Claude model access enabled)
-# • S3 bucket for image archival
-# • Lambda + SQS for async processing
-# • CloudWatch for monitoring
-# • Secrets Manager for API keys
-# • SES for transactional emails (verified domain required)
-```
-
----
-
-## Camera Troubleshooting
-
-Camera access requires **HTTPS** and **user permission**.
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `NotAllowedError` | Permission denied | Click 🔒 in address bar → Allow camera |
-| `NotFoundError` | No camera detected | Use a device with a camera or upload a photo |
-| `NotReadableError` | Camera in use | Close other apps using the camera |
-| `SecurityError` | Not HTTPS | Access via `https://` (Vercel provides this) |
-| Black screen | Stream not attached | Refresh the page; check browser version |
-
-> **Fallback**: If camera is unavailable, the app provides an "Upload a Photo Instead" button for full functionality without camera access.
-
-See [`CAMERA_TROUBLESHOOTING.md`](CAMERA_TROUBLESHOOTING.md) for detailed debugging steps.
-
----
-
-## Cost Estimation
-
-### Supabase (Free Tier Covers MVP)
-
-| Resource | Free Tier | Estimated Usage |
-|----------|-----------|-----------------|
-| Database | 500 MB | ~10K repairs |
-| Auth | 50K MAU | Sufficient for launch |
-| Storage | 1 GB | ~5K images |
-| Edge Functions | 500K invocations/mo | ~160K repairs/mo |
-
-### AWS (Pay-Per-Use)
-
-| Service | Cost | Per |
-|---------|------|-----|
-| Bedrock (Claude Sonnet) | ~$0.003 | per diagnosis (input image + output) |
-| Bedrock (Claude Haiku) | ~$0.0003 | per repair plan generation |
-| Lambda | ~$0.20 | per 1M invocations |
-| S3 | ~$0.023 | per GB/month |
-| SQS | Free | first 1M requests/month |
-| CloudFront | ~$0.085 | per GB transferred |
-
-**Estimated cost for 10K repairs/month: ~$35–50**
-
----
-
-## Roadmap
-
-- [x] AI vision diagnosis with Claude
-- [x] AR-guided repair steps
-- [x] Voice command navigation
-- [x] Multilingual support (EN/HI)
-- [x] Image upload fallback
-- [ ] Supabase Auth integration
-- [ ] Persistent repair history
-- [ ] User tool inventory
-- [ ] Community repair templates
-- [ ] PWA with offline support
-- [ ] Additional languages (ES, FR, DE)
-- [ ] Fine-tuned repair classification model
-- [ ] Video-based repair analysis
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## License
+Work on a branch, keep `npm run build`, `npm run lint`, `npm test` and `npm run typecheck:tests` passing, and follow [docs/CONVENTIONS.md](docs/CONVENTIONS.md). Do not change safety behavior, routes, storage keys or backend contracts without agreeing it first.
 
 This project is private. All rights reserved.
-
----
-
-<p align="center">
-  <strong>HomeGenie</strong> — Your home our intelligence<br/>
-  Built with ❤️ using React, Supabase, and AWS
-</p>
