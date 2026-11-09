@@ -1,6 +1,8 @@
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+import { env } from '../config/env';
+
+const supabaseUrl = env.supabaseUrl;
+const publishableKey = env.supabasePublishableKey;
 
 export async function testSupabaseConnection() {
   console.log('Supabase test function started');

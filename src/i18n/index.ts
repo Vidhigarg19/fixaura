@@ -1,3 +1,4 @@
+import { LOCALE_STORAGE_KEY } from '../config/storageKeys'
 import en from './en.json'
 import hi from './hi.json'
 
@@ -7,7 +8,7 @@ const catalogs: Record<Locale, Messages> = { en, hi }
 
 let currentLocale: Locale =
   (typeof localStorage !== 'undefined' &&
-    (localStorage.getItem('fixaura-locale') as Locale)) ||
+    (localStorage.getItem(LOCALE_STORAGE_KEY) as Locale)) ||
   'en'
 
 const localeListeners = new Set<() => void>()
@@ -75,7 +76,7 @@ export function setLocale(locale: Locale) {
   currentLocale = locale
   applyDocumentLang(locale)
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('fixaura-locale', locale)
+    localStorage.setItem(LOCALE_STORAGE_KEY, locale)
   }
   localeListeners.forEach((l) => l())
 }

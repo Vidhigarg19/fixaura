@@ -1,4 +1,5 @@
 // Pure validation helpers for the capture page (no DOM, easy to test).
+import { MAX_DESCRIPTION_LENGTH } from '../config/limits'
 
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export const MAX_INPUT_BYTES = 10 * 1024 * 1024
@@ -10,7 +11,7 @@ export const JPEG_QUALITY = 0.85
 export const MAX_PIXELS = 100_000_000
 
 export const MIN_DESCRIPTION_LENGTH = 10
-export const MAX_DESCRIPTION_LENGTH = 500
+export { MAX_DESCRIPTION_LENGTH }
 
 export type ImageProblem = 'empty' | 'type' | 'too_large' | 'decode'
 
