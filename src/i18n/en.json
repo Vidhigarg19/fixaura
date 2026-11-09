@@ -596,6 +596,27 @@
     "photoRequired": "Please capture or upload an after-repair photo first.",
     "unavailable": "Comparison is currently unavailable. No repair outcome has been confirmed."
   },
+  "observe": {
+    "resultTitle": "What we can observe",
+    "disclaimer": "This is only a visual observation of your photos. It does not confirm the repair is safe or complete.",
+    "limitationsTitle": "What this cannot tell us",
+    "warningsTitle": "Important cautions",
+    "safetyOverride": "A possible hazard means this cannot be treated as safe, no matter how it looks. Have a qualified professional check it.",
+    "status": {
+      "visible_change": "A visible change was observed",
+      "no_clear_change": "No clear change was observed",
+      "incomparable": "These photos can't be compared",
+      "insufficient_evidence": "Not enough to tell from these photos",
+      "professional_review": "A professional should check this"
+    },
+    "statusBody": {
+      "visible_change": "The photos show a visible difference. This does not confirm the underlying fault is fixed or safe.",
+      "no_clear_change": "The photos are comparable but show no clear difference.",
+      "incomparable": "The before and after photos show different views, or a before photo is missing, so they can't be compared.",
+      "insufficient_evidence": "Lighting, blur, or a missing result mean there isn't enough to judge the change.",
+      "professional_review": "Because of a possible hazard, a qualified professional should assess this before it is used."
+    }
+  },
   "blocked": {
     "titleProfessional": "Please don't repair this yourself",
     "titleEmergency": "This may be dangerous right now",

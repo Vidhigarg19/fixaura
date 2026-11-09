@@ -13,16 +13,18 @@
 
 import type {
   DiagnosisResult,
+  ObservationResult,
   RepairSession,
   RepairStatus,
   RepairStep,
 } from '../types/repair'
 import { supabase } from '../lib/supabase'
 import { isValidDiagnosisResult } from './repairSession'
+import { isObservationStatus, OBSERVATION_POLICY_VERSION } from '../utils/observationPolicy'
 
 // The columns the authoritative row carries. Mirrors expected-schema.json.
 const SESSION_SELECT =
-  'id, user_id, appliance_id, diagnosis_id, title, description, issue_name, diagnosis, steps, current_step, status, image_path, symptom_answers, created_at, updated_at, completed_at'
+  'id, user_id, appliance_id, diagnosis_id, title, description, issue_name, diagnosis, steps, current_step, status, image_path, symptom_answers, observation, created_at, updated_at, completed_at'
 
 interface RepairSessionRow {
   id?: string
@@ -38,6 +40,7 @@ interface RepairSessionRow {
   status?: string | null
   image_path?: string | null
   symptom_answers?: unknown
+  observation?: unknown
   created_at?: string | null
   updated_at?: string | null
   completed_at?: string | null
@@ -64,7 +67,7 @@ export type RehydrateResult =
       status: RepairStatus
       session: Pick<
         RepairSession,
-        'diagnosis' | 'description' | 'steps' | 'currentStep' | 'symptomAnswers'
+        'diagnosis' | 'description' | 'steps' | 'currentStep' | 'symptomAnswers' | 'observation'
       > & { imagePath: string | null }
       stepProgress: StepProgressEntry[]
     }
@@ -111,6 +114,33 @@ function toSymptomAnswers(value: unknown): SymptomAnswers | undefined {
     }
   }
   return Object.keys(out).length ? out : undefined
+}
+
+/**
+ * Defensive parse of the stored S08 observation jsonb. Drops malformed shapes
+ * entirely rather than surfacing a half-trusted result; in particular a stored
+ * object with an unknown status is ignored (never coerced to a positive state).
+ */
+function toObservation(value: unknown): ObservationResult | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const r = value as Record<string, unknown>
+  if (!isObservationStatus(r.status)) return undefined
+  if (typeof r.summary !== 'string' || typeof r.nextAdvice !== 'string') return undefined
+  const list = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  return {
+    status: r.status,
+    summary: r.summary,
+    limitations: list(r.limitations),
+    warnings: list(r.warnings),
+    nextAdvice: r.nextAdvice,
+    safetyOverride: r.safetyOverride === true,
+    policyVersion:
+      typeof r.policyVersion === 'string' && r.policyVersion.trim()
+        ? r.policyVersion
+        : OBSERVATION_POLICY_VERSION,
+    observedAt: typeof r.observedAt === 'string' ? r.observedAt : undefined,
+  }
 }
 
 /**
@@ -190,6 +220,7 @@ function mapRow(row: RepairSessionRow, userId: string): RehydrateResult {
       steps,
       currentStep,
       symptomAnswers: toSymptomAnswers(row.symptom_answers),
+      observation: toObservation(row.observation),
       imagePath: typeof row.image_path === 'string' ? row.image_path : null,
     },
     stepProgress: [],
@@ -258,4 +289,30 @@ export async function persistSymptomAnswers(
     .eq('id', repairSessionId)
     .eq('user_id', userId)
   if (error) throw new Error(`Unable to save follow-up answers: ${error.message}`)
+}
+
+/**
+ * S08: persists the truthful before/after observation onto the authoritative
+ * repair_sessions row (jsonb). Scoped by user_id; RLS enforces the same. An
+ * `observedAt` timestamp is stamped on write. Returns the stored object so the
+ * caller can keep its local cache in sync.
+ */
+export async function persistObservation(
+  repairSessionId: string,
+  observation: ObservationResult
+): Promise<ObservationResult | null> {
+  if (!supabase || !repairSessionId) return null
+  const userId = await getUserId()
+  if (!userId) return null
+  const stored: ObservationResult = {
+    ...observation,
+    observedAt: observation.observedAt ?? new Date().toISOString(),
+  }
+  const { error } = await supabase
+    .from('repair_sessions')
+    .update({ observation: stored })
+    .eq('id', repairSessionId)
+    .eq('user_id', userId)
+  if (error) throw new Error(`Unable to save the observation: ${error.message}`)
+  return stored
 }
