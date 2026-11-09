@@ -7,18 +7,27 @@ import PageShell from '../components/PageShell'
 import FallbackMode from '../components/FallbackMode'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import FollowUpQuestions from '../components/FollowUpQuestions'
-import { isValidDiagnosisSession, saveSession } from '../services/repairSession'
+import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
+import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
 import { createSession } from '../services/historyService'
 import { buildRepairPlan } from '../services/repairPlanner'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../components/authContext'
-import { buildDiagnosisView } from '../utils/diagnosisView'
+import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { decideFromDiagnosis, isBlocked, type RiskDecision } from '../utils/riskDecision'
 import { isGuideAvailable } from '../utils/guideAvailability'
 import type { FollowUpResult } from '../services/followUpClient'
+import type { DiagnosisResult } from '../types/repair'
+import { useSessionLoader, useSessionMode } from '../utils/useSessionLoader'
+import {
+  LegacySessionPanel,
+  MissingPhotoNotice,
+  SessionFixtureBanner,
+  SessionStatePanel,
+} from '../components/SessionPanels'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
 const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
@@ -55,7 +64,7 @@ const EVIDENCE_KEYS = {
   high: { labelKey: 'diagnosis.evidenceHigh', filled: 3 },
 } as const
 
-export default function Diagnosis() {
+function FreshDiagnosis() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -73,8 +82,9 @@ export default function Diagnosis() {
   // No approved checklist or guide exists yet. The diagnosis itself is still saved
   // by the effect below; only the guided-repair start is closed.
   const guideAvailable = isGuideAvailable()
-  const [expanded, setExpanded] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [saveAttempt, setSaveAttempt] = useState(0)
   const [repairSessionReady, setRepairSessionReady] = useState(false)
   const [starting, setStarting] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -221,6 +231,9 @@ export default function Diagnosis() {
                 appliance_id: applianceId,
                 diagnosis_id: diagnosisId,
                 status: 'in_progress',
+                // V06: store the result on the session so a refresh, a new tab or
+                // History can load it. Photo data is stripped; text is capped.
+                ...sessionDetailsForInsert(d, session.description),
               })
               .select('id, user_id, diagnosis_id, appliance_id')
               .single()
@@ -240,12 +253,21 @@ export default function Diagnosis() {
 
         if (!cancelled) {
           setRepairSessionReady(true)
+          setSaveFailed(false)
           setSaveStatus('Diagnosis and repair session saved successfully.')
+          // So a refresh or a copied link opens this repair from the database.
+          const savedId = getCachedSession()?.diagnosisPersistence?.repairSessionId
+          if (isValidSessionId(savedId)) {
+            const params = new URLSearchParams(window.location.search)
+            params.set('session', savedId)
+            navigate({ search: `?${params.toString()}` }, { replace: true })
+          }
         }
       } catch (error) {
         console.error('Diagnosis save failed:', error)
 
         if (!cancelled) {
+          setSaveFailed(true)
           setSaveStatus(
             error instanceof Error
               ? `Could not save diagnosis: ${error.message}`
@@ -260,7 +282,7 @@ export default function Diagnosis() {
     return () => {
       cancelled = true
     }
-  }, [session, user?.id])
+  }, [session, user?.id, navigate, saveAttempt])
 
   const startRepair = async () => {
     if (!liveSession || starting) return
@@ -327,10 +349,7 @@ export default function Diagnosis() {
   const d = liveSession.diagnosis
   const view = buildDiagnosisView(d, source.extras)
   const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
-  const risk = RISK_STYLE[decision]
-  const evidence = EVIDENCE_KEYS[view.evidence]
   const showFollowUps = !blocked && view.followUps.length > 0 && view.sessionId !== null
-  const sectionClass = 'glass-panel rounded-xl p-6 mb-6'
 
   return (
     <PageShell className="pb-24">
@@ -355,6 +374,24 @@ export default function Diagnosis() {
           </p>
         )}
 
+        {!source.isFixture && saveFailed && (
+          <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/5 p-4 sm:flex-row sm:items-center">
+            <p className="flex-1 text-sm text-warning">{t('session.notSaved')}</p>
+            {user && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSaveFailed(false)
+                  setSaveAttempt((value) => value + 1)
+                }}
+                className="min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm font-semibold text-warning focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {t('common.retry')}
+              </button>
+            )}
+          </div>
+        )}
+
         {(decision === 'professional' || decision === 'emergency') && (
           <SafetyBlockedPanel
             decision={decision}
@@ -374,94 +411,12 @@ export default function Diagnosis() {
           </div>
         )}
 
-        <div className={sectionClass}>
-          <p className="text-label-bold text-text-subtle mb-1">{t('diagnosis.yourDescription')}</p>
-          <p className="text-body-md text-text-secondary">{liveSession.description}</p>
-          <p className="text-label-bold text-text-subtle mb-1 mt-5">{t('diagnosis.detectedIssue')}</p>
-          <p className="text-heading-md">{d.issueName}</p>
-        </div>
-
-        <section aria-labelledby="diagnosis-noticed" className={sectionClass}>
-          <h2 id="diagnosis-noticed" className="text-heading-md mb-3">
-            {t('diagnosis.sectionNoticed')}
-          </h2>
-          <ul className="list-disc space-y-1 pl-5 text-body-md text-text-secondary">
-            {view.observations.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-labelledby="diagnosis-causes" className={sectionClass}>
-          <h2 id="diagnosis-causes" className="text-heading-md mb-1">
-            {t('diagnosis.sectionCauses')}
-          </h2>
-          <p className="mb-3 text-sm text-text-secondary">{t('diagnosis.causesNote')}</p>
-          <ul className="space-y-2">
-            {view.possibleCauses.map((cause) => (
-              <li key={cause} className="flex flex-wrap items-center gap-2 text-body-md">
-                <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-text-subtle">
-                  {t('diagnosis.possibleBadge')}
-                </span>
-                <span>{cause}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-labelledby="diagnosis-sure" className={sectionClass}>
-          <h2 id="diagnosis-sure" className="text-heading-md mb-3">
-            {t('diagnosis.sectionSure')}
-          </h2>
-          <div className="flex items-center gap-3">
-            <div className="flex w-24 gap-1" aria-hidden="true">
-              {[1, 2, 3].map((step) => (
-                <span
-                  key={step}
-                  className={`h-2 flex-1 rounded-full ${step <= evidence.filled ? 'bg-primary' : 'bg-surface-high'}`}
-                />
-              ))}
-            </div>
-            <p className="font-semibold">{t(evidence.labelKey)}</p>
-          </div>
-          <p className="mt-3 text-sm text-text-secondary">{t('diagnosis.evidenceNote')}</p>
-          {view.limitations.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-label-bold text-text-subtle mb-1">{t('diagnosis.limitationsHeading')}</h3>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">
-                {view.limitations.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-
-        <section aria-labelledby="diagnosis-risk" className={sectionClass}>
-          <h2 id="diagnosis-risk" className="text-heading-md mb-3">
-            {t('diagnosis.sectionRisk')}
-          </h2>
-          <p className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-semibold ${risk.color}`}>
-            <risk.Icon className="h-4 w-4" aria-hidden="true" />
-            {t(risk.labelKey)}
-          </p>
-          <p className="mt-3 text-sm text-text-secondary">
-            {blocked
-              ? t('diagnosis.riskBlockedBody')
-              : decision === 'caution'
-                ? t('diagnosis.riskCautionBody')
-                : t('diagnosis.riskSafeBody')}
-          </p>
-        </section>
-
-        {!blocked && (
-          <section aria-labelledby="diagnosis-fix" className={sectionClass}>
-            <h2 id="diagnosis-fix" className="text-heading-md mb-2">
-              {t('diagnosis.recommendedFix')}
-            </h2>
-            <p className="text-body-md text-text-secondary">{d.recommendedFix}</p>
-          </section>
-        )}
+        <DiagnosisSections
+          diagnosis={d}
+          description={liveSession.description}
+          view={view}
+          decision={decision}
+        />
 
         {showFollowUps && view.sessionId && (
           <FollowUpQuestions
@@ -472,26 +427,7 @@ export default function Diagnosis() {
           />
         )}
 
-        <motion.button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          aria-expanded={expanded}
-          className="w-full flex items-center justify-between glass-panel rounded-xl px-4 py-3 mb-8 text-left focus-visible:outline-2 focus-visible:outline-primary"
-          whileHover={{ scale: 1.01 }}
-        >
-          <span className="font-medium">{t('diagnosis.whyResult')}</span>
-          {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-        </motion.button>
-
-        {expanded && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="text-text-secondary text-sm mb-8 -mt-4 px-2"
-          >
-            {d.explanation || d.summary}
-          </motion.p>
-        )}
+        <WhyThisResult text={d.explanation || d.summary} />
 
         {!blocked && (
           <>
@@ -540,4 +476,247 @@ export default function Diagnosis() {
       </div>
     </PageShell>
   )
+}
+
+const SECTION_CLASS = 'glass-panel rounded-xl p-6 mb-6'
+
+/** The result sections, shared by a fresh analysis and a saved session. */
+function DiagnosisSections({
+  diagnosis,
+  description,
+  view,
+  decision,
+}: {
+  diagnosis: DiagnosisResult
+  description: string
+  view: DiagnosisView
+  decision: RiskDecision
+}) {
+  const blocked = isBlocked(decision)
+  const risk = RISK_STYLE[decision]
+  const evidence = EVIDENCE_KEYS[view.evidence]
+  const sectionClass = SECTION_CLASS
+  return (
+    <>
+      <div className={sectionClass}>
+        <p className="text-label-bold text-text-subtle mb-1">{t('diagnosis.yourDescription')}</p>
+        <p className="text-body-md text-text-secondary">{description}</p>
+        <p className="text-label-bold text-text-subtle mb-1 mt-5">{t('diagnosis.detectedIssue')}</p>
+        <p className="text-heading-md">{diagnosis.issueName}</p>
+      </div>
+
+      <section aria-labelledby="diagnosis-noticed" className={sectionClass}>
+        <h2 id="diagnosis-noticed" className="text-heading-md mb-3">
+          {t('diagnosis.sectionNoticed')}
+        </h2>
+        <ul className="list-disc space-y-1 pl-5 text-body-md text-text-secondary">
+          {view.observations.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="diagnosis-causes" className={sectionClass}>
+        <h2 id="diagnosis-causes" className="text-heading-md mb-1">
+          {t('diagnosis.sectionCauses')}
+        </h2>
+        <p className="mb-3 text-sm text-text-secondary">{t('diagnosis.causesNote')}</p>
+        <ul className="space-y-2">
+          {view.possibleCauses.map((cause) => (
+            <li key={cause} className="flex flex-wrap items-center gap-2 text-body-md">
+              <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-text-subtle">
+                {t('diagnosis.possibleBadge')}
+              </span>
+              <span>{cause}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="diagnosis-sure" className={sectionClass}>
+        <h2 id="diagnosis-sure" className="text-heading-md mb-3">
+          {t('diagnosis.sectionSure')}
+        </h2>
+        <div className="flex items-center gap-3">
+          <div className="flex w-24 gap-1" aria-hidden="true">
+            {[1, 2, 3].map((step) => (
+              <span
+                key={step}
+                className={`h-2 flex-1 rounded-full ${step <= evidence.filled ? 'bg-primary' : 'bg-surface-high'}`}
+              />
+            ))}
+          </div>
+          <p className="font-semibold">{t(evidence.labelKey)}</p>
+        </div>
+        <p className="mt-3 text-sm text-text-secondary">{t('diagnosis.evidenceNote')}</p>
+        {view.limitations.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-label-bold text-text-subtle mb-1">{t('diagnosis.limitationsHeading')}</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">
+              {view.limitations.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="diagnosis-risk" className={sectionClass}>
+        <h2 id="diagnosis-risk" className="text-heading-md mb-3">
+          {t('diagnosis.sectionRisk')}
+        </h2>
+        <p className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-semibold ${risk.color}`}>
+          <risk.Icon className="h-4 w-4" aria-hidden="true" />
+          {t(risk.labelKey)}
+        </p>
+        <p className="mt-3 text-sm text-text-secondary">
+          {blocked
+            ? t('diagnosis.riskBlockedBody')
+            : decision === 'caution'
+              ? t('diagnosis.riskCautionBody')
+              : t('diagnosis.riskSafeBody')}
+        </p>
+      </section>
+
+      {!blocked && (
+        <section aria-labelledby="diagnosis-fix" className={sectionClass}>
+          <h2 id="diagnosis-fix" className="text-heading-md mb-2">
+            {t('diagnosis.recommendedFix')}
+          </h2>
+          <p className="text-body-md text-text-secondary">{diagnosis.recommendedFix}</p>
+        </section>
+      )}
+    </>
+  )
+}
+
+function WhyThisResult({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <>
+      <motion.button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-between glass-panel rounded-xl px-4 py-3 mb-8 text-left focus-visible:outline-2 focus-visible:outline-primary"
+        whileHover={{ scale: 1.01 }}
+      >
+        <span className="font-medium">{t('diagnosis.whyResult')}</span>
+        {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+      </motion.button>
+
+      {expanded && (
+        <motion.p
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="text-text-secondary text-sm mb-8 -mt-4 px-2"
+        >
+          {text}
+        </motion.p>
+      )}
+    </>
+  )
+}
+
+/**
+ * /diagnosis?session=<id>: always rendered from the database through the loader,
+ * never from the browser cache. The stored diagnosis is shown exactly as saved;
+ * a blocked result shows the V04 blocked panel and no next steps.
+ */
+function SavedDiagnosis() {
+  useSyncExternalStore(subscribeLocale, getLocale)
+  const navigate = useNavigate()
+  const { state, fixtureName } = useSessionLoader()
+  const isFixture = fixtureName !== null
+
+  if (state.status !== 'ready') {
+    return (
+      <PageShell className="pb-24">
+        <div className="mx-auto max-w-lg px-4 pt-8">
+          <SessionFixtureBanner name={fixtureName} />
+          <SessionStatePanel state={state} />
+        </div>
+      </PageShell>
+    )
+  }
+
+  const saved = state.view
+  if (!saved.diagnosis) {
+    return (
+      <PageShell className="pb-24">
+        <div className="mx-auto max-w-lg px-4 pt-8">
+          <SessionFixtureBanner name={fixtureName} />
+          <LegacySessionPanel sessionId={saved.id} isFixture={isFixture} />
+        </div>
+      </PageShell>
+    )
+  }
+
+  const d = saved.diagnosis
+  const decision = decideFromDiagnosis(d, null)
+  const blocked = isBlocked(decision)
+  const view = buildDiagnosisView(d, null)
+  const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
+
+  return (
+    <PageShell className="pb-24">
+      <div className="mx-auto max-w-lg px-4 pt-8">
+        <SessionFixtureBanner name={fixtureName} />
+        <h1 className="text-heading-lg mb-8">{t('diagnosis.title')}</h1>
+
+        {(decision === 'professional' || decision === 'emergency') && (
+          <SafetyBlockedPanel decision={decision} issueName={d.issueName} analysisDetails={view.analysisDetails} />
+        )}
+
+        {lowConfidence && !blocked && (
+          <div className="mb-6">
+            {/* No approved guide exists, so there is no "continue" action here. */}
+            <FallbackMode />
+          </div>
+        )}
+
+        {!saved.hasStoredPhoto && <MissingPhotoNotice description={saved.description} isFixture={isFixture} />}
+
+        <DiagnosisSections diagnosis={d} description={saved.description} view={view} decision={decision} />
+
+        <WhyThisResult text={d.explanation || d.summary} />
+
+        {!blocked && (
+          <>
+            <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+              <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
+              <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                to="/capture"
+                className="flex-1 min-h-11 text-center rounded-xl border border-border py-3 text-text-secondary focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {t('diagnosis.ctaRetake')}
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(`/nearby-shops?appliance=${encodeURIComponent(d.issueName)}`)}
+              className="mt-3 min-h-11 w-full rounded-xl border border-primary/50 py-3 font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              {t('nearby.findShops')}
+            </button>
+          </>
+        )}
+
+        <Link
+          to="/history"
+          className="mt-6 inline-flex min-h-11 items-center text-sm text-text-secondary underline hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {t('session.backToHistory')}
+        </Link>
+      </div>
+    </PageShell>
+  )
+}
+
+/** With ?session (or a session fixture) the page loads from the database; otherwise a fresh analysis. */
+export default function Diagnosis() {
+  return useSessionMode() ? <SavedDiagnosis /> : <FreshDiagnosis />
 }

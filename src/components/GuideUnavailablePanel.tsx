@@ -2,16 +2,19 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { Info } from 'lucide-react'
 import { getLocale, subscribeLocale, t } from '../i18n'
-import { withFixtureQuery } from '../utils/fixtureGate'
+import { readFixtureName, withFixtureQuery } from '../utils/fixtureGate'
+import { sessionHref } from '../services/sessionResume'
 
 interface GuideUnavailablePanelProps {
   issueName?: string
+  /** Saved session id: kept in the "back to the result" link. */
+  sessionId?: string
 }
 
 // Shown on /tools and /guide instead of any checklist or repair steps while no
 // approved guide content exists. It makes no claim that the repair is safe,
 // done or checked, and offers only navigation and the existing help route.
-export default function GuideUnavailablePanel({ issueName }: GuideUnavailablePanelProps) {
+export default function GuideUnavailablePanel({ issueName, sessionId }: GuideUnavailablePanelProps) {
   useSyncExternalStore(subscribeLocale, getLocale)
   const panelRef = useRef<HTMLDivElement>(null)
   const nearbyHref = issueName
@@ -45,7 +48,9 @@ export default function GuideUnavailablePanel({ issueName }: GuideUnavailablePan
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Link to={withFixtureQuery('/diagnosis')} className={`${actionClass} bg-primary text-background`}>
+        <Link
+          to={sessionId ? sessionHref('/diagnosis', sessionId, readFixtureName()) : withFixtureQuery('/diagnosis')}
+          className={`${actionClass} bg-primary text-background`}>
           {t('guide.backToResult')}
         </Link>
         <Link to="/dashboard" className={`${actionClass} border border-border text-text-secondary hover:border-primary hover:text-primary`}>
