@@ -30,9 +30,12 @@ import { analyzeImage } from '../services/visionAI'
 import { AnalysisError } from '../types/analysis'
 import {
   clearSession,
+  getSession,
   isValidDiagnosisResult,
+  saveSession,
   setDiagnosis,
 } from '../services/repairSession'
+import { uploadPrivateRepairMediaBlob } from '../services/mediaService'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import {
   analysisErrorMessageKey,
@@ -466,6 +469,23 @@ function CaptureForm({ userId }: { userId: string }) {
     }
   }
 
+  // S09: upload the just-captured photo to the private bucket and record its
+  // object path on the active session, so it is associated with the repair and
+  // can be scrubbed on deletion. Never throws into the analyze flow.
+  const persistCaptureMedia = async (blob: Blob) => {
+    try {
+      const session = getSession()
+      const sessionScope = session?.diagnosisPersistence?.repairSessionId ?? session?.diagnosisAttemptId
+      if (!sessionScope) return
+      const path = await uploadPrivateRepairMediaBlob(blob, sessionScope)
+      const current = getSession()
+      const mediaPaths = [...new Set([...(current?.mediaPaths ?? []), path])]
+      saveSession({ mediaPaths })
+    } catch (error) {
+      console.warn('Private media upload failed:', error instanceof Error ? error.message : 'unknown')
+    }
+  }
+
   const analyze = async () => {
     setDescriptionTouched(true)
     // The ref blocks a second call made before state has updated.
@@ -492,6 +512,10 @@ function CaptureForm({ userId }: { userId: string }) {
       if (!isValidDiagnosisResult(diagnosis)) throw new AnalysisError('invalid_response', true)
 
       setDiagnosis(diagnosis, photo.dataUrl, description.trim(), userId)
+      // S09: persist the captured photo to the PRIVATE bucket, scoped to this
+      // attempt. Best-effort: a storage hiccup must never block the diagnosis
+      // the user just got, so failures are logged (no raw image) and ignored.
+      void persistCaptureMedia(photo.blob)
       clearCaptureDraft()
       setFailure(null)
       setRequestState('success')
