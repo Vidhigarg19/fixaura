@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
 import {
   Suspense,
-  lazy,
   useCallback,
   useEffect,
   useRef,
@@ -57,6 +56,9 @@ import {
 import { ImageProcessingError, processImageFile } from '../utils/imageProcessing'
 import { createRequestGuard } from '../utils/requestGuard'
 import type { FixtureOutcome } from '../dev/analysisFixtures'
+import { fixturesFlagEnabled, isDevBuild } from '../config/env'
+import { FixturePanel, loadAnalysisFixtures } from '../config/devFixtures'
+import { SLOW_REQUEST_MS } from '../config/limits'
 
 type CameraState = 'loading' | 'ready' | 'error'
 type VoiceState = 'idle' | 'listening' | 'error'
@@ -65,15 +67,11 @@ type PhotoSource = 'camera' | 'upload'
 type Photo = { blob: Blob; dataUrl: string }
 type FailureView = AnalysisFailure & { retryAt: number | undefined }
 
-const SLOW_REQUEST_MS = 15000
-
-// DEV-ONLY test hook. Both constants are replaced at build time, so in a production
-// build every branch below is removed and the fixture modules are never emitted.
-const FixturePanel = import.meta.env.DEV ? lazy(() => import('../dev/FixturePanel')) : null
-
+// DEV-ONLY test hook. FixturePanel and loadAnalysisFixtures come from config/devFixtures.ts, which
+// is removed from production builds together with the fixture modules.
 function readFixtureParams(): { name: string; delaySeconds: number } | null {
-  if (!import.meta.env.DEV) return null
-  if (import.meta.env.VITE_ENABLE_FIXTURES !== 'true') return null
+  if (!isDevBuild) return null
+  if (!fixturesFlagEnabled) return null
   const params = new URLSearchParams(window.location.search)
   const name = params.get('fixture')
   if (!name) return null
@@ -497,8 +495,8 @@ function CaptureForm({ userId }: { userId: string }) {
       if (navigator.onLine === false) throw new AnalysisError('service_unavailable', true)
 
       // DEV-ONLY: when every fixture gate passed, never reach the real service.
-      if (import.meta.env.DEV && fixtureParams !== null) {
-        const { runFixture } = await import('../dev/analysisFixtures')
+      if (loadAnalysisFixtures && fixtureParams !== null) {
+        const { runFixture } = await loadAnalysisFixtures()
         const outcome = await runFixture(fixtureParams.name, fixtureParams.delaySeconds)
         if (!guard.isCurrent(token)) return
         setFixtureResult(outcome)

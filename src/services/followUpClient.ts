@@ -2,6 +2,7 @@ import type { DiagnosisResult } from '../types/repair'
 import type { AgreedDiagnosis } from '../utils/diagnosisView'
 import type { FollowUpAnswers } from '../utils/followUpValidation'
 import { readFixtureName } from '../utils/fixtureGate'
+import { loadAnalysisFixtures } from '../config/devFixtures'
 
 // Client for submitting follow-up answers.
 //
@@ -42,10 +43,10 @@ export class FollowUpUnavailableError extends Error {
 export async function submitFollowUpAnswers(request: FollowUpRequest): Promise<FollowUpResult> {
   // DEV-ONLY: when every fixture gate passed, simulate. This branch is removed from
   // production builds because import.meta.env.DEV is false there.
-  if (import.meta.env.DEV) {
+  if (loadAnalysisFixtures) {
     const fixtureName = readFixtureName()
     if (fixtureName) {
-      const { runFollowUpFixture } = await import('../dev/analysisFixtures')
+      const { runFollowUpFixture } = await loadAnalysisFixtures()
       const outcome = await runFollowUpFixture(fixtureName, request)
       return { diagnosis: outcome.adapted, extras: outcome.data, answers: request.answers }
     }

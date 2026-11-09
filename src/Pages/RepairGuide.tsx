@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Pause, Play, CheckCircle2 } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -17,6 +17,7 @@ import { buildRepairPlan } from '../services/repairPlanner'
 import { commitCurrentStep } from '../services/repairSessionDb'
 import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
+import FixtureBannerSlot from '../components/FixtureBannerSlot'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -24,7 +25,6 @@ import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 function FreshRepairGuide() {
   useSyncExternalStore(subscribeLocale, getLocale)
@@ -191,10 +191,8 @@ function FreshRepairGuide() {
     return (
       <PageShell className="pb-24">
         <div className="mx-auto max-w-lg px-4 pt-8">
-          {FixtureBanner && source.isFixture && (
-            <Suspense fallback={null}>
-              <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-            </Suspense>
+          {source.isFixture && (
+            <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
           )}
           <GuideUnavailablePanel
             issueName={session.diagnosis.issueName}
@@ -224,10 +222,8 @@ function FreshRepairGuide() {
       )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
-        {FixtureBanner && source.isFixture && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          </Suspense>
+        {source.isFixture && (
+          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
         )}
         {progressError && (
           <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">

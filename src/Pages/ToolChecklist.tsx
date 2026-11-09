@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Suspense, lazy, useMemo, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Check, AlertCircle, Wrench, Hammer, Scissors,
@@ -19,9 +19,9 @@ import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideA
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
+import FixtureBannerSlot from '../components/FixtureBannerSlot'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
@@ -198,10 +198,8 @@ function FreshToolChecklist() {
     return (
       <PageShell className="pb-24">
         <div className="mx-auto max-w-lg px-4 pt-8">
-          {FixtureBanner && source.isFixture && (
-            <Suspense fallback={null}>
-              <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-            </Suspense>
+          {source.isFixture && (
+            <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
           )}
           <GuideUnavailablePanel
             issueName={session.diagnosis.issueName}
@@ -222,10 +220,8 @@ function FreshToolChecklist() {
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
-        {FixtureBanner && source.isFixture && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          </Suspense>
+        {source.isFixture && (
+          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
         )}
         <motion.h1
           initial={{ opacity: 0, y: 12 }}

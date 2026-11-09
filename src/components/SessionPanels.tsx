@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ImagePlus, LogIn, WifiOff } from 'lucide-react'
 import { getLocale, subscribeLocale, t } from '../i18n'
@@ -12,17 +12,12 @@ import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow
 import { saveCaptureDraft } from '../utils/captureDraft'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { useSessionLoader, type SessionLoaderState } from '../utils/useSessionLoader'
-
-// DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
+import FixtureBannerSlot from './FixtureBannerSlot'
+import { loadSessionFixtures } from '../config/devFixtures'
 
 export function SessionFixtureBanner({ name }: { name: string | null }) {
-  if (!FixtureBanner || !name) return null
-  return (
-    <Suspense fallback={null}>
-      <FixtureBanner name={name} />
-    </Suspense>
-  )
+  if (!name) return null
+  return <FixtureBannerSlot name={name} />
 }
 
 const actionClass =
@@ -149,8 +144,8 @@ export function LegacySessionPanel({ sessionId, isFixture }: { sessionId: string
   const [confirming, setConfirming] = useState(false)
   const [flow] = useState(() =>
     createDeleteFlow(async (id) => {
-      if (import.meta.env.DEV && isFixture) {
-        return (await import('../dev/sessionFixtures')).fixtureDelete()
+      if (loadSessionFixtures && isFixture) {
+        return (await loadSessionFixtures()).fixtureDelete()
       }
       return deleteSession(id)
     })

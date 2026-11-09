@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Suspense, lazy, useState, useEffect, useSyncExternalStore } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -11,6 +11,8 @@ import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } 
 import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
 import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
+import FixtureBannerSlot from '../components/FixtureBannerSlot'
+import { CONFIDENCE_THRESHOLD } from '../config/limits'
 import { useAuth } from '../components/authContext'
 import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -29,9 +31,7 @@ import {
 } from '../components/SessionPanels'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
-const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
-const CONFIDENCE_THRESHOLD = 70
 const diagnosisSaveOperations = new Map<string, Promise<void>>()
 
 function saveDiagnosisOnce(attemptId: string, save: () => Promise<void>) {
@@ -405,10 +405,8 @@ function FreshDiagnosis() {
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
-        {FixtureBanner && source.isFixture && (
-          <Suspense fallback={null}>
-            <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          </Suspense>
+        {source.isFixture && (
+          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
         )}
 
         <motion.h1

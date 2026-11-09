@@ -3,8 +3,9 @@
 export interface SrcFile { path: string; text: string } // path is posix, relative to repo root, e.g. src/Pages/Auth.tsx
 
 export const CANONICAL = 'src/lib/supabase' // the ONE browser client module (no extension)
-// Files that may read VITE_SUPABASE_* directly (client itself + the health-check helper)
-const ENV_ALLOWED = ['src/lib/supabase.ts', 'src/lib/test-supabase.ts']
+// Files that may read VITE_SUPABASE_* directly: the single config module (src/config/env.ts) plus the
+// client and health-check helper (kept so older checkouts still pass).
+const ENV_ALLOWED = ['src/config/env.ts', 'src/lib/supabase.ts', 'src/lib/test-supabase.ts']
 
 const stripExt = (p: string) => p.replace(/\.(tsx?|jsx?|mjs)$/, '')
 

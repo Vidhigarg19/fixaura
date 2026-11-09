@@ -1,3 +1,5 @@
+import { fixturesFlagEnabled, isDevBuild } from '../config/env'
+
 /**
  * DEV-ONLY test hook. Returns a fixture name only when ALL of these hold:
  *  - the build is a development build (import.meta.env.DEV)
@@ -7,8 +9,8 @@
  * returns null and every fixture branch that depends on it is removed.
  */
 export function readFixtureName(): string | null {
-  if (!import.meta.env.DEV) return null
-  if (import.meta.env.VITE_ENABLE_FIXTURES !== 'true') return null
+  if (!isDevBuild) return null
+  if (!fixturesFlagEnabled) return null
   const name = new URLSearchParams(window.location.search).get('fixture')
   return name ? name : null
 }

@@ -10,6 +10,7 @@ import {
   type ResumeView,
 } from '../services/sessionResume'
 import { readFixtureName } from './fixtureGate'
+import { loadSessionFixtures } from '../config/devFixtures'
 
 export type SessionLoaderState =
   | { status: 'auth_loading' }
@@ -64,9 +65,10 @@ export function useSessionLoader(): SessionLoader {
   useEffect(() => {
     if (!canRequest) return
     let load: () => Promise<LoadOutcome>
-    if (import.meta.env.DEV && fixtureName) {
+    if (loadSessionFixtures && fixtureName) {
       const name = fixtureName
-      load = () => import('../dev/sessionFixtures').then((m) => m.resolveFixtureSession(name, sessionId))
+      const loadFixtures = loadSessionFixtures
+      load = () => loadFixtures().then((m) => m.resolveFixtureSession(name, sessionId))
     } else {
       const id = sessionId as string
       const owner = userId as string

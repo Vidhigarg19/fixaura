@@ -1,6 +1,5 @@
 import type { DiagnosisResult, RepairSession } from '../types/repair'
-
-const KEY = 'fixaura-session'
+import { SESSION_STORAGE_KEY as KEY } from '../config/storageKeys'
 
 export function getSession(): RepairSession | null {
   try {
