@@ -1,5 +1,6 @@
 import type { DiagnosisResult, RepairStatus, RepairStep } from '../types/repair'
 import { supabase } from '../lib/supabase'
+import { deleteRepairSessionCompletely } from './mediaService'
 
 export type { RepairStatus }
 export type ChatRole = 'user' | 'assistant'
@@ -261,11 +262,10 @@ export async function addMessage(
 export async function deleteSession(id: string): Promise<boolean> {
   const userId = await getUserId()
   if (!supabase || !userId) return false
-  const { error } = await supabase
-    .from('repair_sessions')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', userId)
-  if (error) throw readableError('Unable to delete this repair', error)
+  // S09: scrub private storage assets alongside the DB record. This throws if
+  // the storage cleanup cannot complete, so the row is never deleted while its
+  // images are orphaned. Both the History list and the legacy card delete flow
+  // go through here, so both get a complete scrub.
+  await deleteRepairSessionCompletely(id)
   return true
 }
