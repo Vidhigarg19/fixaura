@@ -6,6 +6,7 @@ import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Shie
 import PageShell from '../components/PageShell'
 import FallbackMode from '../components/FallbackMode'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
+import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { isValidDiagnosisSession, saveSession } from '../services/repairSession'
 import { createSession } from '../services/historyService'
@@ -17,6 +18,7 @@ import { buildDiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { decideFromDiagnosis, isBlocked, type RiskDecision } from '../utils/riskDecision'
+import { screenFields } from '../lib/safety'
 import type { FollowUpResult } from '../services/followUpClient'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
@@ -325,6 +327,17 @@ export default function Diagnosis() {
   const evidence = EVIDENCE_KEYS[view.evidence]
   const showFollowUps = !blocked && view.followUps.length > 0 && view.sessionId !== null
   const sectionClass = 'glass-panel rounded-xl p-6 mb-6'
+  // S05: client-side screen of what is actually shown. Blocked content is handled
+  // by SafetyBlockedPanel; this verdict drives the non-blocking disclaimer banner
+  // for caution-level findings and the always-on AI disclaimer below.
+  const safetyVerdict = screenFields([
+    liveSession.description,
+    d.issueName,
+    d.summary,
+    d.recommendedFix,
+    d.safetyWarning,
+    ...(d.recommendedTools ?? []),
+  ])
 
   return (
     <PageShell className="pb-24">
@@ -444,6 +457,13 @@ export default function Diagnosis() {
                 ? t('diagnosis.riskCautionBody')
                 : t('diagnosis.riskSafeBody')}
           </p>
+          {!blocked && (
+            <SafetyDisclaimer
+              verdict={safetyVerdict}
+              tone={decision === 'caution' ? 'caution' : 'info'}
+              className="mt-4"
+            />
+          )}
         </section>
 
         {!blocked && (

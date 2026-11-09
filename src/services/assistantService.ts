@@ -1,6 +1,7 @@
 import { t, type Locale } from '../i18n'
 import type { DiagnosisResult, RepairStep, RiskLevel } from '../types/repair'
 import type { HistoryMessage } from './historyService'
+import { screenText } from '../lib/safety'
 
 export interface AssistantContext {
   description: string
@@ -47,41 +48,12 @@ function matchesAny(message: string, phrases: string[]) {
   return phrases.some((phrase) => message.includes(phrase))
 }
 
+// Immediate hazards are the emergency-level findings from the shared S05
+// policy (gas/fire/water-near-electricity/medical). The assistant short-circuits
+// to a safety reply when any of these are present, instead of answering normally.
 function hasImmediateHazard(text: string) {
-  const normalized = text.toLocaleLowerCase()
-  return matchesAny(normalized, [
-    'gas smell',
-    'smell of gas',
-    'smell gas',
-    'smelling gas',
-    'gas leak',
-    'burning smell',
-    'burning',
-    'smells burnt',
-    'sparks',
-    'spark',
-    'smoke',
-    'exposed wiring',
-    'exposed wire',
-    'flooding near electricity',
-    'flooding',
-    'water near electricity',
-    'water near electrical',
-    'गैस की गंध',
-    'गैस की बदबू',
-    'गैस लीक',
-    'जलने की गंध',
-    'जलने की बदबू',
-    'चिंगारी',
-    'चिंगारियां',
-    'धुआँ',
-    'धुआं',
-    'खुली तार',
-    'नंगी तार',
-    'बिजली के पास पानी',
-    'बिजली के पास बाढ़',
-    'पानी और बिजली',
-  ])
+  const verdict = screenText(text)
+  return verdict.highestLevel === 'emergency'
 }
 
 function getIntent(message: string): Intent {

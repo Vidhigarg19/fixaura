@@ -403,6 +403,20 @@
     "genericTitle": "Safety check",
     "genericConfirm": "I understand — continue"
   },
+  "safetyPolicy": {
+    "title": "Safety notice",
+    "aiDisclaimer": "This is AI-generated guidance and may be wrong. Check your situation and stop if anything seems unsafe.",
+    "disclaimer": {
+      "generic": "Work carefully, use the right protective gear, and stop if you are unsure.",
+      "gas": "Anything involving gas carries a serious risk. If you smell gas, leave the area, do not use switches or flames, and call a professional.",
+      "electrical": "Electrical work can cause shock or fire. Switch off power at the breaker and confirm it is off before touching anything.",
+      "fire": "Signs of fire, smoke, or burning need immediate attention. Keep away and call emergency services if there is any danger.",
+      "structural": "Structural work can be unsafe and may need a permit. Have a qualified professional assess it before you proceed.",
+      "chemical": "Handle chemicals and refrigerants with care in a ventilated space, and never mix cleaning products.",
+      "medical": "If someone is hurt or unwell, stop and get medical help first. Call emergency services (112) if it is serious.",
+      "policy": "HomeGenie will not help bypass or disable safety protections. Please keep safety devices in place."
+    }
+  },
   "fallback": {
     "title": "We're not fully confident",
     "body": "The image may be unclear or the issue unusual. Retake a well-lit photo, or continue with caution.",

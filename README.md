@@ -599,7 +599,7 @@ Open [http://localhost:5173](http://localhost:5173).
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_SUPABASE_URL` | No* | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | No* | Supabase anon key (safe for client — protected by RLS) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | No* | Supabase publishable key (safe for client — protected by RLS) |
 
 *\*Required for Supabase-backed features such as authentication, diagnosis, and repair history.*
 
