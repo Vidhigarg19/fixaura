@@ -20,11 +20,13 @@ import { buildDiagnosisView } from '../utils/diagnosisView'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+import { SessionRepairGate } from '../components/SessionPanels'
+import { useSessionMode } from '../utils/useSessionLoader'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
 const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
-export default function RepairGuide() {
+function FreshRepairGuide() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const source = useDiagnosisSource()
@@ -348,4 +350,12 @@ export default function RepairGuide() {
       />
     </PageShell>
   )
+}
+
+/**
+ * /guide?session=<id> loads the saved session first and never renders steps from
+ * the browser cache. Step restore and progress saving are deferred (no approved steps).
+ */
+export default function RepairGuide() {
+  return useSessionMode() ? <SessionRepairGate /> : <FreshRepairGuide />
 }

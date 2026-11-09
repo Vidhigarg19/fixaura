@@ -17,6 +17,8 @@ import { withFixtureQuery } from '../utils/fixtureGate'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+import { SessionRepairGate } from '../components/SessionPanels'
+import { useSessionMode } from '../utils/useSessionLoader'
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
 const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
@@ -99,7 +101,7 @@ function matchTool(tool: string): { icon: React.ElementType } {
   }
   return { icon: Wrench }
 }
-export default function ToolChecklist() {
+function FreshToolChecklist() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const source = useDiagnosisSource()
@@ -327,4 +329,9 @@ export default function ToolChecklist() {
       />
     </PageShell>
   )
+}
+
+/** /tools?session=<id> loads the saved session first and never renders tools from the cache. */
+export default function ToolChecklist() {
+  return useSessionMode() ? <SessionRepairGate /> : <FreshToolChecklist />
 }

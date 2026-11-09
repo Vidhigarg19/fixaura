@@ -477,7 +477,31 @@
     "loginBody": "Enter your email and we'll send you a secure sign-in link.",
     "email": "Email address",
     "sendLoginLink": "Email me a sign-in link",
-    "loginSent": "Check your email for a sign-in link."
+    "loginSent": "Check your email for a sign-in link.",
+    "outcome": {
+      "draft": "Draft",
+      "analyzing": "Analyzing",
+      "needs_followup": "Needs more details",
+      "blocked": "Not safe to do yourself",
+      "guide_ready": "Ready to start",
+      "in_progress": "In progress",
+      "awaiting_observation": "Waiting for a check photo",
+      "unresolved": "Still not fixed",
+      "monitoring": "Keep an eye on it",
+      "completed": "Steps finished",
+      "unknown": "Saved"
+    },
+    "stepsFinishedNote": "This means you finished the steps. It is not a safety check.",
+    "legacyCardTitle": "Older repair",
+    "comparisonNote": "A check photo was compared with your original photo.",
+    "pickUpTitle": "Pick up where you left off",
+    "deleteDialogTitle": "Delete this repair?",
+    "deleteDialogBody": "This deletes the repair and its chat. You cannot undo this.",
+    "deleting": "Deleting…",
+    "deleted": "The repair was deleted.",
+    "deleteOffline": "You are offline. Connect to the internet to delete this repair.",
+    "offlineTitle": "You are offline",
+    "offlineBody": "Connect to the internet to see your repair history. We will try again when you are back online."
   },
   "assistant": {
     "title": "HomeGenie assistant",
@@ -604,5 +628,23 @@
     "errorInvalidInput": "Please check your answers and try again.",
     "errorBusy": "The service is busy right now. Please try again in a few minutes.",
     "errorUnavailable": "We couldn't send your answers. Your answers are still here, so you can try again."
+  },
+  "session": {
+    "loading": "Loading your repair…",
+    "notFoundTitle": "This repair could not be opened",
+    "notFoundBody": "It may have been deleted, or the link may not be right.",
+    "offlineTitle": "You are offline",
+    "offlineBody": "Connect to the internet to open this repair. We will try again when you are back online.",
+    "errorTitle": "This repair could not be loaded",
+    "errorBody": "Something went wrong. Please try again.",
+    "signInTitle": "Sign in to open this repair",
+    "signInBody": "This repair is saved to an account. Sign in to see it.",
+    "legacyTitle": "Details are not available for this older repair",
+    "legacyBody": "This repair was saved before its details were stored. You can delete it or scan the problem again.",
+    "scanAgain": "Scan again",
+    "photoMissing": "Your original photo is not saved. If you want to compare later, add a photo again.",
+    "addPhotoAgain": "Add a photo again",
+    "notSaved": "This result was not saved to your history",
+    "backToHistory": "Back to history"
   }
 }

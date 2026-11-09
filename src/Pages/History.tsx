@@ -1,18 +1,26 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Clock3, MessageCircle, Trash2, X } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { motion } from 'framer-motion'
+import { ArrowLeft, Clock3, MessageCircle, ShieldAlert, Trash2, WifiOff } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import PageShell from '../components/PageShell'
+import DeleteSessionDialog from '../components/DeleteSessionDialog'
+import { useAuth } from '../components/authContext'
 import { getLocale, subscribeLocale, t } from '../i18n'
+import { deleteSession, listSessions } from '../services/historyService'
+import { sessionHref } from '../services/sessionResume'
+import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow'
+import { readFixtureName } from '../utils/fixtureGate'
+import { isGuideAvailable } from '../utils/guideAvailability'
+import { isNetworkError, isOffline } from '../utils/networkError'
 import {
-  deleteSession,
-  getMessages,
-  getSession,
-  listSessions,
-  type HistoryMessage,
-  type HistorySession,
-} from '../services/historyService'
-import { saveSession } from '../services/repairSession'
+  historyLinkFor,
+  statusLabelKey,
+  toHistoryCard,
+  type HistoryCard,
+} from '../utils/sessionStatus'
+
+// DEV-ONLY banner. In a production build this is `null` and the import is removed.
+const FixtureBanner = import.meta.env.DEV ? lazy(() => import('../dev/FixtureBanner')) : null
 
 const listVariants = {
   hidden: { opacity: 0 },
@@ -24,97 +32,99 @@ const cardVariants = {
   visible: { opacity: 1, y: 0 },
 }
 
-export default function History() {
-  const navigate = useNavigate()
-  const locale = useSyncExternalStore(subscribeLocale, getLocale)
-  const [sessions, setSessions] = useState<HistorySession[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [messageCountWarning, setMessageCountWarning] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<HistorySession | null>(null)
-  const [viewing, setViewing] = useState<HistorySession | null>(null)
-  const [viewMessages, setViewMessages] = useState<HistoryMessage[]>([])
-  const [viewError, setViewError] = useState('')
+type ListState =
+  | { status: 'loading' }
+  | { status: 'ready'; cards: HistoryCard[]; messageCountWarning: boolean }
+  | { status: 'offline' }
+  | { status: 'error' }
 
-  const load = useCallback(() => listSessions(), [])
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+
+export default function History() {
+  const locale = useSyncExternalStore(subscribeLocale, getLocale)
+  const { user, loading: authLoading } = useAuth()
+  const [fixtureName] = useState(readFixtureName)
+  const isFixture = fixtureName !== null
+  const [attempt, setAttempt] = useState(0)
+  const [result, setResult] = useState<{ key: string; state: ListState } | null>(null)
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingDelete, setPendingDelete] = useState<HistoryCard | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const [flow] = useState(() =>
+    createDeleteFlow(async (id) => {
+      // Fixture mode only changes local state.
+      if (import.meta.env.DEV && isFixture) return (await import('../dev/sessionFixtures')).fixtureDelete()
+      return deleteSession(id)
+    })
+  )
+
+  // A list belongs to one user and one attempt; anything else is still loading.
+  const key = `${user?.id ?? ''}|${attempt}`
 
   useEffect(() => {
+    if (authLoading) return
     let active = true
-    void load()
-      .then((result) => {
-        if (!active) return
-        setError('')
-        setSessions(result.sessions)
-        setMessageCountWarning(result.messageCountWarning)
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : t('history.loadError'))
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    const run = async (): Promise<ListState> => {
+      if (import.meta.env.DEV && fixtureName) {
+        const fixtures = await import('../dev/sessionFixtures')
+        return { status: 'ready', cards: fixtures.historyFixtureRows(fixtureName).map(toHistoryCard), messageCountWarning: false }
+      }
+      if (isOffline()) return { status: 'offline' }
+      try {
+        const loaded = await listSessions()
+        return {
+          status: 'ready',
+          cards: loaded.sessions.map(toHistoryCard),
+          messageCountWarning: loaded.messageCountWarning,
+        }
+      } catch (error) {
+        return isNetworkError(error) ? { status: 'offline' } : { status: 'error' }
+      }
+    }
+    void run().then((state) => {
+      if (active) setResult({ key, state })
+    })
     return () => {
       active = false
     }
-  }, [load])
+  }, [authLoading, fixtureName, key])
 
-  const latestInProgress = useMemo(
-    () => sessions.find((session) => session.status === 'in_progress'),
-    [sessions]
+  const list: ListState = !result || result.key !== key ? { status: 'loading' } : result.state
+
+  // Retry once when the connection comes back.
+  const offline = list.status === 'offline'
+  useEffect(() => {
+    if (!offline) return
+    const onOnline = () => setAttempt((value) => value + 1)
+    window.addEventListener('online', onOnline, { once: true })
+    return () => window.removeEventListener('online', onOnline)
+  }, [offline])
+
+  const retry = () => setAttempt((value) => value + 1)
+
+  const cards = list.status === 'ready' ? list.cards.filter((card) => !removed.has(card.id)) : []
+  const pickUp = cards.find(
+    (card) => card.hasDetails && (card.status === 'in_progress' || card.status === 'guide_ready')
   )
+  const guideAvailable = isGuideAvailable()
 
-  const continueSession = async (id: string) => {
-    setError('')
-    try {
-      const saved = await getSession(id)
-      if (!saved) {
-        setError(t('history.sessionMissing'))
-        return
-      }
-      if (!saved.diagnosis) {
-        setError(t('history.diagnosisMissing'))
-        return
-      }
-      const steps = saved.steps ?? []
-      saveSession({
-        diagnosis: saved.diagnosis,
-        steps,
-        currentStep: Math.min(
-          saved.current_step ?? 0,
-          Math.max(steps.length - 1, 0)
-        ),
-        historySessionId: saved.id,
-        imageDataUrl: undefined,
-        completedAt: undefined,
-      })
-      navigate('/guide')
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('history.loadError'))
-    }
-  }
+  const titleOf = (card: HistoryCard) => card.title ?? t('history.legacyCardTitle')
 
-  const openSummary = async (session: HistorySession) => {
-    setViewError('')
-    setViewMessages([])
-    setViewing(session)
-    try {
-      setViewMessages(await getMessages(session.id))
-    } catch (reason) {
-      setViewError(reason instanceof Error ? reason.message : t('history.chatError'))
-    }
-  }
-
-  const confirmDelete = async () => {
-    if (!pendingDelete) return
-    try {
-      await deleteSession(pendingDelete.id)
-      setSessions((current) => current.filter((item) => item.id !== pendingDelete.id))
+  const confirmDelete = useCallback(async (): Promise<DeleteOutcome> => {
+    if (!pendingDelete) return 'failed'
+    const id = pendingDelete.id
+    const outcome = await flow.run(id)
+    if (outcome === 'deleted') {
+      setRemoved((current) => new Set(current).add(id))
       setPendingDelete(null)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('history.deleteError'))
-      setPendingDelete(null)
+      setAnnouncement(t('history.deleted'))
     }
-  }
+    return outcome
+  }, [flow, pendingDelete])
+
+  const cancelDelete = useCallback(() => setPendingDelete(null), [])
+  const focusHeading = useCallback(() => headingRef.current, [])
 
   const formattedDate = (date: string | null | undefined) => {
     if (!date) return '—'
@@ -125,242 +135,181 @@ export default function History() {
       timeStyle: 'short',
     }).format(parsedDate)
   }
-  const sessionList = sessions ?? []
-  const messages = viewMessages ?? []
+
+  const linkFor = (card: HistoryCard) => {
+    const target = historyLinkFor(card.status, card.hasDetails, guideAvailable)
+    return { to: sessionHref(target.path, card.id, fixtureName), label: t(target.labelKey) }
+  }
 
   return (
     <PageShell className="min-h-screen px-4 py-8 sm:py-12">
       <main className="mx-auto max-w-3xl">
+        {FixtureBanner && fixtureName && (
+          <Suspense fallback={null}>
+            <FixtureBanner name={fixtureName} />
+          </Suspense>
+        )}
         <Link
           to="/"
-          className="mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+          className={`mb-6 inline-flex items-center gap-2 rounded-lg text-sm text-text-secondary hover:text-primary ${focusRing}`}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t('history.back')}
         </Link>
-        <h1 className="text-heading-lg">{t('history.title')}</h1>
-        <p className="mt-2 text-text-secondary">{t('history.pickUp')}</p>
-        {latestInProgress && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-primary">
-            <Clock3 className="h-4 w-4" aria-hidden="true" />
-            {latestInProgress.issue_name ?? '—'}
-          </p>
-        )}
+        <h1 ref={headingRef} tabIndex={-1} className="text-heading-lg focus-visible:outline-none">
+          {t('history.title')}
+        </h1>
 
-        {error && (
-          <div role="alert" className="mt-6 rounded-xl border border-warning/40 bg-warning/5 p-4">
-            <p className="text-sm text-warning">{error}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true)
-                setError('')
-                void load()
-                  .then((result) => {
-                    setSessions(result.sessions)
-                    setMessageCountWarning(result.messageCountWarning)
-                    setError('')
-                  })
-                  .catch((reason: unknown) => {
-                    setError(reason instanceof Error ? reason.message : t('history.loadError'))
-                  })
-                  .finally(() => setLoading(false))
-              }}
-              className="mt-3 rounded-lg border border-warning/50 px-4 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              {t('common.retry')}
-            </button>
-          </div>
-        )}
+        {/* Announces deletes and other list changes to screen readers. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {announcement}
+        </p>
 
-        {messageCountWarning && !loading && (
-          <p role="status" className="mt-4 text-sm text-text-subtle">
-            {t('history.messageCountWarning')}
-          </p>
-        )}
-
-        {loading ? (
-          <div className="mt-8 space-y-4" aria-label={t('common.loading')} aria-busy="true">
+        {list.status === 'loading' || authLoading ? (
+          <div className="mt-8 space-y-4" role="status" aria-live="polite" aria-busy="true">
+            <span className="sr-only">{t('common.loading')}</span>
             {Array.from({ length: 3 }, (_, index) => (
               <div key={index} className="glass-panel h-36 animate-pulse rounded-xl" />
             ))}
           </div>
-        ) : !error && sessionList.length === 0 ? (
+        ) : list.status === 'offline' ? (
+          <div role="alert" className="mt-6 rounded-xl border border-warning/40 bg-warning/5 p-4">
+            <p className="flex items-center gap-2 font-semibold text-warning">
+              <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t('history.offlineTitle')}
+            </p>
+            <p className="mt-1 text-sm text-text-secondary">{t('history.offlineBody')}</p>
+            <button
+              type="button"
+              onClick={retry}
+              className={`mt-3 min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm ${focusRing}`}
+            >
+              {t('common.retry')}
+            </button>
+          </div>
+        ) : list.status === 'error' ? (
+          <div role="alert" className="mt-6 rounded-xl border border-warning/40 bg-warning/5 p-4">
+            <p className="text-sm text-warning">{t('history.loadError')}</p>
+            <button
+              type="button"
+              onClick={retry}
+              className={`mt-3 min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm ${focusRing}`}
+            >
+              {t('common.retry')}
+            </button>
+          </div>
+        ) : cards.length === 0 ? (
           <div className="glass-panel mt-8 rounded-xl p-8 text-center">
             <h2 className="text-heading-md">{t('history.emptyTitle')}</h2>
             <p className="mt-2 text-text-secondary">{t('history.emptyBody')}</p>
             <Link
               to="/capture"
-              className="mt-5 inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary"
+              className={`mt-5 inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-background ${focusRing}`}
             >
               {t('history.scanFirst')}
             </Link>
           </div>
-        ) : !error && (
-          <motion.ul
-            variants={listVariants}
-            initial="hidden"
-            animate="visible"
-            className="mt-8 space-y-4"
-          >
-            {sessionList.map((session) => (
-              <motion.li
-                key={session.id}
-                variants={cardVariants}
-                className={`glass-panel rounded-xl p-4 sm:p-5 ${
-                  session.id === latestInProgress?.id ? 'border border-primary/50 shadow-[0_0_24px_rgba(0,245,212,0.1)]' : ''
-                }`}
+        ) : (
+          <>
+            {list.messageCountWarning && (
+              <p role="status" className="mt-4 text-sm text-text-subtle">
+                {t('history.messageCountWarning')}
+              </p>
+            )}
+
+            {pickUp && (
+              <section
+                aria-labelledby="pick-up-title"
+                className="mt-6 rounded-xl border border-primary/50 bg-primary/5 p-4 sm:p-5"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="break-words text-lg font-semibold">{session.issue_name ?? session.title ?? '—'}</h2>
-                    <p className="mt-1 text-sm text-text-subtle">{formattedDate(session.updated_at)}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPendingDelete(session)}
-                    aria-label={`${t('history.delete')} ${session.issue_name ?? session.title ?? '—'}`}
-                    className="shrink-0 rounded-lg p-2 text-text-subtle hover:text-warning focus-visible:outline-2 focus-visible:outline-primary"
-                  >
-                    <Trash2 className="h-5 w-5" aria-hidden="true" />
-                  </button>
-                </div>
-                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                  <span className={`rounded-full px-3 py-1 ${
-                    session.status === 'completed'
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-warning/10 text-warning'
-                  }`}>
-                    {t(`history.status.${session.status ?? 'in_progress'}`)}
-                  </span>
-                  {session.diagnosis?.verification?.status && (
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                        session.diagnosis.verification.status === 'resolved'
-                          ? 'border-teal-500/40 bg-teal-500/15 text-teal-300'
-                          : session.diagnosis.verification.status === 'monitor'
-                            ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
-                            : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
-                      }`}
-                    >
-                      {t(`verify.status.${session.diagnosis.verification.status}`)}
-                    </span>
-                  )}
-                  <span className="text-text-secondary">
-                    {t('history.step')} {Math.min((session.current_step ?? 0) + 1, session.steps?.length ?? 0)} {t('history.of')} {session.steps?.length ?? 0}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-text-secondary">
-                    <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                    {session.message_count ?? 0} {t('history.messages')}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => session.status === 'completed'
-                    ? void openSummary(session)
-                    : void continueSession(session.id)}
-                  className="mt-4 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary sm:w-auto"
+                <h2 id="pick-up-title" className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <Clock3 className="h-4 w-4" aria-hidden="true" />
+                  {t('history.pickUpTitle')}
+                </h2>
+                <p className="mt-2 break-words text-lg font-semibold text-text-primary">{titleOf(pickUp)}</p>
+                <p className="mt-1 text-sm text-text-secondary">{t(statusLabelKey(pickUp.status))}</p>
+                <Link
+                  to={linkFor(pickUp).to}
+                  className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 sm:w-auto ${focusRing}`}
                 >
-                  {(session.status ?? 'in_progress') === 'completed' ? t('history.view') : t('history.continue')}
-                </button>
-              </motion.li>
-            ))}
-          </motion.ul>
+                  {linkFor(pickUp).label}
+                </Link>
+              </section>
+            )}
+
+            <motion.ul variants={listVariants} initial="hidden" animate="visible" className="mt-8 space-y-4">
+              {cards.map((card) => {
+                const link = linkFor(card)
+                const blocked = card.status === 'blocked'
+                return (
+                  <motion.li
+                    key={card.id}
+                    variants={cardVariants}
+                    className={`glass-panel rounded-xl p-4 sm:p-5 ${
+                      card.id === pickUp?.id ? 'border border-primary/50' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="break-words text-lg font-semibold">{titleOf(card)}</h2>
+                        <p className="mt-1 text-sm text-text-subtle">{formattedDate(card.updatedAt)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDelete(card)}
+                        aria-label={`${t('history.delete')} ${titleOf(card)}`}
+                        className={`min-h-11 min-w-11 shrink-0 rounded-lg p-2 text-text-subtle hover:text-warning ${focusRing}`}
+                      >
+                        <Trash2 className="mx-auto h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 ${
+                          blocked ? 'border-error/50 bg-error/10 font-semibold text-error' : 'border-border text-text-secondary'
+                        }`}
+                      >
+                        {blocked && <ShieldAlert className="h-4 w-4" aria-hidden="true" />}
+                        {t(statusLabelKey(card.status))}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-text-secondary">
+                        <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                        {card.messageCount} {t('history.messages')}
+                      </span>
+                    </div>
+
+                    {card.status === 'completed' && (
+                      <p className="mt-2 text-sm text-text-secondary">{t('history.stepsFinishedNote')}</p>
+                    )}
+                    {card.comparison && (
+                      <p className="mt-2 text-sm text-text-secondary">
+                        <span className="font-semibold">{t('history.comparisonNote')}</span> {card.comparison}
+                      </p>
+                    )}
+
+                    <Link
+                      to={link.to}
+                      className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 py-3 font-semibold text-background hover:brightness-110 sm:w-auto ${focusRing}`}
+                    >
+                      {link.label}
+                    </Link>
+                  </motion.li>
+                )
+              })}
+            </motion.ul>
+          </>
         )}
       </main>
 
-      <AnimatePresence>
-        {pendingDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="delete-title"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="glass-panel w-full max-w-sm rounded-xl p-6"
-            >
-              <h2 id="delete-title" className="text-heading-md">{t('history.confirmDelete')}</h2>
-              <p className="mt-2 text-sm text-text-secondary">{pendingDelete.issue_name ?? pendingDelete.title ?? '—'}</p>
-              <div className="mt-6 flex gap-3">
-                <button type="button" onClick={() => setPendingDelete(null)} className="flex-1 rounded-lg border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary">
-                  {t('common.cancel')}
-                </button>
-                <button type="button" onClick={() => void confirmDelete()} className="flex-1 rounded-lg bg-warning px-3 py-2 font-semibold text-background focus-visible:outline-2 focus-visible:outline-primary">
-                  {t('history.delete')}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-        {viewing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="summary-title"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              className="glass-panel max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl p-5 sm:p-6"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <h2 id="summary-title" className="text-heading-md">{viewing.issue_name ?? viewing.title ?? '—'}</h2>
-                <button
-                  type="button"
-                  aria-label={t('history.close')}
-                  onClick={() => setViewing(null)}
-                  className="rounded-lg p-2 focus-visible:outline-2 focus-visible:outline-primary"
-                >
-                  <X aria-hidden="true" />
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-text-subtle">{formattedDate(viewing.created_at)}</p>
-              <section className="mt-5 space-y-3">
-                <h3 className="font-semibold">{t('history.diagnosis')}</h3>
-                <p className="text-sm text-text-secondary">{viewing.diagnosis?.summary ?? '—'}</p>
-                <p className="text-sm text-text-secondary">{viewing.diagnosis?.recommendedFix ?? '—'}</p>
-                {viewing.diagnosis?.verification && (
-                  <div className="rounded-xl border border-border/70 bg-surface/50 p-3.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-text-subtle">
-                        {t('verify.title')}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                          viewing.diagnosis.verification.status === 'resolved'
-                            ? 'border-teal-500/40 bg-teal-500/15 text-teal-300'
-                            : viewing.diagnosis.verification.status === 'monitor'
-                              ? 'border-amber-500/40 bg-amber-500/15 text-amber-300'
-                              : 'border-rose-500/40 bg-rose-500/15 text-rose-300'
-                        }`}
-                      >
-                        {t(`verify.status.${viewing.diagnosis.verification.status}`)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-text-primary">{viewing.diagnosis.verification.summary}</p>
-                    {viewing.diagnosis.verification.nextAdvice && (
-                      <p className="text-xs text-text-secondary">{viewing.diagnosis.verification.nextAdvice}</p>
-                    )}
-                  </div>
-                )}
-                <h3 className="pt-2 font-semibold">{t('history.savedChat')}</h3>
-                {viewError && <p role="alert" className="text-sm text-warning">{viewError}</p>}
-                {!messages.length && !viewError && <p className="text-sm text-text-subtle">{t('history.chatEmpty')}</p>}
-                <div className="space-y-2">
-                  {messages.map((message) => (
-                    <p key={message.id} className="rounded-lg bg-surface-high p-3 text-sm">
-                      <span className="font-semibold">{t(`history.${message.role}`)}: </span>
-                      {message.content}
-                    </p>
-                  ))}
-                </div>
-              </section>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {pendingDelete && (
+        <DeleteSessionDialog
+          itemLabel={titleOf(pendingDelete)}
+          onCancel={cancelDelete}
+          onConfirm={confirmDelete}
+          fallbackFocus={focusHeading}
+        />
+      )}
     </PageShell>
   )
 }
