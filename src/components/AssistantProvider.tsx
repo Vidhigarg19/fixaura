@@ -11,15 +11,16 @@ import type { ChatRole } from '../services/historyService'
 import { AssistantContext, type AssistantMessage, type AssistantState } from './assistantContext'
 
 /**
- * While no approved guide exists, the assistant gets the diagnosis context only
- * (issue, description, risk, safety warning) and never repair steps or the AI
- * free-text tool list. This applies on every route, because the context is
- * global and every setter goes through here.
+ * For a high-severity (blocked) result the assistant gets the diagnosis context only
+ * (issue, description, risk, safety warning) and never repair steps or the tool list.
+ * This applies on every route, because the context is global and every setter goes
+ * through here. Lower-severity results keep their steps: RepairGuide only supplies
+ * steps once the guide-availability gate has passed.
  */
 function withoutUnapprovedGuidance(
   context: RepairAssistantContext | null
 ): RepairAssistantContext | null {
-  if (!context || isGuideAvailable()) return context
+  if (!context || context.severity !== 'high') return context
   return {
     ...context,
     recommendedTools: [],
@@ -31,10 +32,14 @@ function withoutUnapprovedGuidance(
 
 function initialRepairContext() {
   const session = getSession()
-  // Saved or generated steps are not read at all while the guide is unavailable.
-  const steps = !isGuideAvailable()
+  // Steps are only read when the gate passes for the stored result (never when blocked).
+  const steps = !isGuideAvailable(null, { diagnosis: session?.diagnosis ?? null })
     ? []
-    : session?.steps ?? (session?.diagnosis ? buildRepairPlan(session.diagnosis) : [])
+    : session?.steps?.length
+      ? session.steps
+      : session?.diagnosis
+        ? buildRepairPlan(session.diagnosis)
+        : []
   return withoutUnapprovedGuidance(assistantContextFromSession(
     session?.diagnosis,
     session?.description ?? '',

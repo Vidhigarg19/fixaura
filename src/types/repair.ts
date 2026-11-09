@@ -69,6 +69,12 @@ export interface DiagnosisResult {
   explanation?: string
   safetyStop?: boolean
   verification?: RepairVerification
+  /**
+   * Issue-specific repair steps authored by the model and validated on the server and
+   * again on the client (see utils/guideSteps). Only present for low/medium severity
+   * results; a blocked result never carries steps.
+   */
+  guideSteps?: RepairStep[]
 }
 
 export interface RepairStep {
@@ -79,6 +85,12 @@ export interface RepairStep {
   requiresConfirmation: boolean
   visualCue: 'arrow' | 'box' | 'circle' | 'line'
   estimatedSeconds: number
+  /**
+   * Optional image for this specific step: a private storage path or a URL. Only
+   * reviewed templates set it. When missing or broken, the guide shows the session's
+   * own photo, then a clean illustration.
+   */
+  mediaUrl?: string
 }
 
 export interface RepairSession {
@@ -92,6 +104,12 @@ export interface RepairSession {
     repairSessionId?: string
   }
   imageDataUrl?: string
+  /**
+   * Private storage path of this repair's main photo (repair_sessions.image_path). Unlike
+   * imageDataUrl it survives a new tab and a resumed session; render it through
+   * resolveMediaUrl (a signed URL), never as a raw URL.
+   */
+  imagePath?: string
   description: string
   toolsAcknowledged?: string[]
   completedAt?: string

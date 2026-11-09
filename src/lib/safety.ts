@@ -1,16 +1,27 @@
-// S05 — Safety Policy & Guardrails
+// S05 — Safety Policy & Guardrails (context-aware, refined)
 //
-// A single, framework-free moderation utility shared by the client and the
-// analyze-image edge function. It has NO Vite (`import.meta.env`) or Deno
-// globals so the exact same policy can run in the browser and in Deno (the
-// edge function re-exports these helpers from its own pure `logic.ts`).
+// A single, framework-free moderation utility shared by the client and mirrored
+// by the analyze-image edge function (supabase/functions/analyze-image/logic.ts,
+// which cannot import from src/, so the rules are duplicated there on purpose;
+// keep the two in sync and bump SAFETY_POLICY_VERSION in both).
 //
 // Design rules (consistent with src/utils/riskDecision.ts):
 //   - This module only ever RAISES the risk level; it never downgrades.
 //   - It emits a RiskDecision signal that is fed INTO decideRisk(); the risk
 //     engine stays the single source of truth for the final decision.
-//   - Unknown / ambiguous input is treated as the safer side.
-//   - It never fabricates a diagnosis and never bypasses a block.
+//
+// Calibration (why this file is deliberately NOT keyword-greedy):
+//   - Only genuine, life-threatening hazards reach 'professional' / 'emergency'
+//     (the levels that BLOCK the repair flow): live/exposed/sparking wiring, an
+//     active gas leak, fire/smoke/burning, water meeting electricity, a burst
+//     water main or structural failure, or an explicit report of injury.
+//   - Routine repair vocabulary (refrigerant, a gas valve, "high voltage" on a
+//     label, a capacitor) is only 'caution'. Caution shows a disclaimer and the
+//     flow CONTINUES; it never blocks.
+//   - A phrase counts only when it is ASSERTED. A precaution such as "if you see
+//     sparks, stop", "do not touch exposed wires" or "no smoke" is not a hazard
+//     report, so it is ignored. Callers should also avoid screening the model's
+//     own boilerplate safety warning (see the call sites).
 
 export type SafetyCategory =
   | 'gas'
@@ -35,7 +46,7 @@ export interface SafetyFinding {
 export interface SafetyVerdict {
   /** true when at least one finding was produced. */
   flagged: boolean
-  /** true when any finding is professional/emergency (i.e. content must be blocked). */
+  /** true when any finding is professional/emergency (i.e. the flow must be blocked). */
   blocked: boolean
   /** Highest level seen across all findings, or null when nothing flagged. */
   highestLevel: SafetyLevel | null
@@ -47,19 +58,18 @@ export interface SafetyVerdict {
 interface Rule {
   category: SafetyCategory
   level: SafetyLevel
-  /** Lowercased phrases (English + Hindi). Matched as word-ish substrings. */
+  /** Lowercased phrases (English + Hindi). */
   phrases: string[]
 }
 
-// Ordered roughly by severity. Phrases cover English and Hindi, mirroring the
-// bilingual hazard list that previously lived in assistantService.ts.
 const RULES: Rule[] = [
+  // ---- emergency: immediate danger to life ----
   {
     category: 'gas',
     level: 'emergency',
     phrases: [
-      'gas smell', 'smell of gas', 'smell gas', 'smelling gas', 'gas leak',
-      'lpg leak', 'cylinder leak', 'gas cylinder leak',
+      'gas smell', 'smell of gas', 'smell gas', 'smelling gas', 'smells like gas', 'smells of gas',
+      'gas leak', 'leaking gas', 'lpg leak', 'cylinder leak', 'gas cylinder leak',
       'गैस की गंध', 'गैस की बदबू', 'गैस लीक', 'सिलेंडर लीक',
     ],
   },
@@ -67,10 +77,13 @@ const RULES: Rule[] = [
     category: 'fire',
     level: 'emergency',
     phrases: [
-      'burning smell', 'smells burnt', 'smell burning', 'on fire', 'caught fire',
-      'flames', 'sparks', 'spark', 'smoke', 'smoking',
+      'burning smell', 'smells burnt', 'smells burning', 'smell burning', 'smell of burning',
+      'burning plastic', 'burnt plastic', 'on fire', 'caught fire', 'catching fire', 'flames coming',
+      'sparking', 'sparks flying', 'sparks coming', 'throwing sparks', 'shooting sparks', 'arcing',
+      'smoke coming', 'smoke from', 'smoke is', 'smoke pouring', 'smoke out', 'see smoke',
+      'saw smoke', 'seeing smoke', 'there is smoke', 'there was smoke', 'smoking from',
       'जलने की गंध', 'जलने की बदबू', 'आग लग', 'आग लगी', 'लपटें',
-      'चिंगारी', 'चिंगारियां', 'धुआँ', 'धुआं',
+      'चिंगारी निकल', 'चिंगारियां निकल', 'धुआँ निकल', 'धुआं निकल', 'धुआँ आ', 'धुआं आ',
     ],
   },
   {
@@ -78,17 +91,31 @@ const RULES: Rule[] = [
     level: 'emergency',
     phrases: [
       'water near electricity', 'water near electrical', 'flooding near electricity',
-      'water on the outlet', 'water in the socket', 'wet outlet', 'wet socket',
+      'water on the outlet', 'water in the socket', 'water is in the socket', 'water inside the socket',
+      'water in the outlet', 'water is in the outlet', 'water inside the outlet', 'wet outlet', 'wet socket',
       'बिजली के पास पानी', 'बिजली के पास बाढ़', 'पानी और बिजली', 'सॉकेट में पानी',
     ],
   },
   {
+    category: 'medical',
+    level: 'emergency',
+    phrases: [
+      'electric shock', 'got shocked', 'shocked me', 'someone collapsed', 'unconscious',
+      "can't breathe", 'cannot breathe', 'chest pain', 'severe burn',
+      'बेहोश', 'सांस नहीं', 'बिजली का करंट लगा',
+    ],
+  },
+
+  // ---- professional: do not DIY (genuinely dangerous work or condition) ----
+  {
     category: 'electrical',
     level: 'professional',
     phrases: [
-      'exposed wiring', 'exposed wire', 'live wire', 'bare wire', 'bare wiring',
-      'main electrical panel', 'breaker panel wiring', 'rewire the house',
-      'mains wiring', '240v', '240 volt', 'high voltage',
+      'exposed live', 'live wire', 'live wires', 'bare wire', 'bare wires', 'bare wiring',
+      'exposed wire', 'exposed wires', 'exposed wiring',
+      'scorch marks', 'scorched outlet', 'scorched socket', 'melted plug', 'melted socket',
+      'melted outlet', 'main electrical panel', 'breaker panel wiring', 'service panel',
+      'rewire the house', 'mains wiring',
       'खुली तार', 'नंगी तार', 'करंट आ रहा', 'बिजली का झटका',
     ],
   },
@@ -96,8 +123,8 @@ const RULES: Rule[] = [
     category: 'gas',
     level: 'professional',
     phrases: [
-      'gas line', 'gas pipe', 'gas connection', 'gas regulator', 'gas valve',
-      'गैस पाइप', 'गैस लाइन', 'गैस कनेक्शन',
+      'repair the gas', 'replace the gas line', 'replace the gas pipe', 'modify the gas',
+      'gas line repair', 'gas pipe repair', 'install a gas', 'गैस पाइप बदल',
     ],
   },
   {
@@ -106,6 +133,7 @@ const RULES: Rule[] = [
     phrases: [
       'load bearing wall', 'load-bearing wall', 'remove a wall', 'knock down the wall',
       'ceiling collapse', 'roof collapse', 'foundation crack', 'cracked beam',
+      'water main burst', 'burst water main', 'water main break', 'main pipe burst',
       'दीवार गिरा', 'छत गिर', 'बीम में दरार',
     ],
   },
@@ -113,17 +141,8 @@ const RULES: Rule[] = [
     category: 'chemical',
     level: 'professional',
     phrases: [
-      'mix bleach and ammonia', 'bleach and ammonia', 'refrigerant', 'freon',
-      'asbestos', 'lead paint', 'ब्लीच और अमोनिया', 'एस्बेस्टस',
-    ],
-  },
-  {
-    category: 'medical',
-    level: 'emergency',
-    phrases: [
-      'electric shock', 'got shocked', 'someone collapsed', 'unconscious',
-      "can't breathe", 'cannot breathe', 'chest pain', 'severe burn',
-      'बेहोश', 'सांस नहीं', 'बिजली का करंट लगा',
+      'mix bleach and ammonia', 'bleach and ammonia', 'asbestos', 'lead paint',
+      'ब्लीच और अमोनिया', 'एस्बेस्टस',
     ],
   },
   {
@@ -136,6 +155,26 @@ const RULES: Rule[] = [
       'सुरक्षा हटा', 'अर्थिंग हटा',
     ],
   },
+
+  // ---- caution: routine repair vocabulary. Shows a disclaimer; NEVER blocks. ----
+  {
+    category: 'electrical',
+    level: 'caution',
+    phrases: ['240v', '240 volt', 'high voltage', 'capacitor', 'magnetron'],
+  },
+  {
+    category: 'gas',
+    level: 'caution',
+    phrases: [
+      'gas line', 'gas pipe', 'gas connection', 'gas regulator', 'gas valve',
+      'गैस पाइप', 'गैस लाइन', 'गैस कनेक्शन',
+    ],
+  },
+  {
+    category: 'chemical',
+    level: 'caution',
+    phrases: ['refrigerant', 'freon'],
+  },
 ]
 
 const LEVEL_RANK: Record<SafetyLevel, number> = {
@@ -145,20 +184,60 @@ const LEVEL_RANK: Record<SafetyLevel, number> = {
 }
 
 function normalize(text: string): string {
-  return text.normalize('NFC').toLocaleLowerCase()
+  return text.normalize('NFC').toLocaleLowerCase().replace(/[\u2018\u2019]/g, "'")
 }
 
-function matchesPhrase(haystack: string, phrase: string): boolean {
-  const idx = haystack.indexOf(phrase)
-  if (idx === -1) return false
-  // For ASCII phrases, require a non-word boundary on each side so that, e.g.,
-  // "spark" does not match inside "sparkling". Non-ASCII (Hindi) skips this
-  // check because \w boundaries do not apply to Devanagari.
-  if (!/^[\x20-\x7e]+$/.test(phrase)) return true
-  const before = haystack[idx - 1]
-  const after = haystack[idx + phrase.length]
-  const isWord = (ch: string | undefined) => ch !== undefined && /[a-z0-9]/.test(ch)
-  return !isWord(before) && !isWord(after)
+// Words that turn a mention into a precaution / negation rather than a report.
+// Only the stretch immediately BEFORE the phrase (back to the last comma, colon or
+// conjunction) is inspected, so "it is not working and sparks" still counts while
+// "stop if you see sparks" and "no smoke" do not.
+const PRECAUTION_RE =
+  /\b(?:if|in case|should|whenever|unless|never|no|not|without|avoid|avoiding|prevent|preventing|protect|reduce|risk|danger of|check for|check that|checking for|watch for|watch out|look for|look out for|looking for|be alert|signs? of|free of|free from|ensure|make sure)\b|n't\b/
+const HINDI_PRECAUTION = ['अगर', 'यदि', 'कभी न']
+
+// A spark in the context of an igniter / lighter / spark plug is normal operation.
+const IGNITER_RE = /\b(?:ignit\w*|lighter|spark plug|candle)\b/
+
+const CLAUSE_DELIMITER = /[.!?\n;]/
+
+function clauseBounds(text: string, index: number): { start: number; end: number } {
+  let start = index
+  while (start > 0 && !CLAUSE_DELIMITER.test(text[start - 1])) start -= 1
+  let end = index
+  while (end < text.length && !CLAUSE_DELIMITER.test(text[end])) end += 1
+  return { start, end }
+}
+
+function isPrecautionary(prefix: string): boolean {
+  const segment = prefix.split(/\b(?:and|but|however|then|because|so)\b|[,:()]/).pop() ?? ''
+  const tail = segment.slice(-60)
+  return PRECAUTION_RE.test(tail) || HINDI_PRECAUTION.some((marker) => tail.includes(marker))
+}
+
+function isWordChar(ch: string | undefined): boolean {
+  return ch !== undefined && /[a-z0-9]/.test(ch)
+}
+
+/**
+ * True when `phrase` appears in `haystack` as an ASSERTION: on word boundaries
+ * (for ASCII phrases) and not inside a precaution/negation clause.
+ */
+function phraseIsActive(haystack: string, phrase: string): boolean {
+  const ascii = /^[\x20-\x7e]+$/.test(phrase)
+  let from = 0
+  for (;;) {
+    const index = haystack.indexOf(phrase, from)
+    if (index === -1) return false
+    from = index + phrase.length
+
+    if (ascii && (isWordChar(haystack[index - 1]) || isWordChar(haystack[index + phrase.length]))) {
+      continue
+    }
+    const { start, end } = clauseBounds(haystack, index)
+    if (isPrecautionary(haystack.slice(start, index))) continue
+    if (phrase.includes('spark') && IGNITER_RE.test(haystack.slice(start, end))) continue
+    return true
+  }
 }
 
 function emptyVerdict(): SafetyVerdict {
@@ -166,8 +245,8 @@ function emptyVerdict(): SafetyVerdict {
 }
 
 /**
- * Screens arbitrary text (a user description, a prompt, or AI output) against
- * the policy rules and returns a structured verdict.
+ * Screens arbitrary text (a user description, a note, an answer, or the model's
+ * OBSERVATION of the photo) and returns a structured verdict.
  */
 export function screenText(input: unknown): SafetyVerdict {
   if (typeof input !== 'string' || input.trim() === '') return emptyVerdict()
@@ -177,7 +256,7 @@ export function screenText(input: unknown): SafetyVerdict {
   const seen = new Set<string>()
   for (const rule of RULES) {
     for (const phrase of rule.phrases) {
-      if (!matchesPhrase(haystack, phrase)) continue
+      if (!phraseIsActive(haystack, phrase)) continue
       const key = `${rule.category}:${phrase}`
       if (seen.has(key)) continue
       seen.add(key)
@@ -214,8 +293,11 @@ export function screenText(input: unknown): SafetyVerdict {
 }
 
 /**
- * Combines several text fields (description, summary, safetyWarning, fix, …)
- * into one verdict. Any field hitting the policy raises the overall level.
+ * Combines several text fields into one verdict (each field is its own clause).
+ *
+ * Pass what the USER reported and what the model OBSERVED (issue name, summary,
+ * recommended fix). Do NOT pass the model's generic safetyWarning or tool list:
+ * those are precautionary boilerplate and are not evidence of a hazard.
  */
 export function screenFields(fields: ReadonlyArray<string | null | undefined>): SafetyVerdict {
   const combined = fields.filter((f): f is string => typeof f === 'string' && f.trim() !== '')
@@ -267,4 +349,4 @@ export function disclaimerKeyForVerdict(verdict: SafetyVerdict): string | null {
 }
 
 /** Policy version string, surfaced in logs and the agreed contract. Bump on rule changes. */
-export const SAFETY_POLICY_VERSION = 's05.1'
+export const SAFETY_POLICY_VERSION = 's05.2'

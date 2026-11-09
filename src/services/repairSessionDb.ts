@@ -316,3 +316,20 @@ export async function persistObservation(
   if (error) throw new Error(`Unable to save the observation: ${error.message}`)
   return stored
 }
+
+/**
+ * Records the repair's main photo (a PRIVATE storage object path, never a URL or image
+ * data) on the authoritative row, so the photo can be shown again after a reload, in a new
+ * tab, or when the repair is resumed from History. Scoped by user_id; RLS enforces the same.
+ */
+export async function persistImagePath(repairSessionId: string, imagePath: string): Promise<void> {
+  if (!supabase || !repairSessionId || !imagePath) return
+  const userId = await getUserId()
+  if (!userId) return
+  const { error } = await supabase
+    .from('repair_sessions')
+    .update({ image_path: imagePath })
+    .eq('id', repairSessionId)
+    .eq('user_id', userId)
+  if (error) throw new Error(`Unable to save the photo reference: ${error.message}`)
+}

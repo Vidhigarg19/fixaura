@@ -12,6 +12,8 @@ import {
   saveSession,
 } from './repairSession'
 import { createRequestGuard } from '../utils/requestGuard'
+import { buildRepairPlan } from './repairPlanner'
+import { parseGuideSteps } from '../utils/guideSteps'
 import { isNetworkError, isOffline } from '../utils/networkError'
 import { deriveSessionStatus, type SessionStatus } from '../utils/sessionStatus'
 
@@ -62,6 +64,13 @@ function cleanVerification(value: unknown): RepairVerification | undefined {
  */
 export function stripPhotoData(diagnosis: DiagnosisResult): DiagnosisResult {
   const verification = cleanVerification(diagnosis.verification)
+  // Guide steps are re-validated and cleaned of photo data like every other text field.
+  const guideSteps = parseGuideSteps(diagnosis.guideSteps).map((step) => ({
+    ...step,
+    title: withoutPhotoData(step.title),
+    instruction: withoutPhotoData(step.instruction),
+    safetyNote: withoutPhotoData(step.safetyNote),
+  }))
   return {
     issueName: withoutPhotoData(diagnosis.issueName),
     confidence: diagnosis.confidence,
@@ -77,6 +86,7 @@ export function stripPhotoData(diagnosis: DiagnosisResult): DiagnosisResult {
       ? { explanation: withoutPhotoData(diagnosis.explanation) }
       : {}),
     ...(typeof diagnosis.safetyStop === 'boolean' ? { safetyStop: diagnosis.safetyStop } : {}),
+    ...(guideSteps.length ? { guideSteps } : {}),
     ...(verification ? { verification } : {}),
   }
 }
@@ -110,8 +120,10 @@ export interface ResumeView {
   diagnosis: DiagnosisResult | null
   currentStep: number
   updatedAt: string | null
-  /** Nothing writes image_path today, so this is false for every real row. */
+  /** True when the row has a stored photo reference (repair_sessions.image_path). */
   hasStoredPhoto: boolean
+  /** The private storage path of that photo; render it via resolveMediaUrl, never directly. */
+  imagePath?: string | null
 }
 
 export type LoadOutcome =
@@ -131,6 +143,7 @@ export function toResumeView(row: HistorySession): ResumeView {
     currentStep: typeof row.current_step === 'number' && Number.isFinite(row.current_step) ? row.current_step : 0,
     updatedAt: row.updated_at,
     hasStoredPhoto: typeof row.image_path === 'string' && row.image_path.trim().length > 0,
+    imagePath: typeof row.image_path === 'string' && row.image_path.trim() ? row.image_path.trim() : null,
   }
 }
 
@@ -213,4 +226,37 @@ export function sessionHref(path: string, sessionId: string | null, fixtureName:
   if (fixtureName) params.set('fixture', fixtureName)
   const query = params.toString()
   return query ? `${path}?${query}` : path
+}
+
+/**
+ * Opens a saved session in the live guide pages (/tools and /guide).
+ *
+ * Those pages read the browser cache, which useDiagnosisSource then reconciles with the
+ * database row. The loaded row is written into the cache; a cache from ANOTHER repair is
+ * cleared first, but the same repair's cache (and its photo) is kept. The photo itself is
+ * found by useRepairPhoto: this tab's capture, the on-device copy, or the stored path.
+ *
+ * Returns false when the row has no diagnosis to build a guide from.
+ */
+export function seedRepairCache(view: ResumeView, userId: string): boolean {
+  if (!view.diagnosis) return false
+  const steps = buildRepairPlan(view.diagnosis)
+  // Clear only a cache that belongs to ANOTHER repair or user. Clearing the same repair
+  // threw away this tab's photo (imageDataUrl) and attempt id, which is what left the
+  // guide's photo box empty after pressing Start / Continue on a saved result.
+  const cached = getCachedSession()
+  const cachedId = cached?.historySessionId ?? cached?.diagnosisPersistence?.repairSessionId
+  if (cached && (cachedId !== view.id || cached.ownerUserId !== userId)) clearSession()
+  saveSession({
+    diagnosis: view.diagnosis,
+    description: view.description,
+    ownerUserId: userId,
+    historySessionId: view.id,
+    diagnosisPersistence: { userId, repairSessionId: view.id },
+    // A resumed repair keeps its photo: the stored path is signed when it is displayed.
+    ...(view.imagePath ? { imagePath: view.imagePath } : {}),
+    steps,
+    currentStep: Math.min(Math.max(view.currentStep, 0), Math.max(steps.length - 1, 0)),
+  })
+  return true
 }

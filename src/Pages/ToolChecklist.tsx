@@ -15,8 +15,11 @@ import { getLocale, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { withFixtureQuery } from '../utils/fixtureGate'
 import { isBlocked } from '../utils/riskDecision'
+import { withTextScreen } from '../utils/combinedRisk'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
+import { useRepairPhoto } from '../utils/useRepairPhoto'
+import RepairPhoto from '../components/RepairPhoto'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
 
@@ -102,17 +105,36 @@ function matchTool(tool: string): { icon: React.ElementType } {
   return { icon: Wrench }
 }
 function FreshToolChecklist() {
-  useSyncExternalStore(subscribeLocale, getLocale)
+  const locale = useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const source = useDiagnosisSource()
   const session = source.session
-  // S07: AI free-text tools are not an approved checklist. The list is only
-  // populated when a reviewed, current approved template validates; otherwise
-  // the page fails closed below.
-  const guideAvail = getGuideAvailability(source.extras, { allowFixtureTemplates: source.isFixture })
+  // The user's main repair photo, found through every source (this tab, this device,
+  // stored copy), so the checklist shows what is being repaired.
+  const sessionMedia = useRepairPhoto(session)
+  // The same hazard verdict every page uses. Low and medium results are never blocked
+  // here; only a genuine hazard is, and it gets the safety panel below.
+  const gate = session?.diagnosis
+    ? withTextScreen(buildDiagnosisView(session.diagnosis, source.extras), session.diagnosis, session.description)
+    : null
+  const guideAvail = getGuideAvailability(source.extras, {
+    allowFixtureTemplates: source.isFixture,
+    diagnosis: session?.diagnosis ?? null,
+    decision: gate?.decision,
+  })
   const guideAvailable = guideAvail.status === 'available'
   const recommended = guideAvailable ? session?.diagnosis?.recommendedTools : undefined
-  const tools = useMemo(() => recommended ?? [], [recommended])
+  // Non-approved guides always list basic protection, so "wear protection" is a real
+  // item the user ticks off. It is only added when the model's own list lacks it.
+  const addProtectiveGear = guideAvail.status === 'available' && guideAvail.source !== 'approved'
+  const tools = useMemo(() => {
+    const list = [...(recommended ?? [])]
+    if (!addProtectiveGear) return list
+    const has = (pattern: RegExp) => list.some((tool) => pattern.test(tool))
+    if (!has(/glove/i)) list.push(t('tools.protectiveGloves', locale))
+    if (!has(/glasses|goggles|eye/i)) list.push(t('tools.safetyGlasses', locale))
+    return list
+  }, [recommended, addProtectiveGear, locale])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [pendingTool, setPendingTool] = useState<string | null>(null)
@@ -149,7 +171,7 @@ function FreshToolChecklist() {
 
   const continueGuide = () => {
     if (!guideAvailable) return
-    if (session?.diagnosis && isBlocked(buildDiagnosisView(session.diagnosis, source.extras).decision)) return
+    if (gate && isBlocked(gate.decision)) return
     // Fixture mode never writes to the stored session.
     if (!source.isFixture) {
       saveSession({ toolsAcknowledged: Object.keys(checked).filter((k) => checked[k]) })
@@ -169,8 +191,7 @@ function FreshToolChecklist() {
       </PageShell>
     )
   }
-  if (session?.diagnosis) {
-    const gate = buildDiagnosisView(session.diagnosis, source.extras)
+  if (session?.diagnosis && gate) {
     if (isBlocked(gate.decision) && (gate.decision === 'professional' || gate.decision === 'emergency')) {
       return (
         <PageShell className="pb-24">
@@ -227,6 +248,7 @@ function FreshToolChecklist() {
             <FixtureBanner name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
           </Suspense>
         )}
+        <RepairPhoto sessionMedia={sessionMedia} aspectClass="aspect-[16/7]" className="mb-6" />
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

@@ -8,6 +8,7 @@ import type {
 } from '../types/repair'
 import { AnalysisError, isAnalysisErrorCode } from '../types/analysis'
 import { OBSERVATION_POLICY_VERSION } from '../utils/observationPolicy'
+import { parseGuideSteps } from '../utils/guideSteps'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -73,6 +74,10 @@ export function diagnosisFromEnvelope(body: unknown): DiagnosisResult {
     throw new AnalysisError('invalid_response', true)
   }
 
+  const safetyStop = data.safetyStop === true || severity === 'high'
+  // A blocked result never carries steps; a malformed guide is dropped, not fatal.
+  const guideSteps = safetyStop ? [] : parseGuideSteps(data.guideSteps)
+
   return {
     issueName,
     confidence: Math.round(data.confidence),
@@ -83,7 +88,8 @@ export function diagnosisFromEnvelope(body: unknown): DiagnosisResult {
     nextStepAdvice,
     safetyWarning,
     explanation,
-    safetyStop: data.safetyStop === true || severity === 'high',
+    safetyStop,
+    ...(guideSteps.length ? { guideSteps } : {}),
   }
 }
 

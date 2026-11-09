@@ -47,6 +47,8 @@ export async function createPhotoFromFile(file: File): Promise<CapturedPhoto> {
     canvas.height = dimensions.height
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas rendering is unavailable.')
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
     context.drawImage(image, 0, 0, dimensions.width, dimensions.height)
     return await createPhotoFromCanvas(canvas)
   } finally {

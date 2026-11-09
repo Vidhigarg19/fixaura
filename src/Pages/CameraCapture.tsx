@@ -36,6 +36,8 @@ import {
   setDiagnosis,
 } from '../services/repairSession'
 import { uploadPrivateRepairMediaBlob } from '../services/mediaService'
+import { persistImagePath } from '../services/repairSessionDb'
+import { savePhoto } from '../services/localPhotoStore'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import {
   analysisErrorMessageKey,
@@ -276,7 +278,9 @@ function CaptureForm({ userId }: { userId: string }) {
     try {
       try {
         acquiredStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facingMode } },
+          // Without a resolution request browsers default to 640x480, which made the
+          // saved photo look blurry in the guide. `ideal` is a hint, never an error.
+          video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: false,
         })
       } catch (error) {
@@ -418,6 +422,9 @@ function CaptureForm({ userId }: { userId: string }) {
     canvas.height = dimensions.height
     const context = canvas.getContext('2d')
     if (!context) return
+    // Canvas resampling defaults to low quality; ask for the best when resizing the frame.
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
     context.drawImage(video, 0, 0, dimensions.width, dimensions.height)
     try {
       const blob = await createImageBlob(canvas)
@@ -473,14 +480,29 @@ function CaptureForm({ userId }: { userId: string }) {
   // object path on the active session, so it is associated with the repair and
   // can be scrubbed on deletion. Never throws into the analyze flow.
   const persistCaptureMedia = async (blob: Blob) => {
+    const session = getSession()
+    // Keep an on-device copy FIRST. It does not depend on storage being set up, so the
+    // guide can always show the user's own photo on this device (reload, new tab, resume).
     try {
-      const session = getSession()
+      await savePhoto(
+        [session?.diagnosisAttemptId, session?.diagnosisPersistence?.repairSessionId],
+        blob,
+        userId
+      )
+    } catch {
+      // Optional: the stored copy below (or this tab's cache) still covers the guide.
+    }
+    try {
       const sessionScope = session?.diagnosisPersistence?.repairSessionId ?? session?.diagnosisAttemptId
       if (!sessionScope) return
       const path = await uploadPrivateRepairMediaBlob(blob, sessionScope)
       const current = getSession()
       const mediaPaths = [...new Set([...(current?.mediaPaths ?? []), path])]
-      saveSession({ mediaPaths })
+      saveSession({ mediaPaths, imagePath: current?.imagePath ?? path })
+      // If the repair row already exists, record the photo on it now so it survives a new
+      // tab or a resume. If it does not exist yet, the Diagnosis page writes it with the row.
+      const repairSessionId = getSession()?.diagnosisPersistence?.repairSessionId
+      if (repairSessionId) await persistImagePath(repairSessionId, current?.imagePath ?? path)
     } catch (error) {
       console.warn('Private media upload failed:', error instanceof Error ? error.message : 'unknown')
     }
@@ -727,7 +749,7 @@ function CaptureForm({ userId }: { userId: string }) {
             </div>
           ) : cameraState === 'ready' ? (
             <>
-              <AROverlay variant="capture" />
+              <AROverlay />
               <p className="absolute bottom-4 left-0 right-0 z-10 px-4 text-center text-sm text-white drop-shadow-lg">
                 {t('capture.instruction')}
               </p>

@@ -46,11 +46,11 @@ export function applyDiagnosisUpdate(
     return { accepted: false, state: current }
   }
 
-  // Screen the new answers alongside the server's own output. Any professional/
-  // emergency finding forces a safety stop before we even consult the decision.
+  // Screen the user's new answers plus what the server OBSERVED (summary). The
+  // server's boilerplate safetyWarning is not evidence of a hazard, so it is not
+  // screened. Any professional/emergency finding forces a safety stop.
   const answerVerdict = screenFields([
     ...answerTexts(answers),
-    update.diagnosis.safetyWarning,
     update.diagnosis.summary,
   ])
 

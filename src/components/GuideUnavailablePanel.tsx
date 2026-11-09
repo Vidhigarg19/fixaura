@@ -55,6 +55,9 @@ export default function GuideUnavailablePanel({ issueName, sessionId, reasonKey 
           className={`${actionClass} bg-primary text-background`}>
           {t('guide.backToResult')}
         </Link>
+        <Link to="/capture" className={`${actionClass} border border-border text-text-secondary hover:border-primary hover:text-primary`}>
+          {t('diagnosis.ctaRetake')}
+        </Link>
         <Link to="/dashboard" className={`${actionClass} border border-border text-text-secondary hover:border-primary hover:text-primary`}>
           {t('nav.dashboard')}
         </Link>

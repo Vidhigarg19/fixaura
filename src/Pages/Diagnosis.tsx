@@ -8,7 +8,10 @@ import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
-import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
+import { isValidSessionId, seedRepairCache, sessionDetailsForInsert } from '../services/sessionResume'
+import { buildRepairPlan } from '../services/repairPlanner'
+import { persistImagePath } from '../services/repairSessionDb'
+import { linkPhoto } from '../services/localPhotoStore'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../components/authContext'
@@ -80,10 +83,14 @@ function FreshDiagnosis() {
     ? combinedDecision(decideFromDiagnosis(liveSession.diagnosis, source.extras), safetyVerdict)
     : 'professional'
   const blocked = isBlocked(decision)
-  // S07: guided repair opens only when the agreed diagnosis carries a reviewed,
-  // current approved template. The diagnosis itself is still saved by the effect
-  // below; only the guided-repair start is gated on template validation.
-  const guideAvailable = isGuideAvailable(source.extras, { allowFixtureTemplates: source.isFixture })
+  // Guided repair opens for a non-blocked result that has either a reviewed approved
+  // template or validated issue-specific steps. A genuine hazard (blocked) never gets
+  // one. The diagnosis itself is always saved by the effect below.
+  const guideAvailable = isGuideAvailable(source.extras, {
+    allowFixtureTemplates: source.isFixture,
+    diagnosis: liveSession?.diagnosis ?? null,
+    decision,
+  })
   const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
   const [saveFailed, setSaveFailed] = useState(false)
   const [saveAttempt, setSaveAttempt] = useState(0)
@@ -221,16 +228,22 @@ function FreshDiagnosis() {
           // rehydration, so there is exactly one row per repair.
           // V06: photo/image data is stripped from the stored diagnosis, the
           // description is capped at 500 and the title at 80 characters.
-          // V05: generated repair steps are not approved content and are never
-          // persisted, so steps is always empty here.
+          // Steps are the validated, issue-specific steps returned for THIS result (plus
+          // the localized "get ready safely" step). A blocked result has none, and
+          // there is no generic filler, so this is empty when nothing usable came back.
+          const planSteps = buildRepairPlan(d)
           const safeDetails = sessionDetailsForInsert(d, session.description)
+          // The photo is uploaded to private storage in parallel with this save. When it is
+          // already there, its PATH (never image data) is stored with the row.
+          const insertedImagePath = getCachedSession()?.mediaPaths?.[0]
           const authoritativeFields = {
             title: safeDetails.title,
             issue_name: safeDetails.issue_name,
             description: safeDetails.description,
             diagnosis: safeDetails.diagnosis,
-            steps: [],
+            steps: planSteps,
             current_step: 0,
+            ...(insertedImagePath ? { image_path: insertedImagePath } : {}),
           }
 
           const existingSession = existingSessions[0]
@@ -256,7 +269,7 @@ function FreshDiagnosis() {
               diagnosisAttemptId: attemptId,
               diagnosisPersistence: persistence,
               historySessionId: existingSession.id,
-              steps: [],
+              steps: planSteps,
               currentStep: 0,
             })
           } else {
@@ -267,7 +280,7 @@ function FreshDiagnosis() {
                 appliance_id: applianceId,
                 diagnosis_id: diagnosisId,
                 status: 'in_progress',
-                // Stripped diagnosis, capped text, no generated steps (see above).
+                // Stripped diagnosis, capped text, validated issue-specific steps (see above).
                 ...authoritativeFields,
               })
               .select('id, user_id, diagnosis_id, appliance_id')
@@ -286,9 +299,26 @@ function FreshDiagnosis() {
               diagnosisAttemptId: attemptId,
               diagnosisPersistence: persistence,
               historySessionId: createdSession.id,
-              steps: [],
+              steps: planSteps,
               currentStep: 0,
             })
+          }
+
+          // The on-device photo was saved under the attempt id at capture. Link it to the
+          // repair row id too, so a resume from History finds it on this device.
+          if (persistence.repairSessionId) {
+            void linkPhoto(attemptId, persistence.repairSessionId, user.id).catch(() => undefined)
+          }
+
+          // If the upload finished after the row was written, record the path now. A
+          // failure here must never turn a saved diagnosis into a "could not save" state.
+          const latestImagePath = getCachedSession()?.mediaPaths?.[0]
+          if (latestImagePath && latestImagePath !== insertedImagePath && persistence.repairSessionId) {
+            try {
+              await persistImagePath(persistence.repairSessionId, latestImagePath)
+            } catch (photoError) {
+              console.warn('Unable to record the photo reference:', photoError instanceof Error ? photoError.message : 'unknown')
+            }
           }
         })
 
@@ -328,7 +358,7 @@ function FreshDiagnosis() {
   const startRepair = async () => {
     if (!liveSession || starting) return
     if (isBlocked(decision)) return
-    // Never build or save frontend-generated steps as a guide.
+    // Only start a guide that passed the availability gate (never for a blocked result).
     if (!guideAvailable) return
     if (source.isFixture) {
       // Fixture mode never creates a real repair session.
@@ -350,7 +380,7 @@ function FreshDiagnosis() {
     try {
       const steps = liveSession.steps?.length
         ? liveSession.steps
-        : []
+        : buildRepairPlan(liveSession.diagnosis)
       saveSession({
         historySessionId: repairSessionId,
         steps,
@@ -490,7 +520,7 @@ function FreshDiagnosis() {
             {!guideAvailable && (
               <div className="mb-4 rounded-xl border border-border bg-surface p-4">
                 <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
-                <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
+                <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableNoSteps')}</p>
               </div>
             )}
             <div className="flex flex-col sm:flex-row gap-3">
@@ -536,16 +566,15 @@ function FreshDiagnosis() {
 
 const SECTION_CLASS = 'glass-panel rounded-xl p-6 mb-6'
 
-/** S05: screens the same fields main screened (description and result text). */
+/**
+ * S05: screens what the user REPORTED and what the model OBSERVED (issue, summary,
+ * recommended fix). The model's generic safetyWarning and its tool list are
+ * deliberately NOT screened: they are precautionary boilerplate ("unplug first, stop
+ * if you see sparks") and treating them as evidence of a hazard blocked ordinary
+ * repairs. Real danger still arrives through the severity/safetyStop fields.
+ */
 function screenDiagnosisText(description: string | undefined, d: DiagnosisResult): SafetyVerdict {
-  return screenFields([
-    description,
-    d.issueName,
-    d.summary,
-    d.recommendedFix,
-    d.safetyWarning,
-    ...(d.recommendedTools ?? []),
-  ])
+  return screenFields([description, d.issueName, d.summary, d.recommendedFix])
 }
 
 /**
@@ -712,6 +741,7 @@ function WhyThisResult({ text }: { text: string }) {
 function SavedDiagnosis() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { state, fixtureName } = useSessionLoader()
   const isFixture = fixtureName !== null
 
@@ -778,10 +808,28 @@ function SavedDiagnosis() {
 
         {!blocked && (
           <>
-            <div className="mb-4 rounded-xl border border-border bg-surface p-4">
-              <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
-              <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
-            </div>
+            {isFixture ? (
+              // Dev session fixtures are not real database rows, so they cannot open the live pages.
+              <div className="mb-4 rounded-xl border border-border bg-surface p-4">
+                <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
+                <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
+              </div>
+            ) : (
+              // A saved low or medium risk repair can always be opened or resumed. The guide
+              // is built from the saved diagnosis when no exact checklist exists.
+              <button
+                type="button"
+                disabled={!user}
+                onClick={() => {
+                  if (user && seedRepairCache(saved, user.id)) {
+                    navigate(saved.currentStep > 0 ? '/guide' : '/tools')
+                  }
+                }}
+                className="mb-3 min-h-11 w-full rounded-xl bg-primary py-3 font-semibold text-background disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {saved.currentStep > 0 ? t('history.continue') : t('diagnosis.ctaTools')}
+              </button>
+            )}
             <div className="flex flex-col sm:flex-row gap-3">
               <Link
                 to="/capture"
