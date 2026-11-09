@@ -1,5 +1,26 @@
 {
+  "a11y": {
+    "skipToMain": "Skip to main content"
+  },
+  "diagnosisHistory": {
+    "title": "Diagnosis history",
+    "subtitle": "Your previously saved repair diagnoses.",
+    "loading": "Loading history…",
+    "loginRequired": "Please log in to view your diagnosis history.",
+    "loadError": "We couldn't load your diagnosis history.",
+    "empty": "No saved diagnoses yet.",
+    "startNew": "Start a new diagnosis",
+    "appliance": "Appliance",
+    "date": "Date",
+    "risk": "Risk",
+    "confidence": "Confidence",
+    "recommendedFix": "Recommended fix",
+    "newDiagnosis": "New diagnosis",
+    "backHome": "Back to home"
+  },
   "nav": {
+    "mobileMenu": "Menu",
+    "signOutError": "We couldn't sign you out. Please try again.",
     "features": "Features",
     "showcase": "Repairs",
     "testimonials": "Why HomeGenie",
@@ -261,6 +282,11 @@
     "voiceNetworkError": "Voice input failed because of a network or microphone error. Please try again."
   },
   "diagnosis": {
+    "saveStatus": {
+      "saving": "Saving diagnosis…",
+      "saved": "Diagnosis and repair session saved.",
+      "failed": "We couldn't save this diagnosis."
+    },
     "title": "Diagnosis",
     "detectedIssue": "Detected issue",
     "recommendedFix": "Recommended fix",
@@ -295,6 +321,12 @@
     "riskBlockedBody": "HomeGenie is not showing repair steps for this. See the safety notice above."
   },
   "auth": {
+    "errorInvalidCredentials": "The email or password is not correct.",
+    "errorEmailNotConfirmed": "Please confirm your email first. Check your inbox.",
+    "errorUserExists": "An account with this email already exists. Try logging in.",
+    "errorWeakPassword": "Choose a stronger password with at least 6 characters.",
+    "errorRateLimit": "Too many attempts. Wait a few minutes and try again.",
+    "errorGeneric": "We couldn't sign you in. Check your details and try again.",
     "createTitle": "Create your HomeGenie account",
     "welcomeTitle": "Welcome back",
     "signupBody": "Sign up to save your diagnoses and repair progress.",
@@ -439,6 +471,7 @@
     "low": "Low confidence"
   },
   "voice": {
+    "unsupportedShort": "Voice commands aren't available here. Use the buttons.",
     "listening": "Listening…",
     "tapToSpeak": "Voice command"
   },

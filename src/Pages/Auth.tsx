@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import PageShell from '../components/PageShell'
 import { getLocale, subscribeLocale, t } from '../i18n'
+import { authErrorMessage } from '../utils/authError'
 
 export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
   const location = useLocation()
@@ -56,7 +57,7 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
         if (error) throw error
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t('common.error'))
+      setMessage(authErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -78,7 +79,7 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
       })
       if (error) throw error
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t('common.error'))
+      setMessage(authErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -103,10 +104,12 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
               id="email"
               type="email"
               autoComplete="email"
+              aria-invalid={message && !confirmationPending ? true : undefined}
+              aria-describedby={message ? 'auth-message' : undefined}
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              className="min-h-11 w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
               placeholder={t('auth.emailPlaceholder')}
             />
           </div>
@@ -118,10 +121,12 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
               type="password"
               autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               minLength={6}
+              aria-invalid={message && !confirmationPending ? true : undefined}
+              aria-describedby={message ? 'auth-message' : undefined}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              className="min-h-11 w-full rounded-xl border border-border bg-background p-3 text-text-primary focus-visible:outline-2 focus-visible:outline-primary"
               placeholder={t('auth.passwordPlaceholder')}
             />
           </div>
@@ -146,11 +151,13 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
           {t('auth.continueWithGoogle')}
         </button>
 
+        {loading && <p role="status" className="sr-only">{t('common.loading')}</p>}
         {!client && !message && (
           <p role="alert" className="text-sm text-warning">{t('auth.notConfigured')}</p>
         )}
         {message && (
           <p
+            id="auth-message"
             role={confirmationPending ? 'status' : 'alert'}
             className="text-sm text-text-secondary break-words"
           >
@@ -161,14 +168,14 @@ export default function Auth({ initialMode = 'login' }: { initialMode?: 'login' 
         <Link
           to={mode === 'signup' ? '/login' : '/signup'}
           state={location.state}
-          className="block w-full text-center text-sm text-primary underline focus-visible:outline-2 focus-visible:outline-primary"
+          className="block min-h-11 w-full py-3 text-center text-sm text-primary underline focus-visible:outline-2 focus-visible:outline-primary"
         >
           {mode === 'signup'
             ? t('auth.switchToLogin')
             : t('auth.switchToSignup')}
         </Link>
 
-        <Link to="/" className="block text-center text-sm text-text-secondary underline focus-visible:outline-2 focus-visible:outline-primary">
+        <Link to="/" className="block min-h-11 py-3 text-center text-sm text-text-secondary underline focus-visible:outline-2 focus-visible:outline-primary">
           {t('auth.backHome')}
         </Link>
       </div>

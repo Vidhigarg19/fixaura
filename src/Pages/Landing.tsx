@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useSyncExternalStore } from 'react'
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import ConfidenceMeter from "../components/ConfidenceMeter";
 import Logo from "../components/Logo";
-import { t } from '../i18n'
+import { getLocale, subscribeLocale, t } from '../i18n'
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -129,6 +129,8 @@ const whyFixaura = [
 ];
 
 export default function Landing() {
+  // Re-render when the language toggle changes.
+  useSyncExternalStore(subscribeLocale, getLocale, getLocale)
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
@@ -136,7 +138,7 @@ export default function Landing() {
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
 
-      <main className="relative">
+      <main id="main-content" tabIndex={-1} className="relative">
         <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
           <motion.div
             variants={stagger}
@@ -481,9 +483,9 @@ export default function Landing() {
           </div>
 
           <div>
-            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+            <h2 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
               {t("landing.footerProductHeading")}
-            </h4>
+            </h2>
             <ul className="space-y-3 text-text-secondary">
               <li>
                 <a className="hover:text-primary transition-colors" href="#features">
@@ -509,29 +511,29 @@ export default function Landing() {
           </div>
 
           <div>
-            <h4 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
+            <h2 className="text-[13px] uppercase tracking-[0.22em] text-text-primary font-semibold mb-4">
               {t("landing.footerLegalHeading")}
-            </h4>
+            </h2>
             <ul className="space-y-3 text-text-secondary">
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalPrivacyPolicy")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalTermsOfService")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalCookiePolicy")}
-                </a>
+                </span>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#">
+                <span>
                   {t("landing.footerLegalSafetyDisclosure")}
-                </a>
+                </span>
               </li>
             </ul>
           </div>

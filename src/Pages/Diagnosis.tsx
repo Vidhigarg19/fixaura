@@ -9,7 +9,7 @@ import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
 import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
 import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
-import { getLocale, subscribeLocale, t } from '../i18n'
+import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../components/authContext'
 import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
@@ -84,7 +84,7 @@ function FreshDiagnosis() {
   // current approved template. The diagnosis itself is still saved by the effect
   // below; only the guided-repair start is gated on template validation.
   const guideAvailable = isGuideAvailable(source.extras, { allowFixtureTemplates: source.isFixture })
-  const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'failed'>('saving')
   const [saveFailed, setSaveFailed] = useState(false)
   const [saveAttempt, setSaveAttempt] = useState(0)
   const [repairSessionReady, setRepairSessionReady] = useState(false)
@@ -295,7 +295,7 @@ function FreshDiagnosis() {
         if (!cancelled) {
           setRepairSessionReady(true)
           setSaveFailed(false)
-          setSaveStatus('Diagnosis and repair session saved successfully.')
+          setSaveStatus('saved')
           // So a refresh or a copied link opens this repair from the database.
           const savedId = getCachedSession()?.diagnosisPersistence?.repairSessionId
           if (isValidSessionId(savedId)) {
@@ -309,11 +309,7 @@ function FreshDiagnosis() {
 
         if (!cancelled) {
           setSaveFailed(true)
-          setSaveStatus(
-            error instanceof Error
-              ? `Could not save diagnosis: ${error.message}`
-              : 'Could not save diagnosis.'
-          )
+          setSaveStatus('failed')
         }
       }
     }
@@ -358,7 +354,7 @@ function FreshDiagnosis() {
       })
       navigate('/tools')
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : t('history.saveError'))
+      setSaveError(localizedErrorMessage(error, 'history.saveError'))
     } finally {
       setStarting(false)
     }
@@ -425,7 +421,7 @@ function FreshDiagnosis() {
 
         {!source.isFixture && (
           <p role="status" className="text-sm text-text-secondary mb-4">
-            {saveStatus}
+            {t(`diagnosis.saveStatus.${saveStatus}`)}
           </p>
         )}
 
@@ -437,6 +433,7 @@ function FreshDiagnosis() {
                 type="button"
                 onClick={() => {
                   setSaveFailed(false)
+                  setSaveStatus('saving')
                   setSaveAttempt((value) => value + 1)
                 }}
                 className="min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm font-semibold text-warning focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -528,7 +525,7 @@ function FreshDiagnosis() {
             </button>
           </>
         )}
-        {saveError && <p role="alert" className="mt-4 text-sm text-warning">{saveError}</p>}
+        {saveError && <p role="alert" className="mt-4 break-words text-sm text-warning">{saveError}</p>}
       </div>
     </PageShell>
   )

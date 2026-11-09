@@ -78,7 +78,7 @@ export default function DeleteSessionDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -86,7 +86,7 @@ export default function DeleteSessionDialog({
         aria-labelledby="delete-session-title"
         aria-describedby="delete-session-body"
         onKeyDown={trapFocus}
-        className="glass-panel w-full max-w-sm rounded-xl p-6"
+        className="glass-panel max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl p-6"
       >
         <h2 id="delete-session-title" className="text-heading-md">
           {t('history.deleteDialogTitle')}

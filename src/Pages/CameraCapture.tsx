@@ -661,7 +661,7 @@ function CaptureForm({ userId }: { userId: string }) {
         <VoiceInput onCommand={handleVoiceCommand} />
       </header>
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pb-6">
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 pb-6">
         {FixturePanel && fixtureParams && (
           <Suspense fallback={null}>
             <FixturePanel name={fixtureParams.name} outcome={fixtureResult} />
@@ -971,7 +971,7 @@ function CaptureForm({ userId }: { userId: string }) {
             </motion.button>
           </section>
         )}
-      </main>
+      </div>
 
       <SafetyBubble
         open={showSafety}

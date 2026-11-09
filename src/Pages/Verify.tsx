@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore 
 import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, HelpCircle, ImageIcon, Info, Loader2, ShieldAlert, WifiOff } from 'lucide-react'
 import PageShell from '../components/PageShell'
-import { getLocale, subscribeLocale, t } from '../i18n'
+import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { getSession, saveSession } from '../services/repairSession'
 import { completeSession } from '../services/historyService'
 import { persistCompletedRepair } from '../services/completedRepair'
@@ -102,9 +102,7 @@ export default function Verify() {
 
       navigate('/completed')
     } catch (error) {
-      setCompletionError(
-        error instanceof Error ? error.message : t('completion.saveError')
-      )
+      setCompletionError(localizedErrorMessage(error, 'completion.saveError'))
     } finally {
       completionLock.current = false
       setCompleting(false)
@@ -131,7 +129,7 @@ export default function Verify() {
 
   return (
     <PageShell className="min-h-screen px-4 py-6 sm:py-10">
-      <main className="mx-auto max-w-xl">
+      <div className="mx-auto max-w-xl">
         <button
           type="button"
           onClick={() => navigate('/guide')}
@@ -337,7 +335,7 @@ export default function Verify() {
             {t('verify.finishHint')}
           </p>
         </section>
-      </main>
+      </div>
     </PageShell>
   )
 }

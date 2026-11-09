@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Mic, Send, Sparkles, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import { addMessage, getMessages, type HistoryMessage } from '../services/historyService'
 import { askAssistant } from '../services/assistantService'
 import { fromHistoryMessage, useAssistant, type AssistantMessage } from './assistantContext'
+import { useDialogFocus } from './useDialogFocus'
 
 type VoiceState = 'idle' | 'listening' | 'error'
 type QuickPrompt = { key: string; label: string }
@@ -40,6 +41,7 @@ function storedMessage(message: AssistantMessage, sessionId: string): HistoryMes
 export default function AssistantWidget() {
   const location = useLocation()
   useSyncExternalStore(subscribeLocale, getLocale)
+  const reduceMotion = useReducedMotion()
 
   const {
     isOpen,
@@ -65,6 +67,7 @@ export default function AssistantWidget() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const loadedSessionIds = useRef(new Set<string>())
   const loadingSessionIds = useRef(new Set<string>())
@@ -158,6 +161,9 @@ export default function AssistantWidget() {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, closePanel])
+
+  // Focus moves into the panel (to the message box), Tab stays inside, and focus returns to the opener on close.
+  useDialogFocus(isOpen && !hidden, panelRef, { initialFocus: textareaRef })
 
   const persist = useCallback(async (message: AssistantMessage) => {
     if (!sessionId || !user) return
@@ -312,10 +318,12 @@ export default function AssistantWidget() {
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={() => setIsOpen(true)}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.96 }}
-        className={`fixed right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-background shadow-[0_0_30px_rgba(0,245,212,0.42)] transition focus-visible:outline-2 focus-visible:outline-primary ${
-          location.pathname === '/guide' ? 'bottom-24' : 'bottom-5'
+        whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.96 }}
+        className={`fixed right-[max(1.25rem,env(safe-area-inset-right))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-background shadow-[0_0_30px_rgba(0,245,212,0.42)] transition focus-visible:outline-2 focus-visible:outline-primary ${
+          location.pathname === '/guide'
+            ? 'bottom-[calc(6rem+env(safe-area-inset-bottom))]'
+            : 'bottom-[max(1.25rem,env(safe-area-inset-bottom))]'
         }`}
       >
         <span aria-hidden="true">
@@ -326,35 +334,36 @@ export default function AssistantWidget() {
       <AnimatePresence>
         {isOpen && (
           <motion.aside
+            ref={panelRef}
             role="dialog"
-            aria-modal="false"
+            aria-modal="true"
             aria-label={t('assistant.title')}
-            initial={{ opacity: 0, x: 32, y: 8 }}
+            initial={reduceMotion ? false : { opacity: 0, x: 32, y: 8 }}
             animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={{ opacity: 0, x: 32, y: 8 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed inset-x-0 bottom-0 z-30 flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl border border-border glass-panel md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[400px] md:rounded-none md:border-y-0 md:border-r-0"
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 32, y: 8 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' }}
+            className="fixed inset-x-0 bottom-0 z-30 flex h-[85dvh] flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] rounded-t-2xl border border-border glass-panel md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[400px] md:rounded-none md:border-y-0 md:border-r-0"
           >
             <header className="flex items-center justify-between gap-3 border-b border-border p-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="truncate font-semibold text-text-primary">{t('assistant.title')}</h2>
+                  <h2 className="break-words font-semibold text-text-primary">{t('assistant.title')}</h2>
                   {mockMode && (
-                    <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    <span className="shrink-0 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                       {t('assistant.demoBadge')}
                     </span>
                   )}
                 </div>
                 {contextLine && (
-                  <p className="mt-1 truncate text-xs text-text-subtle">{contextLine}</p>
+                  <p className="mt-1 break-words text-xs text-text-subtle">{contextLine}</p>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                 <button
                   type="button"
                   aria-label={t('assistant.newChat')}
                   onClick={beginNewChat}
-                  className="rounded-lg px-2 py-2 text-xs text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                  className="min-h-11 rounded-lg px-3 py-2 text-xs text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   {t('assistant.newChat')}
                 </button>
@@ -362,7 +371,7 @@ export default function AssistantWidget() {
                   type="button"
                   aria-label={t('assistant.close')}
                   onClick={closePanel}
-                  className="rounded-lg p-2 text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
                 >
                   <X className="h-5 w-5" aria-hidden="true" />
                 </button>
@@ -386,7 +395,7 @@ export default function AssistantWidget() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <p
-                    className={`max-w-[88%] whitespace-pre-wrap rounded-2xl p-3 text-sm ${
+                    className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl p-3 text-sm ${
                       message.role === 'user'
                         ? 'rounded-br-sm bg-primary text-background'
                         : 'glass-panel rounded-bl-sm text-text-secondary'
@@ -404,8 +413,8 @@ export default function AssistantWidget() {
                       <motion.span
                         key={dot}
                         className="h-1.5 w-1.5 rounded-full bg-primary"
-                        animate={{ opacity: [0.35, 1, 0.35], y: [0, -2, 0] }}
-                        transition={{ duration: 0.8, repeat: Infinity, delay: dot * 0.12 }}
+                        animate={reduceMotion ? { opacity: 1 } : { opacity: [0.35, 1, 0.35], y: [0, -2, 0] }}
+                        transition={reduceMotion ? { duration: 0 } : { duration: 0.8, repeat: Infinity, delay: dot * 0.12 }}
                       />
                     ))}
                   </div>
@@ -420,14 +429,14 @@ export default function AssistantWidget() {
             )}
 
             <div className="border-t border-border p-3">
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              <div className="mb-3 flex flex-wrap gap-2">
                 {prompts.map((prompt) => (
                   <button
                     key={prompt.key}
                     type="button"
                     onClick={() => void send(t(prompt.label))}
                     disabled={thinking}
-                    className="shrink-0 rounded-full border border-primary/25 bg-primary/5 px-3 py-1.5 text-xs text-primary transition hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+                    className="min-h-11 max-w-full rounded-full border border-primary/25 bg-primary/5 px-3 py-2 text-left text-xs text-primary transition hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
                   >
                     {t(prompt.label)}
                   </button>
@@ -450,12 +459,12 @@ export default function AssistantWidget() {
                     aria-label={voiceState === 'listening' ? t('assistant.voice.stop') : t('assistant.voice.start')}
                     aria-pressed={voiceState === 'listening'}
                     onClick={toggleVoice}
-                    className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
+                    className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-primary/10 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary ${
                       voiceState === 'listening' ? 'ring-2 ring-primary' : ''
                     }`}
                   >
                     <Mic className="h-5 w-5" aria-hidden="true" />
-                    {voiceState === 'listening' && (
+                    {voiceState === 'listening' && !reduceMotion && (
                       <motion.span
                         aria-hidden="true"
                         className="absolute inset-0 rounded-full border border-primary"
@@ -473,14 +482,14 @@ export default function AssistantWidget() {
                   rows={1}
                   aria-label={t('assistant.inputLabel')}
                   placeholder={t('assistant.placeholder')}
-                  className="max-h-28 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-text-primary placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-primary"
+                  className="max-h-28 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-text-primary placeholder:text-text-subtle focus-visible:outline-2 focus-visible:outline-primary"
                 />
                 <button
                   type="button"
                   aria-label={t('assistant.send')}
                   onClick={sendDraft}
                   disabled={!draft.trim() || thinking}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-background transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-background transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" aria-hidden="true" />
                 </button>

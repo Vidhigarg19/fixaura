@@ -83,7 +83,7 @@ function ExternalSearchLink({
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="inline-flex min-h-11 flex-wrap items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-background transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <Search className="h-4 w-4" aria-hidden="true" />
         {t('nearby.searchGoogleMaps')}
@@ -261,13 +261,13 @@ export default function NearbyShops() {
 
   return (
     <PageShell className="pb-16">
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:py-12">
         <div className="mb-8">
           <div className="mb-6 flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {t('nearby.back')}
@@ -600,7 +600,7 @@ export default function NearbyShops() {
             {t('nearby.attributionLink')}
           </a>
         </p>
-      </main>
+      </div>
     </PageShell>
   )
 }
