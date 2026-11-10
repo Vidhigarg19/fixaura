@@ -101,9 +101,34 @@ const enMap = new Map(en)
 const hiMap = new Map(hi)
 
 describe('locale parity (en.json and hi.json)', () => {
-  it('each file currently has exactly 616 translated keys', () => {
-    expect(en).toHaveLength(616)
-    expect(hi).toHaveLength(616)
+  // Inventory history (each change is intentional and recorded):
+  //  616 at b55f804 (V09 coverage, docs/v09-i18n-coverage.md)
+  //  +33 from the teammate guide/photo integration (d7b73f7): guide.*, guide.fbGuide.*,
+  //      tools.protectiveGloves, tools.safetyGlasses. Kept as text; their presence does
+  //      not authorize showing generated guides (V05 gate, tests/guide-policy.test.tsx).
+  //  +1  landing.trustSubtitle (3c61d94)
+  //  = 650. The 79 EN keys 3c61d94 removed were restored from b55f804, not added.
+  //  +11 landing.demo.* used by InteractiveRepairDemo (3c61d94 referenced them but never
+  //      added them, so the page showed raw keys). Copy is labelled as an illustration.
+  //  = 661.
+  //  +8  diagnosis.saveStatus.signInRequired and diagnosis.saveError.* (7): the guest
+  //      prompt (D3) and localized save-failure reasons (D7).
+  //  -1  diagnosis.issueNameMissing: its only use was an unreachable branch (D7).
+  //  = 668.
+  //  +1  diagnosis.saveError.timedOut: the bounded save wait (D9).
+  //  = 669.
+  //  +5  diagnosis.saveStatus.alreadyCompleted, diagnosis.saveError.sessionCompleted and
+  //      diagnosis.viewFinishedRepair (D14); diagnosis.claim.body/action (D16).
+  //  = 674.
+  //  +1  diagnosis.saveError.sessionAlreadyExists: the prepared 23505 handling (D17).
+  //  = 675.
+  //  +1  diagnosis.claim.photoNotSaved: the guest-claim photo notice (D19 option C).
+  //  = 676.
+  //  +1  diagnosis.claim.sameTab: log in in this tab to keep a guest result (D20).
+  //  = 677.
+  it('each file currently has exactly 677 translated keys', () => {
+    expect(en).toHaveLength(677)
+    expect(hi).toHaveLength(677)
   })
 
   it('both files have identical key sets', () => {

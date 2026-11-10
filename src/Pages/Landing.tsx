@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react'
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import { Link } from "react-router-dom";
 import {
@@ -9,7 +9,6 @@ import {
   Zap,
   Languages,
   Play,
-  BadgeCheck,
   ArrowRight,
   Droplets,
   Fan,
@@ -18,12 +17,8 @@ import {
   Sofa,
   GlassWater,
   Sparkles,
-  ChevronRight,
   CheckCircle2,
 } from "lucide-react";
-import LanguageToggle from "../components/LanguageToggle";
-import ConfidenceMeter from "../components/ConfidenceMeter";
-import InteractiveRepairDemo from "../components/InteractiveRepairDemo";
 import Logo from "../components/Logo";
 import { LANDING_CATEGORY_IMAGES, LANDING_FEATURE_IMAGES, LANDING_PREVIEW_IMAGE } from "../config/landingMedia";
 import { getLocale, subscribeLocale, t } from '../i18n'
@@ -137,67 +132,14 @@ const whyFixaura = [
 export default function Landing() {
   // Re-render when the language toggle changes.
   useSyncExternalStore(subscribeLocale, getLocale, getLocale)
+  const reduceMotion = useReducedMotion()
   return (
     <div className="min-h-screen bg-background text-text-primary overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(0,245,212,0.18),transparent_34%),radial-gradient(circle_at_80%_85%,rgba(75,219,203,0.10),transparent_28%),linear-gradient(to_bottom,#041329_0%,#03101f_100%)]" />
       <div className="fixed inset-0 pointer-events-none opacity-40 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[72px_72px]" />
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.10)_0%,transparent_50%)] blur-3xl" />
 
-      <motion.header
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="sticky top-0 z-40 glass-panel border-b border-border/80 backdrop-blur-xl"
-      >
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-4 md:px-6 lg:px-8 py-4">
-          <motion.div
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-3"
-          >
-            <img
-              src="/homegenie-logo.png"
-              alt=""
-              className="h-10 w-10 rounded-2xl object-contain"
-            />
-                <div className="leading-none">
-              <span className="block font-bold text-[18px] tracking-tight text-text-primary">
-                {t("common.brandName")}
-              </span>
-              <span className="block text-[11px] uppercase tracking-[0.26em] text-text-subtle mt-1">
-                {t("landing.footerTagline")}
-              </span>
-            </div>
-          </motion.div>
-
-          <nav className="hidden md:flex items-center gap-8 text-sm text-text-secondary">
-            <a href="#features" className="hover:text-primary transition-colors">
-              {t("nav.features")}
-            </a>
-            <a href="#showcase" className="hover:text-primary transition-colors">
-              {t("nav.showcase")}
-            </a>
-            <a href="#testimonials" className="hover:text-primary transition-colors">
-              {t("nav.testimonials")}
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <LanguageToggle />
-            <Link to="/capture">
-              <motion.span
-                whileHover={{ scale: 1.03, boxShadow: "0 0 32px rgba(0,245,212,0.45)" }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-background shadow-[0_12px_30px_rgba(0,245,212,0.22)]"
-              >
-                {t("nav.scan")}
-                <ChevronRight className="h-4 w-4" />
-              </motion.span>
-            </Link>
-          </div>
-        </div>
-      </motion.header>
-
-      <main className="relative">
+      <main id="main-content" tabIndex={-1} className="relative">
         <section className="relative mx-auto max-w-6xl px-4 md:px-6 lg:px-8 pt-14 md:pt-20 pb-20 md:pb-28 min-h-[calc(100vh-88px)] flex items-center">
           <motion.div
             variants={stagger}
@@ -206,17 +148,9 @@ export default function Landing() {
             className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center w-full"
           >
             <div className="relative z-10">
-              <motion.div
-                variants={fadeUp}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/20 bg-primary/8 text-primary text-[12px] font-semibold tracking-[0.18em] uppercase mb-6 shadow-[0_0_24px_rgba(0,245,212,0.12)]"
-              >
-                <BadgeCheck className="h-4 w-4" />
-                {t("landing.badge")}
-              </motion.div>
-
               <motion.h1
                 variants={fadeUp}
-                className="text-[42px] md:text-[64px] lg:text-[72px] leading-[0.98] tracking-[-0.03em] font-extrabold text-text-primary max-w-[11ch]"
+                className="text-[34px] md:text-[56px] lg:text-[52px] leading-[1.02] tracking-[-0.03em] font-extrabold text-text-primary text-balance break-normal hyphens-none"
               >
                 <span className="block">{t("landing.heroLine1")}</span>
                 <span className="block text-primary">{t("landing.heroLine2")}</span>
@@ -224,7 +158,7 @@ export default function Landing() {
 
               <motion.p
                 variants={fadeUp}
-                className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-[38rem]"
+                className="mt-6 text-[16px] md:text-[18px] leading-[1.7] text-text-secondary max-w-152"
               >
                 {t("landing.subheadline")}
               </motion.p>
@@ -243,9 +177,13 @@ export default function Landing() {
 
                 <motion.a
                   href="#preview"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    document.getElementById('preview')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' })
+                  }}
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
-                  className="inline-flex items-center gap-2 rounded-full border border-border-default/90 bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white/0 px-6 py-3.5 font-semibold text-text-secondary hover:text-text-primary hover:border-primary/40 transition-colors cursor-pointer"
                 >
                   <Play className="h-5 w-5" />
                   {t("landing.ctaSecondary")}
@@ -253,24 +191,11 @@ export default function Landing() {
               </motion.div>
 
               <motion.div variants={fadeUp} className="mt-8 flex items-center gap-4 text-sm text-text-subtle">
-                <div className="flex -space-x-2">
-                  {[
-                    "https://randomuser.me/api/portraits/women/44.jpg",
-                    "https://randomuser.me/api/portraits/men/32.jpg",
-                    "https://randomuser.me/api/portraits/women/68.jpg",
-                    "https://randomuser.me/api/portraits/men/75.jpg",
-                    ].map((src, i) => (
-                      <img
-                        key={i}
-                        src={src}
-                        alt=""
-                        className="h-9 w-9 rounded-full border-2 border-primary/30 object-cover shadow-[0_10px_24px_rgba(0,0,0,0.18)]"
-                     />
-                    ))}
-                  </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary shadow-[0_0_20px_rgba(0,245,212,0.18)]">
+                  <Sparkles className="h-5 w-5" aria-hidden="true" />
+                </div>
                 <div>
                   <p className="text-text-primary font-semibold">{t("landing.trustStat")}</p>
-                  <p className="text-text-subtle">{t("landing.trustSubtitle")}</p>
                 </div>
               </motion.div>
             </div>
@@ -278,17 +203,15 @@ export default function Landing() {
             <motion.div
               id="preview"
               variants={fadeUp}
-              animate={{ y: [0, -12, 0] }}
-              transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
               className="relative flex justify-center lg:justify-end"
             >
-              <div className="relative w-full max-w-[430px]">
+              <div className="relative w-full max-w-107.5">
                 <div className="absolute -inset-8 bg-[radial-gradient(circle_at_center,rgba(0,245,212,0.20),transparent_62%)] blur-3xl" />
-                <div className="glass-panel rounded-[2rem] p-5 md:p-6 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.36)] relative overflow-hidden">
-                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-primary/10 to-transparent" />
-                  <div className="aspect-[9/16] max-h-[540px] mx-auto rounded-[1.5rem] bg-[#08182c] relative overflow-hidden border border-white/5">
+                <div className="glass-panel rounded-4xl p-5 md:p-6 border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.36)] relative overflow-hidden">
+                  <div className="absolute inset-x-0 top-0 h-24 bg-linear-to-b from-primary/10 to-transparent" />
+                  <div className="aspect-9/16 max-h-135 mx-auto rounded-3xl bg-[#08182c] relative overflow-hidden border border-white/5">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(0,245,212,0.14),transparent_34%)]" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#04101f]/65" />
+                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-[#04101f]/65" />
                     <img
                       alt={t("landing.preview.alt")}
                       className="absolute inset-0 w-full h-full object-cover opacity-88"
@@ -296,90 +219,41 @@ export default function Landing() {
                     />
                     <div className="absolute inset-0">
                       <div className="absolute top-[16%] left-[16%] h-[42%] w-[48%] rounded-2xl border border-primary/60 shadow-[0_0_26px_rgba(0,245,212,0.20)]" />
-                      <div className="absolute top-[19%] right-[18%] h-10 w-10 rounded-full border border-secondary/70 bg-primary/10 animate-pulse" />
+                      <div className="absolute top-[19%] right-[18%] h-10 w-10 rounded-full border border-secondary/70 bg-primary/10" aria-hidden="true" />
                       <motion.div
-                        initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                        initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: 0.4, duration: 0.45 }}
+                        transition={{ delay: reduceMotion ? 0 : 0.4, duration: reduceMotion ? 0 : 0.45 }}
                         className="absolute top-8 left-6 right-6 glass-panel rounded-2xl p-4 border border-white/10"
                       >
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                           <span className="text-[12px] uppercase tracking-[0.22em] text-primary font-semibold">
                             {t("landing.preview.diagnosisTitle")}
                           </span>
-                          <span className="text-[12px] font-semibold text-secondary">
-                            {t("landing.preview.confidenceText")}
+                          <span className="text-[12px] font-semibold text-text-subtle">
+                            {t("landing.demo.title")}
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[15px] font-semibold text-text-primary">
-                              {t("landing.preview.issueName")}
-                            </p>
-                            <p className="text-[13px] text-text-subtle mt-1">
-                              {t("landing.preview.safetyLine")}
-                            </p>
-                          </div>
-                          <CheckCircle2 className="h-6 w-6 text-secondary shrink-0" />
-                        </div>
-                      </motion.div>
-
-                      <motion.div
-                        initial={{ opacity: 0, x: 12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6, duration: 0.45 }}
-                        className="absolute bottom-8 left-5 glass-panel rounded-2xl px-4 py-3 border border-white/10"
-                      >
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-text-subtle">
-                          {t("landing.preview.liveScanLabel")}
-                        </p>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          <span className="text-[13px] text-text-primary font-medium">
-                            {t("landing.preview.arOverlayLockedLine")}
-                          </span>
-                        </div>
-                      </motion.div>
-
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.8, duration: 0.45 }}
-                        className="absolute -bottom-6 -right-5 glass-panel rounded-2xl p-4 border border-primary/20 shadow-[0_0_40px_rgba(0,245,212,0.12)]"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <ConfidenceMeter value={89} size={92} />
-                          </div>
-                          <div>
-                            <p className="text-[12px] uppercase tracking-[0.2em] text-text-subtle">
-                              {t("landing.preview.confidenceLabel")}
-                            </p>
-                            <p className="text-[14px] font-semibold text-text-primary mt-1">
-                              {t("landing.preview.confidenceValue")}
-                            </p>
-                          </div>
+                          <p className="text-[15px] font-semibold text-text-primary">
+                            {t("landing.preview.issueName")}
+                          </p>
+                          <CheckCircle2 className="h-6 w-6 text-secondary shrink-0" aria-hidden="true" />
                         </div>
                       </motion.div>
                     </div>
                   </div>
                 </div>
 
-                <div className="absolute -top-6 -right-3 h-20 w-20 rounded-full border border-primary/15 bg-primary/5 animate-[spin_22s_linear_infinite]" />
-                <div className="absolute -bottom-8 -left-4 h-28 w-28 rounded-full border-2 border-primary/10 bg-transparent animate-[spin_28s_linear_infinite_reverse]" />
+                <div className="absolute -top-6 -right-3 h-20 w-20 rounded-full border border-primary/15 bg-primary/5" aria-hidden="true" />
+                <div className="absolute -bottom-8 -left-4 h-28 w-28 rounded-full border-2 border-primary/10 bg-transparent" aria-hidden="true" />
               </div>
             </motion.div>
           </motion.div>
-          <div className="relative min-w-0 lg:-mr-[min(4vw,3rem)]">
-            <InteractiveRepairDemo />
-          </div>
         </section>
 
-        <RevealSection className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20" id="how-it-works">
+        <RevealSection className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20" id="features">
           <motion.div variants={fadeUp} className="text-center mb-12">
-            <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
-              {t("landing.featuresKicker")}
-            </p>
             <h2 className="text-[30px] md:text-[40px] font-bold tracking-[-0.02em] text-text-primary">
               {t("landing.featuresTitle")}
             </h2>
@@ -419,7 +293,7 @@ export default function Landing() {
           </div>
         </RevealSection>
 
-        <RevealSection id="repair-resell" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
+        <RevealSection id="showcase" className="mx-auto max-w-6xl px-4 md:px-6 lg:px-8 py-20">
           <motion.div variants={fadeUp} className="text-center mb-12">
             <p className="text-[12px] uppercase tracking-[0.26em] text-primary font-semibold mb-3">
               {t("landing.showcaseKicker")}
@@ -562,12 +436,12 @@ export default function Landing() {
             </h2>
             <ul className="space-y-3 text-text-secondary">
               <li>
-                <a className="hover:text-primary transition-colors" href="#how-it-works">
+                <a className="hover:text-primary transition-colors" href="#features">
                   {t("landing.footerProductFeatures")}
                 </a>
               </li>
               <li>
-                <a className="hover:text-primary transition-colors" href="#repair-resell">
+                <a className="hover:text-primary transition-colors" href="#showcase">
                   {t("landing.footerProductProMode")}
                 </a>
               </li>

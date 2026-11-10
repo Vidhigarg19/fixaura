@@ -178,7 +178,7 @@ export default function Navbar() {
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-primary sm:gap-3"
           aria-label={t('nav.home')}
         >
-          <BrandLockup />
+          <BrandLockup tagline={isLandingPage ? t('landing.footerTagline') : undefined} />
         </Link>
 
         <nav className="hidden flex-1 items-center justify-center gap-6 text-text-secondary md:flex lg:gap-8" aria-label={t('nav.mainMenu')}>

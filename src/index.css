@@ -180,6 +180,20 @@ button:focus-visible {
   html {
     scroll-behavior: auto;
   }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Loading spinners stay animated: they are the only loading feedback. */
+  .animate-spin {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 
 ::selection {

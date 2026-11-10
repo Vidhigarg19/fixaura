@@ -26,15 +26,20 @@ export default function Logo({ height, alt = '', className = '' }: LogoProps) {
 
 // TEMPORARY horizontal lockup: symbol tile + live text wordmark. Replace with a
 // genuine horizontal logo file once one exists in /public.
-export function BrandLockup({ className = '' }: { className?: string }) {
+// `tagline` is optional text under the name. The symbol tile (icon-192) has no tagline, so
+// passing it shows the tagline exactly once in the brand area.
+export function BrandLockup({ className = '', tagline }: { className?: string; tagline?: string }) {
   const name = t('common.brandName')
   const split = name.startsWith('Home') ? 4 : name.length
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <LogoMark size={40} className="h-10 w-10 rounded-xl" />
-      <span className="whitespace-nowrap text-xl font-bold leading-none tracking-tight">
-        <span className="text-text-primary">{name.slice(0, split)}</span>
-        <span className="text-primary">{name.slice(split)}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="whitespace-nowrap text-xl font-bold leading-none tracking-tight">
+          <span className="text-text-primary">{name.slice(0, split)}</span>
+          <span className="text-primary">{name.slice(split)}</span>
+        </span>
+        {tagline && <span className="mt-1 text-[11px] leading-tight text-text-subtle">{tagline}</span>}
       </span>
     </span>
   )

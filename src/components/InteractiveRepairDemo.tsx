@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent } from 'react'
 import { motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion'
-import { ScanLine, Shield, Wrench } from 'lucide-react'
 import { t } from '../i18n'
 
 type DemoMode = 'scan' | 'understand' | 'repair'
@@ -53,7 +52,6 @@ export default function InteractiveRepairDemo() {
       className="relative min-w-0 scroll-mt-24"
     >
       <p className="mb-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-        <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_12px_rgba(0,245,212,0.8)]" />
         {t('landing.demo.title')}
       </p>
 
@@ -74,9 +72,6 @@ export default function InteractiveRepairDemo() {
         className="relative isolate h-[320px] overflow-hidden sm:h-[360px] lg:h-[420px]"
         aria-label={t('landing.demo.sceneAria')}
       >
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_57%_54%,rgba(0,245,212,0.16),transparent_54%)]" />
-        <div className="pointer-events-none absolute inset-y-3 right-0 w-[88%] opacity-[0.12] [background-image:linear-gradient(rgba(148,255,237,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(148,255,237,0.2)_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]" />
-
         <motion.div style={{ x: sceneX, y: sceneY }} className="absolute inset-0">
           <svg
             viewBox="0 0 620 400"
@@ -191,16 +186,6 @@ export default function InteractiveRepairDemo() {
             className="absolute left-[29%] top-[51%] h-3 w-2 rounded-[70%_30%_60%_40%] bg-primary shadow-[0_0_12px_rgba(0,245,212,0.6)] sm:left-[30%] sm:top-[50%]"
           />
 
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.35 }}
-            className="absolute left-3 top-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#081622]/90 px-3 py-2 text-xs font-medium text-text-primary shadow-lg backdrop-blur-md sm:left-5 sm:top-6"
-          >
-            <ScanLine className="h-4 w-4 text-primary" aria-hidden="true" />
-            <span>{t(`landing.demo.${mode}Label`)}</span>
-          </motion.div>
-
           {mode === 'understand' && (
             <motion.div
               key="diagnosis"
@@ -211,7 +196,6 @@ export default function InteractiveRepairDemo() {
             >
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary sm:text-[11px]">{t('landing.demo.causeLabel')}</p>
               <p className="mt-1 text-sm font-semibold leading-snug text-text-primary sm:text-base">{t('landing.demo.cause')}</p>
-              <p className="mt-1.5 text-xs text-text-subtle">{t('landing.demo.estimate')}</p>
             </motion.div>
           )}
           {mode === 'repair' && (
@@ -227,30 +211,6 @@ export default function InteractiveRepairDemo() {
             </motion.div>
           )}
 
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.65, duration: 0.3 }}
-            className="absolute bottom-5 left-3 flex items-center gap-2.5 rounded-lg border border-white/10 bg-[#091722]/92 px-3 py-2 shadow-lg backdrop-blur-md sm:bottom-6 sm:left-5"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Wrench className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <span className="text-xs font-medium text-text-primary sm:text-sm">{t('landing.demo.toolMarker')}</span>
-          </motion.div>
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.75, duration: 0.3 }}
-            className={`absolute bottom-5 right-3 flex max-w-[52%] items-start gap-2 rounded-lg border px-3 py-2 shadow-lg backdrop-blur-md sm:bottom-6 sm:right-5 sm:max-w-[55%] ${
-              mode === 'understand' ? 'border-amber-300/20 bg-[#211d14]/95' : 'border-emerald-300/20 bg-[#0b1d1a]/95'
-            }`}
-          >
-            <Shield className={`mt-0.5 h-4 w-4 shrink-0 ${mode === 'understand' ? 'text-amber-200' : 'text-emerald-300'}`} aria-hidden="true" />
-            <span className="text-xs font-medium leading-snug text-text-primary sm:text-sm">
-              {mode === 'understand' ? t('landing.demo.isolateSupply') : t('landing.demo.safetyStatus')}
-            </span>
-          </motion.div>
         </motion.div>
       </motion.div>
 
@@ -276,7 +236,7 @@ export default function InteractiveRepairDemo() {
         ))}
       </div>
       {mode === 'understand' && (
-        <p className="sr-only">{t('landing.demo.cause')}. {t('landing.demo.estimate')}. {t('landing.demo.isolateSupply')}</p>
+        <p className="sr-only">{t('landing.demo.causeLabel')}: {t('landing.demo.cause')}</p>
       )}
       {mode === 'repair' && <p className="sr-only">{t('landing.demo.step')}</p>}
     </div>

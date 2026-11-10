@@ -19,22 +19,109 @@
     "backHome": "Back to home"
   },
   "nav": {
+    "mobileMenu": "Menu",
+    "signOutError": "We couldn't sign you out. Please try again.",
     "features": "Features",
     "showcase": "Repairs",
     "testimonials": "Stories",
-    "scan": "Scan Problem"
+    "whyFixaura": "Why HomeGenie",
+    "scan": "Scan Problem",
+    "home": "HomeGenie home",
+    "mainMenu": "Main navigation",
+    "accountMenu": "Open account menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "logIn": "Log in",
+    "dashboard": "Dashboard",
+    "signOut": "Sign out"
+  },
+  "nearby": {
+    "eyebrow": "Local repair and retail",
+    "title": "Nearby shops",
+    "subtitle": "Find nearby places to repair or buy appliance parts.",
+    "back": "Back",
+    "applianceDescription": "Nearby options for",
+    "findNearMe": "Use my location",
+    "locationNotRequested": "Ready to search",
+    "externalHeading": "Search by city or area",
+    "areaLabel": "City or area",
+    "areaPlaceholder": "For example: Indiranagar, Bengaluru",
+    "areaHelp": "Used only to open a Google Maps search. HomeGenie does not look up this place or calculate distances from it.",
+    "areaInvalid": "Enter a city or area between 2 and 80 characters.",
+    "externalNote": "Opens an external service. HomeGenie has not verified these results.",
+    "externalLocationNote": "Your approximate location will be sent to Google Maps when you open this link.",
+    "attributionLink": "© OpenStreetMap contributors",
+    "attributionNote": "Directory results may be incomplete or outdated. Check details before you travel.",
+    "errorBusy": "The directory service is busy right now. Wait a minute and try again, or search in Google Maps.",
+    "errorTimeout": "The directory service took too long to answer. Try again, or search in Google Maps.",
+    "distancePrefix": "About",
+    "distanceSuffix": "km away in a straight line",
+    "website": "Website",
+    "hoursLabel": "Listed hours:",
+    "mapsQueryRepair": "appliance repair shop",
+    "mapsQuerySell": "appliance spare parts shop",
+    "locationRequesting": "Requesting your location…",
+    "locationFound": "Location found",
+    "locationFailed": "Location could not be found",
+    "locationPermissionMessage": "HomeGenie asks for your location only when you press this button. If you allow it, your approximate position is sent to the public OpenStreetMap directory (Overpass) to find listings. It is not saved.",
+    "locating": "Getting your location…",
+    "radius": "Search radius",
+    "km": "km",
+    "filterLabel": "Shop filters",
+    "filters": {
+      "all": "All",
+      "repair": "Repair",
+      "sell": "Sell"
+    },
+    "types": {
+      "repair": "Repair",
+      "sell": "Sell",
+      "both": "Repair & sell"
+    },
+    "categories": {
+      "appliance": "Appliance shop",
+      "electronics": "Electronics shop",
+      "hardware": "Hardware shop",
+      "mobile_phone": "Mobile phone shop",
+      "computer": "Computer shop",
+      "electronics_repair": "Electronics repair",
+      "electrician": "Electrician",
+      "repair": "Repair services"
+    },
+    "loading": "Finding nearby shops…",
+    "tryAgain": "Try again",
+    "geolocationUnsupported": "Location access is not available in this browser.",
+    "secureContextRequired": "Location access requires HTTPS or a secure local connection.",
+    "invalidCoordinates": "The browser returned invalid location coordinates. Please try again.",
+    "locationDenied": "Location permission was denied. Enter a city or area below to search in Google Maps, or allow location access and try again.",
+    "locationUnavailable": "Your current location could not be determined.",
+    "locationTimeout": "Location lookup timed out. Please try again.",
+    "overpassUnavailable": "The nearby directory is temporarily unavailable. Please try again or search in Google Maps.",
+    "internetUnavailable": "You appear to be offline. Check your internet connection and try again.",
+    "empty": "No listings found in this radius. The directory may be incomplete.",
+    "increaseRadius3": "Try 5 km, 10 km, or 20 km to search a wider area.",
+    "increaseRadius5": "Try 10 km or 20 km to search a wider area.",
+    "increaseRadius10": "Try 20 km to search a wider area.",
+    "increaseRadius20": "No wider radius is available. Search in Google Maps for more options.",
+    "noFilterResults": "No listings match this filter. Try another filter or search in Google Maps.",
+    "searchGoogleMaps": "Search in Google Maps",
+    "mapsQuery": "repair or appliance shops",
+    "results": "matching listings found",
+    "directions": "Directions",
+    "call": "Call",
+    "findShops": "Find nearby repair / buy shops"
   },
   "landing": {
-    "headline": "Fix anything. Fear nothing.",
-    "subheadline": "Point your camera at any broken household object — get instant diagnosis, AR-guided steps, and safety-first confirmations.",
+    "headline": "Your home our intelligence",
+    "subheadline": "Take or upload a photo of a household problem and describe it. HomeGenie helps you understand what may be wrong, shows risk information and points you to help nearby.",
     "ctaPrimary": "Scan Problem",
-    "ctaSecondary": "Watch Demo",
+    "ctaSecondary": "See how it works",
     "confidenceLabel": "Diagnosis confidence",
 
     "badge": "Precision engineered",
-    "heroLine1": "Fix anything.",
-    "heroLine2": "Fear nothing.",
-    "trustStat": "50k+ DIYers trust FixAura",
+    "heroLine1": "Your home",
+    "heroLine2": "our intelligence",
+    "trustStat": "Clearer next steps for everyday household problems.",
     "trustSubtitle": "Safety-first repairs with clear AR guidance.",
 
     "featuresTitle": "Repair intelligence, built in",
@@ -50,7 +137,7 @@
       "safety": {
         "tag": "Safety first",
         "title": "Safety-First Guidance",
-        "description": "Critical repair steps are gated behind confirmation checks, hazard alerts, and professional disclaimers so you never take unsafe risks."
+        "description": "Results that look dangerous are blocked and point you to professional or emergency help. Every result shows its risk level and the limits of the analysis."
       },
       "language": {
         "tag": "Bilingual",
@@ -58,19 +145,19 @@
         "description": "Full bilingual interface with natural Hindi translations and voice input tailored for Indian households and makers."
       },
       "assistant": {
-        "tag": "AI guidance",
-        "title": "Step-by-Step AI Assistant",
-        "description": "Visual AR cues, clear tool checklists, and an on-demand AI assistant that explains instructions at your own pace."
+        "tag": "Assistant",
+        "title": "Ask about your result",
+        "description": "Ask about your result, its risks or where to find help. Replies are general guidance and are labelled as demo replies."
       }
     },
 
     "ctaBannerKicker": "Meet HomeGenie",
-    "ctaBannerTitle": "Ready to fix it yourself?",
+    "ctaBannerTitle": "Have a household problem?",
     "ctaBannerSubtitle": "Scan a household problem and review clearer next steps before you start.",
 
     "footerTagline": "Your home our intelligence",
     "footerSurgicalTagline": "Your home our intelligence",
-    "footerDescription": "HomeGenie helps you identify household problems, get intelligent repair guidance, understand safety risks, and find nearby repair professionals.",
+    "footerDescription": "HomeGenie helps you understand household problems, review safety risks and find nearby repair professionals.",
 
     "footerProductHeading": "Product",
     "footerProductFeatures": "Features",
@@ -94,15 +181,15 @@
       },
       "safetyGuidance": {
         "title": "Safety-first guidance",
-        "description": "Critical steps are gated behind confirmation prompts so users never skip safety checks."
+        "description": "Every result shows a risk level and safety notes. Results that look dangerous point you to professional help instead of repair steps."
       },
       "toolChecklists": {
-        "title": "Tool checklists",
-        "description": "Each repair generates a practical checklist so users know exactly what to gather before starting."
+        "title": "Clear explanations",
+        "description": "See what the analysis noticed, the possible causes, and what it could not tell from your photo."
       },
       "arStepOverlays": {
-        "title": "AR step overlays",
-        "description": "On-screen highlights and arrows make each repair step feel guided, visual, and easy to follow."
+        "title": "Nearby help",
+        "description": "Find repair and spare-parts shops near you from community map data, or search in Google Maps."
       }
     },
 
@@ -115,8 +202,21 @@
       "fixtures": "Fixtures"
     },
 
+    "demo": {
+      "title": "Illustrative example",
+      "sceneAria": "Illustration of a dripping kitchen tap being checked. This is an example, not a real result.",
+      "tapAria": "Drawing of a kitchen tap",
+      "stepsAria": "Example steps",
+      "scanTab": "Scan",
+      "understandTab": "Understand",
+      "repairTab": "Next steps",
+      "causeLabel": "Possible cause (example)",
+      "cause": "A worn washer inside the tap",
+      "guidePreview": "Example next step",
+      "step": "Turn off the water supply before you touch the tap."
+    },
     "preview": {
-      "alt": "AR repair mockup",
+      "alt": "Example phone screen showing a photo of a household problem",
       "diagnosisTitle": "Diagnosis",
       "confidenceText": "89% Conf.",
       "issueName": "Worn faucet washer",
@@ -199,7 +299,28 @@
     "saveStatus": {
       "saving": "Saving diagnosis…",
       "saved": "Diagnosis and repair session saved.",
-      "failed": "We couldn't save this diagnosis."
+      "failed": "We couldn't save this diagnosis.",
+      "signInRequired": "Not saved: you are not logged in.",
+      "alreadyCompleted": "Already finished: this repair was completed earlier."
+    },
+    "viewFinishedRepair": "View the finished repair",
+    "claim": {
+      "body": "This diagnosis was made before you logged in, so it is not saved yet.",
+      "action": "Save it to my account",
+      "photoNotSaved": "The photo from before you logged in is not saved with it. You can add a photo again later.",
+      "sameTab": "Log in in this tab to keep this result. If you log in from an email link in another tab, this result will not be there."
+    },
+    "saveError": {
+      "signInRequired": "Log in to save this diagnosis to your history.",
+      "applianceUnverified": "The appliance saved for this diagnosis could not be found. Please try again.",
+      "duplicateAppliances": "More than one saved appliance has this name, so this diagnosis was not saved.",
+      "duplicateSessions": "More than one repair is already saved for this diagnosis, so it was not saved again.",
+      "sessionLinkInvalid": "The saved repair for this diagnosis is not linked correctly, so it was left unchanged.",
+      "sessionNotUpdated": "The saved repair could not be updated. It may already be finished.",
+      "timedOut": "Saving is taking too long. Check your connection and try again.",
+      "sessionCompleted": "This diagnosis already has a finished repair, so it was not saved again. You can open it or start a new scan.",
+      "sessionAlreadyExists": "A repair for this diagnosis was already saved, so a second one was not created. Try again to open it.",
+      "unknown": "Something went wrong while saving. Check your connection and try again."
     },
     "title": "Diagnosis",
     "detectedIssue": "Detected issue",
@@ -214,7 +335,6 @@
     "riskMedium": "Medium risk",
     "riskHigh": "High risk",
     "yourDescription": "Your description",
-    "issueNameMissing": "The diagnosis issue name is missing.",
     "sectionNoticed": "What we noticed",
     "sectionCauses": "Possible causes",
     "causesNote": "These are possibilities, not confirmed causes.",

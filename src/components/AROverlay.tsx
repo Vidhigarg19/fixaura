@@ -9,6 +9,8 @@ export default function AROverlay({
   variant = 'capture',
   visualCue = 'box',
 }: AROverlayProps) {
+  // Static (no pulsing or drawing) when the user prefers reduced motion.
+  const reduceMotion = useReducedMotion()
   return (
     <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
       {/* Corner brackets */}
@@ -43,8 +45,8 @@ export default function AROverlay({
       {variant === 'capture' && (
         <motion.div
           className="absolute inset-12 border border-primary/30 rounded-xl"
-          animate={{ boxShadow: ['0 0 12px rgba(0,245,212,0.2)', '0 0 24px rgba(0,245,212,0.45)', '0 0 12px rgba(0,245,212,0.2)'] }}
-          transition={{ duration: 2, repeat: Infinity }}
+          animate={{ boxShadow: reduceMotion ? '0 0 18px rgba(0,245,212,0.3)' : ['0 0 12px rgba(0,245,212,0.2)', '0 0 24px rgba(0,245,212,0.45)', '0 0 12px rgba(0,245,212,0.2)'] }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 2, repeat: Infinity }}
         />
       )}
 
@@ -71,8 +73,8 @@ export default function AROverlay({
       {variant === 'guide' && visualCue === 'circle' && (
         <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border-2 border-primary"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
+          animate={{ scale: reduceMotion ? 1 : [1, 1.05, 1] }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 2, repeat: Infinity }}
           style={{ boxShadow: '0 0 20px rgba(0,245,212,0.4)' }}
         />
       )}
