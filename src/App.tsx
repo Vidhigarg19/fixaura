@@ -8,9 +8,11 @@ import AssistantProvider from './components/AssistantProvider'
 import AssistantWidget from './components/AssistantWidget'
 import Navbar from './components/Navbar'
 import { LogoMark } from './components/Logo'
+import FixtureBannerSlot from './components/FixtureBannerSlot'
 import { getLocale, subscribeLocale, t } from './i18n'
 import { testSupabaseConnection } from './lib/test-supabase'
 import { getSession as getRepairSession, isValidDiagnosisSession } from './services/repairSession'
+import { readFixtureName } from './utils/fixtureGate'
 
 const Landing = lazy(() => import('./Pages/Landing'))
 const Dashboard = lazy(() => import('./Pages/Dashboard'))
@@ -44,9 +46,33 @@ function PageLoader() {
 
 function AppLayout() {
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Outlet />
-    </Suspense>
+    <>
+      <Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </Suspense>
+      <RouteFixtureBanner />
+    </>
+  )
+}
+
+function RouteFixtureBanner() {
+  const { pathname } = useLocation()
+  const fixtureName = readFixtureName()
+
+  if (
+    (pathname !== '/tools' && pathname !== '/guide') ||
+    !fixtureName ||
+    fixtureName.startsWith('session_')
+  ) {
+    return null
+  }
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-3 z-50 px-3 sm:top-4">
+      <div className="mx-auto max-w-lg">
+        <FixtureBannerSlot name={fixtureName} />
+      </div>
+    </div>
   )
 }
 
