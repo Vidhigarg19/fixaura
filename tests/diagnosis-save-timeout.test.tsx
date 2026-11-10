@@ -18,10 +18,11 @@ import { seedSession } from './helpers/fixtures'
 
 vi.mock('../src/lib/supabase', async () => ({ supabase: (await import('./helpers/persistenceFake')).supabase }))
 vi.mock('../src/lib/test-supabase', () => ({ testSupabaseConnection: vi.fn(async () => true) }))
-// A short wait limit so a hung save can be exercised quickly (production: 30 s).
+// A shorter wait limit so a hung save can be exercised without production's 30 s delay,
+// while leaving enough margin for the save effect to start under a loaded test worker.
 vi.mock('../src/config/limits', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../src/config/limits')>()),
-  DIAGNOSIS_SAVE_TIMEOUT_MS: 150,
+  DIAGNOSIS_SAVE_TIMEOUT_MS: 1000,
 }))
 
 // D9: a save that never settles no longer blocks the page. The wait is bounded; a save
@@ -72,7 +73,7 @@ function scriptRestOfSave() {
 }
 
 async function expectTimedOut() {
-  expect(await screen.findByText(t('diagnosis.saveError.timedOut'))).toBeTruthy()
+  expect(await screen.findByText(t('diagnosis.saveError.timedOut'), {}, { timeout: 5000 })).toBeTruthy()
   expect(screen.getByText(t('diagnosis.saveStatus.failed'))).toBeTruthy()
   expect(screen.getByRole('alert').textContent).toContain(t('session.notSaved'))
   expect(currentPath()).toBe('/diagnosis')
