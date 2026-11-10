@@ -15,6 +15,16 @@ export function readFixtureName(): string | null {
   return name ? name : null
 }
 
+export function readFixtureParams(): { name: string; delaySeconds: number } | null {
+  if (!isDevBuild) return null
+  if (!fixturesFlagEnabled) return null
+  const params = new URLSearchParams(window.location.search)
+  const name = params.get('fixture')
+  if (!name) return null
+  const delay = Number(params.get('delay') ?? '0')
+  return { name, delaySeconds: Number.isFinite(delay) ? delay : 0 }
+}
+
 /** Keeps ?fixture=... on in-app links while a fixture is active; otherwise a no-op. */
 export function withFixtureQuery(path: string): string {
   const name = readFixtureName()

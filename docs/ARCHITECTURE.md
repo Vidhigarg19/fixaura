@@ -137,7 +137,7 @@ The front end depends on these backend facts. **Do not assume more than this lis
 **Edge function `analyze-image`** (`supabase/functions/analyze-image`)
 
 - Request: `{ imageBase64: string, mediaType?: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic' | 'image/heif', description: string }`. The description is 1 to 500 characters after trimming. The client sends only JPEG, PNG or WebP. Other fields are ignored.
-- Success: `{ ok: true, data }` with `issueName`, `confidence` (0 to 100), `severity` (`low | medium | high`), `summary`, `recommendedFix`, `recommendedTools[]`, `nextStepAdvice`, `safetyWarning`, `explanation`, and optional `safetyStop`.
+- Success: `{ ok: true, data }` with `issueName`, `confidence` (0 to 100), `severity` (`low | medium | high`), `summary`, `recommendedFix`, `recommendedTools[]`, `nextStepAdvice`, `safetyWarning`, `explanation`, and optional `safetyStop` and `guideSteps[]`. Each guide step includes `id`, `title`, `instruction`, `safetyNote`, `requiresConfirmation`, `visualCue`, and `estimatedSeconds`; the frontend validates this optional field before including it in the parsed result.
 - Failure: `{ ok: false, error: { code, retryable, retryAfterSeconds? } }`. Codes: `invalid_input`, `unauthenticated`, `forbidden`, `rate_limited`, `quota_exceeded`, `service_unavailable`, `invalid_response`, `configuration_error`. The client mirrors the codes in `types/analysis.ts`; both lists must stay equal.
 - Not implemented: `verify`, `follow_up` and observation modes.
 - Limits and secrets: [analysis-env.md](analysis-env.md).
@@ -162,7 +162,7 @@ Notes:
 
 ### Development fixtures
 
-With `npm run dev`, `VITE_ENABLE_FIXTURES=true` and `?fixture=<name>`, the app uses built-in test data instead of the network. Names: analysis fixtures (`success`, `blocked`, `blocked_professional`, `blocked_emergency`, `needs_followup`, `followup_escalates`, `followup_error`, `invalid_input`, `unauthenticated`, `rate_limited`, `quota_exceeded`, `service_unavailable`, and others in `src/dev/analysisFixtures.ts`), session fixtures (`session_loading`, `session_not_found`, `session_offline`, `session_error`, `session_in_progress`, `session_blocked`, `session_completed`, `session_missing_photo`) and history fixtures (`history_mixed`, `history_legacy_row`). Production builds remove these branches.
+With `npm run dev`, `VITE_ENABLE_FIXTURES=true` and `?fixture=<name>`, the app uses built-in test data instead of the network. Names: analysis fixtures (`success`, `blocked`, `blocked_professional`, `blocked_emergency`, `needs_followup`, `followup_escalates`, `followup_error`, `invalid_input`, `unauthenticated`, `rate_limited`, `quota_exceeded`, `service_unavailable`, and others in `src/dev/analysisFixtures.ts`), session fixtures (`session_loading`, `session_not_found`, `session_offline`, `session_error`, `session_in_progress`, `session_blocked`, `session_completed`, `session_missing_photo`) and history fixtures (`history_mixed`, `history_legacy_row`). Fresh fixtures on `/tools` and `/guide` use a fixed route-level banner so blocked/loading early returns cannot hide it; session fixtures keep their in-page banner. Production builds remove these branches.
 
 ## Testing
 
@@ -213,5 +213,5 @@ Where today's code differs from the boundaries above. These are recorded facts, 
 - No Supabase call has a timeout or cancellation. Only the Overpass search does.
 - `Pages/Diagnosis.tsx`, `CameraCapture.tsx` and others are large and mix several concerns.
 - `Pages` is the only capitalised source folder, and hooks have no folder of their own.
-- Unreachable code exists: `Pages/Login.tsx`, `components/CameraDiagnostics.tsx`, `services/observationService.ts`, `types/observation.ts`, `visionAI.verifyRepair`. Dependencies `lottie-react` and `react-countup` are unused. They are kept until the owner approves removal.
+- Unreachable code exists: `Pages/Login.tsx`, `components/CameraDiagnostics.tsx`, `services/observationService.ts`, `types/observation.ts`, `visionAI.verifyRepair`, `repairSessionDb.persistObservation` (the documented writer of `repair_sessions.observation`, which rehydration still reads). Dependencies `lottie-react` and `react-countup` are unused. They are kept until the owner approves removal.
 - `tsconfig.app.json` is not in `strict` mode.
