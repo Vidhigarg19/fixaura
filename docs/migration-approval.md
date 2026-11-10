@@ -16,3 +16,9 @@ A live (production) database change needs a separate, written approval. Fill thi
 | Applied to live on | *Pending (Will fill after running on live)* |
 | Rollback plan | restore backup; migration only ADDS things (no data deleted) |
 | Post-apply checks | re-run live audit + compare + RLS test; attach results |
+
+## D17 / D9 status (2026-11-11)
+
+- D17 design: approved by Swapnil Singh.
+- D17 migration: prepared, not applied. `supabase/migrations/20261111000000_d17_unique_repair_session.sql` is pending; no remote database was connected to, linked, or modified.
+- D9: partially open. Its dependent database rollout and live verification are deferred until D17 is applied through the approved staging-first workflow.
