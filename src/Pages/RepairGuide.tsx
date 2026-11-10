@@ -16,6 +16,7 @@ import { buildRepairPlan } from '../services/repairPlanner'
 import { commitCurrentStep } from '../services/repairSessionDb'
 import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
 import { buildDiagnosisView } from '../utils/diagnosisView'
+import { withTextScreen } from '../utils/combinedRisk'
 import { isBlocked } from '../utils/riskDecision'
 import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -24,8 +25,6 @@ import { useRepairPhoto } from '../utils/useRepairPhoto'
 import RepairPhoto from '../components/RepairPhoto'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
-
-// DEV-ONLY banner. In a production build this is `null` and the import is removed.
 
 function FreshRepairGuide() {
   useSyncExternalStore(subscribeLocale, getLocale)
@@ -46,21 +45,14 @@ function FreshRepairGuide() {
     [session, source.extras]
   )
   const blocked = gateView !== null && isBlocked(gateView.decision)
-  // Steps render for a non-blocked result that has a reviewed approved template or
-  // validated issue-specific steps. A genuine hazard (blocked) never gets a guide.
+  // V05: steps render only behind a reviewed approved template. A genuine hazard
+  // (blocked) never gets a guide, and AI-generated or fallback steps never unlock one.
   const guideAvail = getGuideAvailability(source.extras, {
     allowFixtureTemplates: source.isFixture,
     diagnosis: session?.diagnosis ?? null,
     decision: gateView?.decision,
   })
   const guideAvailable = guideAvail.status === 'available'
-  // Tell the user where non-approved steps came from; approved templates need no notice.
-  const guideNoticeKey =
-    guideAvail.status === 'available' && guideAvail.source === 'ai_generated'
-      ? 'guide.aiGeneratedNotice'
-      : guideAvail.status === 'available' && guideAvail.source === 'fallback'
-        ? 'guide.fallbackNotice'
-        : null
   const steps = useMemo(
     () =>
       blocked || !guideAvailable
@@ -219,9 +211,6 @@ function FreshRepairGuide() {
     return (
       <PageShell className="pb-24">
         <div className="mx-auto max-w-lg px-4 pt-8">
-          {source.isFixture && (
-            <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          )}
           <GuideUnavailablePanel
             issueName={session.diagnosis.issueName}
             reasonKey={
@@ -238,14 +227,6 @@ function FreshRepairGuide() {
   return (
     <PageShell className="flex flex-col pb-28">
       <StepTimeline total={total} current={index} />
-      {guideNoticeKey && (
-        <p
-          role="note"
-          className="mx-auto mt-3 max-w-lg rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-secondary"
-        >
-          {t(guideNoticeKey)}
-        </p>
-      )}
       {savingProgress && (
         <p role="status" className="mx-auto mt-3 px-4 text-sm text-text-secondary">
           {index === total - 1 ? t('guide.completionSaving') : t('guide.progressSaving')}
@@ -258,9 +239,6 @@ function FreshRepairGuide() {
       )}
 
       <div className="relative mx-auto w-full max-w-lg flex-1 px-4 pt-6">
-        {source.isFixture && (
-          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-        )}
         {progressError && (
           <p role="alert" className="mb-4 rounded-lg border border-warning/40 p-3 text-sm text-warning">
             {progressError}

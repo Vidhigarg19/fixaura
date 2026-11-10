@@ -10,6 +10,8 @@ import { deleteSession, listSessions } from '../services/historyService'
 import { sessionHref } from '../services/sessionResume'
 import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow'
 import { readFixtureName } from '../utils/fixtureGate'
+import FixtureBannerSlot from '../components/FixtureBannerSlot'
+import { loadSessionFixtures } from '../config/devFixtures'
 import { isGuideAvailable } from '../utils/guideAvailability'
 import { isNetworkError, isOffline } from '../utils/networkError'
 import {
@@ -104,10 +106,9 @@ export default function History() {
   const pickUp = cards.find(
     (card) => card.hasDetails && (card.status === 'in_progress' || card.status === 'guide_ready')
   )
-  // A saved low or medium risk repair can always be continued: the guide is built from
-  // its diagnosis when no exact checklist exists. historyLinkFor already routes a blocked
-  // session to its result instead of the guide, so this is never true for a real hazard.
-  const guideAvailable = true
+  // V05: the same approved-template gate as every page. No approved templates exist for
+  // live content, so cards link to the saved result, never into a guide.
+  const guideAvailable = isGuideAvailable()
 
   const titleOf = (card: HistoryCard) => card.title ?? t('history.legacyCardTitle')
 

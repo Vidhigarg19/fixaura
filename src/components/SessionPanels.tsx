@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ImagePlus, LogIn, WifiOff } from 'lucide-react'
 import { getLocale, subscribeLocale, t } from '../i18n'
@@ -12,6 +12,7 @@ import { createDeleteFlow, type DeleteOutcome } from '../utils/deleteSessionFlow
 import { saveCaptureDraft } from '../utils/captureDraft'
 import { buildDiagnosisView } from '../utils/diagnosisView'
 import { withTextScreen } from '../utils/combinedRisk'
+import { getGuideAvailability, guideUnavailableReasonKey } from '../utils/guideAvailability'
 import { seedRepairCache, type ResumeView } from '../services/sessionResume'
 import { useSessionLoader, type SessionLoaderState } from '../utils/useSessionLoader'
 import FixtureBannerSlot from './FixtureBannerSlot'
@@ -230,9 +231,9 @@ function ResumeIntoGuide({ view, target }: { view: ResumeView; target: '/tools' 
  * /tools?session and /guide?session. Loads first, then:
  * - blocked session (a genuine hazard): the blocked panel, no tools or steps
  * - older row without details: the legacy panel
- * - anything else: the saved repair opens in the real tools / guide page. A low or
- *   medium risk session is never stopped here for lack of an exact checklist; a guide
- *   is built from the saved diagnosis when no checklist exists.
+ * - anything else: the V05 approved-template gate. A saved row carries no approved
+ *   template, so live sessions get the "not available" panel; only an approved guide
+ *   would open the real tools / guide page.
  */
 export function SessionRepairGate() {
   useSyncExternalStore(subscribeLocale, getLocale)
@@ -255,16 +256,25 @@ export function SessionRepairGate() {
           showToolsLocked
         />
       )
-    } else if (fixtureName !== null) {
-      // Dev session fixtures are not real database rows, so they cannot open the live pages.
-      content = <GuideUnavailablePanel issueName={diagnosis.issueName} sessionId={sessionId ?? state.view.id} />
     } else {
+      const guide = getGuideAvailability(null, { diagnosis, decision: gate.decision })
+      if (guide.status === 'unavailable' || fixtureName !== null) {
+        // No approved guide (dev session fixtures are not real rows either).
+        content = (
+          <GuideUnavailablePanel
+            issueName={diagnosis.issueName}
+            sessionId={sessionId ?? state.view.id}
+            reasonKey={guide.status === 'unavailable' ? guideUnavailableReasonKey(guide.reason) : undefined}
+          />
+        )
+      } else {
       content = (
         <ResumeIntoGuide
           view={state.view}
           target={location.pathname.startsWith('/guide') ? '/guide' : '/tools'}
         />
       )
+      }
     }
   }
   return (

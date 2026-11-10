@@ -5,21 +5,15 @@
 // diagnosis (`approvedTemplateId` + `policyVersion`), validated here against a
 // registry of approved templates and the CURRENT approved policy version.
 //
-// This is the single choke point. There are two tiers, and a genuine hazard beats both:
-//  0. A blocked risk decision (or safetyStop / high severity) -> NEVER a guide.
+// This is the single choke point (V05, fail closed). In order:
+//  0. A blocked risk decision, safetyStop or high severity -> NEVER a guide.
 //  1. 'approved': a registered, current approved template id + matching policy version.
-//  2. 'ai_generated': a non-blocked result that carries issue-specific steps which
-//     passed validation (utils/guideSteps). These are labelled in the UI as
-//     AI-generated guidance and are never presented as an approved manual.
-//  3. 'fallback': no checklist and no model steps, so a guide is built from the
-//     diagnosis itself (utils/fallbackGuide) and labelled as general guidance.
-// Anything else is unavailable: a blocked result, or one with no recommended fix to
-// build from, or whose fix describes a hazardous action.
-
+// Nothing else unlocks guided repair. AI-generated steps (diagnosis.guideSteps) and
+// steps built from the diagnosis text are NOT reviewed approval, and a low or medium
+// risk level alone does not unlock a guide. The approved registry below is empty for
+// live content, so every live result is unavailable until reviewed templates exist.
 import type { DiagnosisResult } from '../types/repair'
 import type { AgreedDiagnosis } from './diagnosisView'
-import { canBuildFallbackGuide } from './fallbackGuide'
-import { MIN_GUIDE_STEPS, parseGuideSteps } from './guideSteps'
 import { isBlocked, type RiskDecision } from './riskDecision'
 
 /**
@@ -53,21 +47,16 @@ export type GuideUnavailableReason =
   | 'unknown_template' // template id is not in the approved registry
   | 'policy_version_mismatch' // template's policy version is stale/unreviewed
   | 'risk_blocked' // a genuine hazard blocks the guide
-  | 'no_steps' // no usable issue-specific steps came back for this result
+  | 'no_steps' // kept for compatibility; the gate no longer returns it
 
 export type GuideAvailability =
   | { status: 'available'; source: 'approved'; templateId: string; policyVersion: string }
-  | { status: 'available'; source: 'ai_generated'; stepCount: number }
-  | { status: 'available'; source: 'fallback' }
   | { status: 'unavailable'; reason: GuideUnavailableReason }
 
 interface GuideAvailabilityOptions {
   /** Dev/fixture only: also accept fixture template ids. Never set in prod code paths. */
   allowFixtureTemplates?: boolean
-  /**
-   * The current result. When given, a NON-blocked result that carries valid
-   * issue-specific steps gets an AI-generated guide even without an approved template.
-   */
+  /** The current result. Used only to block (safetyStop / high severity); it never unlocks a guide. */
   diagnosis?: DiagnosisResult | null
   /** The combined risk decision for the result. A blocked decision never gets a guide. */
   decision?: RiskDecision
@@ -87,30 +76,14 @@ export function getGuideAvailability(
     return { status: 'unavailable', reason: 'risk_blocked' }
   }
 
-  // Tier 1: a reviewed, current approved template (highest assurance).
+  const diagnosis = options.diagnosis
+  if (diagnosis && (diagnosis.safetyStop || diagnosis.severity === 'high')) {
+    return { status: 'unavailable', reason: 'risk_blocked' }
+  }
+
+  // The only way in: a reviewed, current approved template.
   const approved = approvedTemplateAvailability(extras, options)
   if (approved) return approved
-
-  // Tier 2: issue-specific steps returned for THIS result. Allowed only for a
-  // non-blocked, non-high-severity result, and only when the steps validate. The UI
-  // labels these as AI-generated guidance; they are never presented as approved.
-  const diagnosis = options.diagnosis
-  if (diagnosis) {
-    if (diagnosis.safetyStop || diagnosis.severity === 'high') {
-      return { status: 'unavailable', reason: 'risk_blocked' }
-    }
-    const stepCount = parseGuideSteps(diagnosis.guideSteps).length
-    if (stepCount >= MIN_GUIDE_STEPS) {
-      return { status: 'available', source: 'ai_generated', stepCount }
-    }
-    // Tier 3: no checklist and no model steps. Build a guide from the diagnosis itself
-    // so the user is never stuck. Only unavailable when there is genuinely nothing
-    // safe to build from (no recommended fix, or the fix describes a hazardous action).
-    if (canBuildFallbackGuide(diagnosis)) {
-      return { status: 'available', source: 'fallback' }
-    }
-    return { status: 'unavailable', reason: 'no_steps' }
-  }
 
   return extras
     ? approvedTemplateReason(extras, options)
@@ -147,7 +120,7 @@ function approvedTemplateAvailability(
   }
 }
 
-/** Why the approved-template tier did not apply (used when no diagnosis was given). */
+/** Why the approved-template tier did not apply. */
 function approvedTemplateReason(
   extras: AgreedDiagnosis,
   options: GuideAvailabilityOptions

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from './authContext'
 import { clearSession, getSession } from '../services/repairSession'
-import { buildRepairPlan } from '../services/repairPlanner'
 import { isGuideAvailable } from '../utils/guideAvailability'
 import {
   assistantContextFromSession,
@@ -11,16 +10,17 @@ import type { ChatRole } from '../services/historyService'
 import { AssistantContext, type AssistantMessage, type AssistantState } from './assistantContext'
 
 /**
- * For a high-severity (blocked) result the assistant gets the diagnosis context only
- * (issue, description, risk, safety warning) and never repair steps or the tool list.
- * This applies on every route, because the context is global and every setter goes
- * through here. Lower-severity results keep their steps: RepairGuide only supplies
- * steps once the guide-availability gate has passed.
+ * V05: while no approved guide exists, the assistant gets the diagnosis context only
+ * (issue, description, risk, safety warning) and never repair steps or the AI free-text
+ * tool list. This applies on every route, because the context is global and every
+ * setter goes through here. Only an approved guide (RepairGuide, behind the gate)
+ * supplies steps; a blocked result is always stripped.
  */
 function withoutUnapprovedGuidance(
-  context: RepairAssistantContext | null
+  context: RepairAssistantContext | null,
+  approvedGuide = false
 ): RepairAssistantContext | null {
-  if (!context || context.severity !== 'high') return context
+  if (!context || (approvedGuide && context.severity !== 'high')) return context
   return {
     ...context,
     recommendedTools: [],
@@ -32,21 +32,16 @@ function withoutUnapprovedGuidance(
 
 function initialRepairContext() {
   const session = getSession()
-  // Steps are only read when the gate passes for the stored result (never when blocked).
-  const steps = !isGuideAvailable(null, { diagnosis: session?.diagnosis ?? null })
-    ? []
-    : session?.steps?.length
-      ? session.steps
-      : session?.diagnosis
-        ? buildRepairPlan(session.diagnosis)
-        : []
+  // Saved or generated steps are never read here: the stored session carries no approved
+  // template, so the gate is closed for it.
+  const approved = isGuideAvailable(null, { diagnosis: session?.diagnosis ?? null })
   return withoutUnapprovedGuidance(assistantContextFromSession(
     session?.diagnosis,
     session?.description ?? '',
-    steps,
+    approved ? session?.steps ?? [] : [],
     session?.currentStep ?? 0,
     session?.historySessionId
-  ))
+  ), approved)
 }
 
 export default function AssistantProvider({ children }: { children: ReactNode }) {
@@ -58,7 +53,9 @@ export default function AssistantProvider({ children }: { children: ReactNode })
     initialRepairContext
   )
   const setRepairContext = useCallback(
-    (context: RepairAssistantContext | null) => setRawRepairContext(withoutUnapprovedGuidance(context)),
+    // The only callers that pass steps are RepairGuide's, which run only behind the approved
+    // gate. A blocked (high severity) context is still always stripped.
+    (context: RepairAssistantContext | null) => setRawRepairContext(withoutUnapprovedGuidance(context, true)),
     []
   )
   const previousUserId = useRef<string | null>(null)

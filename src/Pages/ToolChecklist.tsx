@@ -22,9 +22,6 @@ import { useRepairPhoto } from '../utils/useRepairPhoto'
 import RepairPhoto from '../components/RepairPhoto'
 import { SessionRepairGate } from '../components/SessionPanels'
 import { useSessionMode } from '../utils/useSessionLoader'
-import FixtureBannerSlot from '../components/FixtureBannerSlot'
-
-// DEV-ONLY banner. In a production build this is `null` and the import is removed.
 
 const stagger = {
   visible: { transition: { staggerChildren: 0.08 } },
@@ -105,7 +102,7 @@ function matchTool(tool: string): { icon: React.ElementType } {
   return { icon: Wrench }
 }
 function FreshToolChecklist() {
-  const locale = useSyncExternalStore(subscribeLocale, getLocale)
+  useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
   const source = useDiagnosisSource()
   const session = source.session
@@ -123,18 +120,10 @@ function FreshToolChecklist() {
     decision: gate?.decision,
   })
   const guideAvailable = guideAvail.status === 'available'
+  // V05: the tool list is shown only behind an approved template; AI free-text tools are
+  // never presented as a checklist on their own.
   const recommended = guideAvailable ? session?.diagnosis?.recommendedTools : undefined
-  // Non-approved guides always list basic protection, so "wear protection" is a real
-  // item the user ticks off. It is only added when the model's own list lacks it.
-  const addProtectiveGear = guideAvail.status === 'available' && guideAvail.source !== 'approved'
-  const tools = useMemo(() => {
-    const list = [...(recommended ?? [])]
-    if (!addProtectiveGear) return list
-    const has = (pattern: RegExp) => list.some((tool) => pattern.test(tool))
-    if (!has(/glove/i)) list.push(t('tools.protectiveGloves', locale))
-    if (!has(/glasses|goggles|eye/i)) list.push(t('tools.safetyGlasses', locale))
-    return list
-  }, [recommended, addProtectiveGear, locale])
+  const tools = useMemo(() => recommended ?? [], [recommended])
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [safetyOpen, setSafetyOpen] = useState(false)
   const [pendingTool, setPendingTool] = useState<string | null>(null)
@@ -219,9 +208,6 @@ function FreshToolChecklist() {
     return (
       <PageShell className="pb-24">
         <div className="mx-auto max-w-lg px-4 pt-8">
-          {source.isFixture && (
-            <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-          )}
           <GuideUnavailablePanel
             issueName={session.diagnosis.issueName}
             reasonKey={
@@ -241,9 +227,6 @@ function FreshToolChecklist() {
   return (
     <PageShell className="pb-24">
       <div className="mx-auto max-w-lg px-4 pt-8">
-        {source.isFixture && (
-          <FixtureBannerSlot name={new URLSearchParams(window.location.search).get('fixture') ?? ''} />
-        )}
         <RepairPhoto sessionMedia={sessionMedia} aspectClass="aspect-[16/7]" className="mb-6" />
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
