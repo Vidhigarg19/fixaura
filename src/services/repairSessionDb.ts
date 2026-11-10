@@ -283,12 +283,15 @@ export async function persistSymptomAnswers(
   if (!supabase || !repairSessionId) return
   const userId = await getUserId()
   if (!userId) return
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('repair_sessions')
     .update({ symptom_answers: answers })
     .eq('id', repairSessionId)
     .eq('user_id', userId)
+    .select('id')
+    .maybeSingle()
   if (error) throw new Error(`Unable to save follow-up answers: ${error.message}`)
+  requireUpdatedRow(data, repairSessionId, 'follow-up answers')
 }
 
 /**
@@ -296,6 +299,10 @@ export async function persistSymptomAnswers(
  * repair_sessions row (jsonb). Scoped by user_id; RLS enforces the same. An
  * `observedAt` timestamp is stamped on write. Returns the stored object so the
  * caller can keep its local cache in sync.
+ *
+ * UNREACHABLE: no code in the app calls this (only tests). It is the documented writer of
+ * repair_sessions.observation (see the S08 migration), which rehydration still reads, so
+ * it is kept until the owner approves removal (docs/ARCHITECTURE.md, "Unreachable code").
  */
 export async function persistObservation(
   repairSessionId: string,
@@ -308,12 +315,15 @@ export async function persistObservation(
     ...observation,
     observedAt: observation.observedAt ?? new Date().toISOString(),
   }
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('repair_sessions')
     .update({ observation: stored })
     .eq('id', repairSessionId)
     .eq('user_id', userId)
+    .select('id')
+    .maybeSingle()
   if (error) throw new Error(`Unable to save the observation: ${error.message}`)
+  requireUpdatedRow(data, repairSessionId, 'the observation')
   return stored
 }
 
@@ -326,10 +336,26 @@ export async function persistImagePath(repairSessionId: string, imagePath: strin
   if (!supabase || !repairSessionId || !imagePath) return
   const userId = await getUserId()
   if (!userId) return
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('repair_sessions')
     .update({ image_path: imagePath })
     .eq('id', repairSessionId)
     .eq('user_id', userId)
+    .select('id')
+    .maybeSingle()
   if (error) throw new Error(`Unable to save the photo reference: ${error.message}`)
+  requireUpdatedRow(data, repairSessionId, 'the photo reference')
+}
+
+/**
+ * D15 (same pattern as the diagnosis backfill, D6): an update only counts when it changed
+ * THIS row. PostgREST answers a no-op update (no matching row, or one RLS hides) with no
+ * row and no error, which maybeSingle() returns as null. The SELECT and UPDATE policies on
+ * repair_sessions use the same owner rule, so a changed row is always returned.
+ */
+function requireUpdatedRow(data: unknown, repairSessionId: string, what: string) {
+  const id = data && typeof data === 'object' ? (data as { id?: unknown }).id : undefined
+  if (id !== repairSessionId) {
+    throw new Error(`Unable to save ${what}: the repair was not changed (not found or not available).`)
+  }
 }

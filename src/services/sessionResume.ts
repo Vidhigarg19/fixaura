@@ -12,11 +12,19 @@ import {
   saveSession,
 } from './repairSession'
 import { createRequestGuard } from '../utils/requestGuard'
-import { buildRepairPlan } from './repairPlanner'
 import { parseGuideSteps } from '../utils/guideSteps'
 import { isNetworkError, isOffline } from '../utils/networkError'
 import { deriveSessionStatus, type SessionStatus } from '../utils/sessionStatus'
-import { MAX_DESCRIPTION_LENGTH, MAX_ISSUE_NAME_LENGTH } from '../config/limits'
+import { mostSevere } from '../utils/riskDecision'
+import { safetyRiskSignal, screenFields } from '../lib/safety'
+import {
+  MAX_CHECK_LABEL_LENGTH,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_DIAGNOSIS_TEXT_LENGTH,
+  MAX_ISSUE_NAME_LENGTH,
+  MAX_TOOL_LENGTH,
+  MAX_TOOLS,
+} from '../config/limits'
 
 export { MAX_DESCRIPTION_LENGTH, MAX_ISSUE_NAME_LENGTH }
 
@@ -50,19 +58,70 @@ function cleanVerification(value: unknown): RepairVerification | undefined {
   }
   return {
     status: v.status as VerificationStatus,
-    summary: withoutPhotoData(v.summary),
+    summary: capText(withoutPhotoData(v.summary), MAX_DIAGNOSIS_TEXT_LENGTH),
     checks: v.checks
       .filter((check) => check && typeof check.label === 'string' && typeof check.passed === 'boolean')
-      .map((check) => ({ label: withoutPhotoData(check.label), passed: check.passed })),
-    nextAdvice: typeof v.nextAdvice === 'string' ? withoutPhotoData(v.nextAdvice) : '',
+      .map((check) => ({
+        label: capText(withoutPhotoData(check.label), MAX_CHECK_LABEL_LENGTH),
+        passed: check.passed,
+      })),
+    nextAdvice:
+      typeof v.nextAdvice === 'string' ? capText(withoutPhotoData(v.nextAdvice), MAX_DIAGNOSIS_TEXT_LENGTH) : '',
   }
 }
 
 /**
+ * D13: shortens text longer than `max` code points to `max`, ending in a visible "…" so a
+ * cut is never silent. Shorter text is returned unchanged.
+ */
+export function capText(value: string, max: number): string {
+  const chars = Array.from(value)
+  if (chars.length <= max) return value
+  return `${chars.slice(0, max - 1).join('')}…`
+}
+
+/** The client hazard screen's view of a result (same fields as textRiskSignal). */
+function screenedSignal(d: Pick<DiagnosisResult, 'issueName' | 'summary' | 'recommendedFix'>) {
+  return safetyRiskSignal(screenFields([d.issueName, d.summary, d.recommendedFix]))
+}
+
+/**
+ * D13: caps stored diagnosis text. Rules:
+ * - safetyWarning is safety guidance and is never shortened (photo data is still removed);
+ * - the fields the hazard screen reads (issue name, summary, fix) are only shortened when
+ *   the shortened result screens AT LEAST as severe as the full one; otherwise they are
+ *   kept in full, so a reload can never show a lower risk than the fresh result did.
+ */
+function capDiagnosisText(full: DiagnosisResult): DiagnosisResult {
+  const capped: DiagnosisResult = {
+    ...full,
+    issueName: capText(full.issueName, MAX_ISSUE_NAME_LENGTH),
+    summary: capText(full.summary, MAX_DIAGNOSIS_TEXT_LENGTH),
+    recommendedFix: capText(full.recommendedFix, MAX_DIAGNOSIS_TEXT_LENGTH),
+    recommendedTools: full.recommendedTools.slice(0, MAX_TOOLS).map((tool) => capText(tool, MAX_TOOL_LENGTH)),
+    nextStepAdvice: capText(full.nextStepAdvice, MAX_DIAGNOSIS_TEXT_LENGTH),
+    ...(typeof full.explanation === 'string'
+      ? { explanation: capText(full.explanation, MAX_DIAGNOSIS_TEXT_LENGTH) }
+      : {}),
+  }
+  const fullSignal = screenedSignal(full)
+  if (mostSevere(screenedSignal(capped), fullSignal) !== screenedSignal(capped)) {
+    // Shortening would hide a hazard the full text shows: keep the screened fields whole.
+    return { ...capped, issueName: full.issueName, summary: full.summary, recommendedFix: full.recommendedFix }
+  }
+  return capped
+}
+
+/**
  * Copies ONLY the known DiagnosisResult fields. Any photo field (imageDataUrl,
- * base64, ...) is dropped, and data URIs or long base64 runs inside text are removed.
+ * base64, ...) is dropped, data URIs or long base64 runs inside text are removed, and
+ * (D13) over-long text is capped by capDiagnosisText.
  */
 export function stripPhotoData(diagnosis: DiagnosisResult): DiagnosisResult {
+  return capDiagnosisText(stripPhotoFields(diagnosis))
+}
+
+function stripPhotoFields(diagnosis: DiagnosisResult): DiagnosisResult {
   const verification = cleanVerification(diagnosis.verification)
   // Guide steps are re-validated and cleaned of photo data like every other text field.
   const guideSteps = parseGuideSteps(diagnosis.guideSteps).map((step) => ({
@@ -236,11 +295,13 @@ export function sessionHref(path: string, sessionId: string | null, fixtureName:
  * cleared first, but the same repair's cache (and its photo) is kept. The photo itself is
  * found by useRepairPhoto: this tab's capture, the on-device copy, or the stored path.
  *
- * Returns false when the row has no diagnosis to build a guide from.
+ * V05: generated steps are never seeded. The cache gets the durable session fields and
+ * the photo reference only; steps come from an approved template behind the gate.
+ *
+ * Returns false when the row has no diagnosis.
  */
 export function seedRepairCache(view: ResumeView, userId: string): boolean {
   if (!view.diagnosis) return false
-  const steps = buildRepairPlan(view.diagnosis)
   // Clear only a cache that belongs to ANOTHER repair or user. Clearing the same repair
   // threw away this tab's photo (imageDataUrl) and attempt id, which is what left the
   // guide's photo box empty after pressing Start / Continue on a saved result.
@@ -255,8 +316,8 @@ export function seedRepairCache(view: ResumeView, userId: string): boolean {
     diagnosisPersistence: { userId, repairSessionId: view.id },
     // A resumed repair keeps its photo: the stored path is signed when it is displayed.
     ...(view.imagePath ? { imagePath: view.imagePath } : {}),
-    steps,
-    currentStep: Math.min(Math.max(view.currentStep, 0), Math.max(steps.length - 1, 0)),
+    steps: [],
+    currentStep: 0,
   })
   return true
 }

@@ -98,7 +98,12 @@ export interface RepairSession {
   ownerUserId?: string
   diagnosisAttemptId?: string
   diagnosisPersistence?: {
-    userId: string
+    /**
+     * The user these ids were saved for. Absent when not known (D21: e.g. a repair
+     * restored from the database into a cache that never recorded it). The save only
+     * reuses ids whose userId matches the signed-in user.
+     */
+    userId?: string
     applianceId?: string
     diagnosisId?: string
     repairSessionId?: string

@@ -29,14 +29,10 @@ import { analyzeImage } from '../services/visionAI'
 import { AnalysisError } from '../types/analysis'
 import {
   clearSession,
-  getSession,
   isValidDiagnosisResult,
-  saveSession,
   setDiagnosis,
 } from '../services/repairSession'
-import { uploadPrivateRepairMediaBlob } from '../services/mediaService'
-import { persistImagePath } from '../services/repairSessionDb'
-import { savePhoto } from '../services/localPhotoStore'
+import { persistCaptureMedia } from '../services/captureMedia'
 import { getLocale, subscribeLocale, t } from '../i18n'
 import {
   analysisErrorMessageKey,
@@ -58,9 +54,9 @@ import {
 import { ImageProcessingError, processImageFile } from '../utils/imageProcessing'
 import { createRequestGuard } from '../utils/requestGuard'
 import type { FixtureOutcome } from '../dev/analysisFixtures'
-import { fixturesFlagEnabled, isDevBuild } from '../config/env'
 import { FixturePanel, loadAnalysisFixtures } from '../config/devFixtures'
 import { SLOW_REQUEST_MS } from '../config/limits'
+import { readFixtureParams } from '../utils/fixtureGate'
 
 type CameraState = 'loading' | 'ready' | 'error'
 type VoiceState = 'idle' | 'listening' | 'error'
@@ -68,18 +64,6 @@ type RequestState = 'idle' | 'validating' | 'submitting' | 'success' | 'error'
 type PhotoSource = 'camera' | 'upload'
 type Photo = { blob: Blob; dataUrl: string }
 type FailureView = AnalysisFailure & { retryAt: number | undefined }
-
-// DEV-ONLY test hook. FixturePanel and loadAnalysisFixtures come from config/devFixtures.ts, which
-// is removed from production builds together with the fixture modules.
-function readFixtureParams(): { name: string; delaySeconds: number } | null {
-  if (!isDevBuild) return null
-  if (!fixturesFlagEnabled) return null
-  const params = new URLSearchParams(window.location.search)
-  const name = params.get('fixture')
-  if (!name) return null
-  const delay = Number(params.get('delay') ?? '0')
-  return { name, delaySeconds: Number.isFinite(delay) ? delay : 0 }
-}
 
 function stopTracks(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop())
@@ -474,38 +458,6 @@ function CaptureForm({ userId }: { userId: string }) {
     }
   }
 
-  // S09: upload the just-captured photo to the private bucket and record its
-  // object path on the active session, so it is associated with the repair and
-  // can be scrubbed on deletion. Never throws into the analyze flow.
-  const persistCaptureMedia = async (blob: Blob) => {
-    const session = getSession()
-    // Keep an on-device copy FIRST. It does not depend on storage being set up, so the
-    // guide can always show the user's own photo on this device (reload, new tab, resume).
-    try {
-      await savePhoto(
-        [session?.diagnosisAttemptId, session?.diagnosisPersistence?.repairSessionId],
-        blob,
-        userId
-      )
-    } catch {
-      // Optional: the stored copy below (or this tab's cache) still covers the guide.
-    }
-    try {
-      const sessionScope = session?.diagnosisPersistence?.repairSessionId ?? session?.diagnosisAttemptId
-      if (!sessionScope) return
-      const path = await uploadPrivateRepairMediaBlob(blob, sessionScope)
-      const current = getSession()
-      const mediaPaths = [...new Set([...(current?.mediaPaths ?? []), path])]
-      saveSession({ mediaPaths, imagePath: current?.imagePath ?? path })
-      // If the repair row already exists, record the photo on it now so it survives a new
-      // tab or a resume. If it does not exist yet, the Diagnosis page writes it with the row.
-      const repairSessionId = getSession()?.diagnosisPersistence?.repairSessionId
-      if (repairSessionId) await persistImagePath(repairSessionId, current?.imagePath ?? path)
-    } catch (error) {
-      console.warn('Private media upload failed:', error instanceof Error ? error.message : 'unknown')
-    }
-  }
-
   const analyze = async () => {
     setDescriptionTouched(true)
     // The ref blocks a second call made before state has updated.
@@ -535,7 +487,7 @@ function CaptureForm({ userId }: { userId: string }) {
       // S09: persist the captured photo to the PRIVATE bucket, scoped to this
       // attempt. Best-effort: a storage hiccup must never block the diagnosis
       // the user just got, so failures are logged (no raw image) and ignored.
-      void persistCaptureMedia(photo.blob)
+      void persistCaptureMedia(photo.blob, userId)
       clearCaptureDraft()
       setFailure(null)
       setRequestState('success')

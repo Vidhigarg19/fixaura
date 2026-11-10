@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { useState, useEffect, useSyncExternalStore } from 'react'
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AlertOctagon, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import PageShell from '../components/PageShell'
@@ -7,12 +7,22 @@ import FallbackMode from '../components/FallbackMode'
 import SafetyBlockedPanel from '../components/SafetyBlockedPanel'
 import SafetyDisclaimer from '../components/SafetyDisclaimer'
 import FollowUpQuestions from '../components/FollowUpQuestions'
-import { getSession as getCachedSession, isValidDiagnosisSession, saveSession } from '../services/repairSession'
-import { isValidSessionId, sessionDetailsForInsert } from '../services/sessionResume'
-import { getLocale, subscribeLocale, t } from '../i18n'
-import { supabase } from '../lib/supabase'
+import {
+  claimGuestSession,
+  getSession as getCachedSession,
+  isValidDiagnosisSession,
+  saveSession,
+} from '../services/repairSession'
+import { isValidSessionId, seedRepairCache } from '../services/sessionResume'
+import { getLocale, localizedErrorMessage, subscribeLocale, t } from '../i18n'
+import {
+  DiagnosisSaveCancelledError,
+  DiagnosisSaveError,
+  saveDiagnosisAndSession,
+  type DiagnosisSaveErrorCode,
+} from '../services/diagnosisPersistence'
 import FixtureBannerSlot from '../components/FixtureBannerSlot'
-import { CONFIDENCE_THRESHOLD } from '../config/limits'
+import { CONFIDENCE_THRESHOLD, DIAGNOSIS_SAVE_TIMEOUT_MS } from '../config/limits'
 import { useAuth } from '../components/authContext'
 import { buildDiagnosisView, type DiagnosisView } from '../utils/diagnosisView'
 import { useDiagnosisSource } from '../utils/useDiagnosisSource'
@@ -21,7 +31,7 @@ import { decideFromDiagnosis, isBlocked, mostSevere, type RiskDecision } from '.
 import { safetyRiskSignal, screenFields, type SafetyVerdict } from '../lib/safety'
 import { isGuideAvailable } from '../utils/guideAvailability'
 import type { FollowUpResult } from '../services/followUpClient'
-import type { DiagnosisResult } from '../types/repair'
+import type { DiagnosisResult, RepairSession } from '../types/repair'
 import { useSessionLoader, useSessionMode } from '../utils/useSessionLoader'
 import {
   LegacySessionPanel,
@@ -32,19 +42,113 @@ import {
 
 // DEV-ONLY banner. In a production build this is `null` and the import is removed.
 
-const diagnosisSaveOperations = new Map<string, Promise<void>>()
+interface DiagnosisSaveOperation {
+  promise: Promise<void>
+  /** Pages currently waiting for this save. */
+  waiting: number
+  /** Inserts/backfills in flight (they may still commit in the database). */
+  writesInFlight: number
+  /** D9: given up after the wait limit; it starts nothing new and writes no cache. */
+  abandoned: boolean
+}
 
-function saveDiagnosisOnce(attemptId: string, save: () => Promise<void>) {
-  const existingOperation = diagnosisSaveOperations.get(attemptId)
-  if (existingOperation) return existingOperation
+interface DiagnosisSaveContext {
+  isCancelled: () => boolean
+  isAbandoned: () => boolean
+  onWriteInFlight: (inFlight: boolean) => void
+}
 
-  const operation = save().finally(() => {
-    if (diagnosisSaveOperations.get(attemptId) === operation) {
-      diagnosisSaveOperations.delete(attemptId)
+const diagnosisSaveOperations = new Map<string, DiagnosisSaveOperation>()
+
+/**
+ * One save per attempt id, shared by every page waiting for it. Each caller gets a
+ * `release` for its effect cleanup.
+ * - D4: the save is cancelled (at its next database step) only when NO page is waiting
+ *   any more. It is read lazily, so a StrictMode remount or a second page keeps it running.
+ * - D9: each wait is bounded by DIAGNOSIS_SAVE_TIMEOUT_MS and then fails as `timedOut`
+ *   (the normal failed state, with retry). If no write is in flight, the stuck save is
+ *   abandoned and dropped, so a retry starts a fresh one; it can no longer start a write.
+ *   If a write IS in flight, the save is kept: there is no database uniqueness to stop a
+ *   duplicate row, so a retry rejoins it (with a new limit) instead of competing with it.
+ */
+function saveDiagnosisOnce(attemptId: string, save: (context: DiagnosisSaveContext) => Promise<void>) {
+  let operation = diagnosisSaveOperations.get(attemptId)
+  if (!operation) {
+    const created: DiagnosisSaveOperation = {
+      promise: Promise.resolve(),
+      waiting: 0,
+      writesInFlight: 0,
+      abandoned: false,
     }
-  })
-  diagnosisSaveOperations.set(attemptId, operation)
-  return operation
+    diagnosisSaveOperations.set(attemptId, created)
+    // Counted before the save starts, so its synchronous part never sees "nobody waiting".
+    created.waiting = 1
+    created.promise = save({
+      isCancelled: () => created.waiting === 0 || created.abandoned,
+      isAbandoned: () => created.abandoned,
+      onWriteInFlight: (inFlight) => {
+        created.writesInFlight += inFlight ? 1 : -1
+      },
+    }).finally(() => {
+      if (diagnosisSaveOperations.get(attemptId) === created) {
+        diagnosisSaveOperations.delete(attemptId)
+      }
+    })
+    operation = created
+  } else {
+    operation.waiting += 1
+  }
+
+  const joined = operation
+  let released = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const bounded = new Promise<void>((resolve, reject) => {
+    timer = setTimeout(() => {
+      if (joined.writesInFlight === 0) {
+        joined.abandoned = true
+        if (diagnosisSaveOperations.get(attemptId) === joined) diagnosisSaveOperations.delete(attemptId)
+      }
+      reject(new DiagnosisSaveError('timedOut'))
+    }, DIAGNOSIS_SAVE_TIMEOUT_MS)
+    joined.promise.then(resolve, reject)
+  }).finally(() => clearTimeout(timer))
+
+  return {
+    promise: bounded,
+    /** The save's own result, however long it takes (D18). */
+    outcome: joined.promise,
+    release() {
+      if (released) return
+      released = true
+      clearTimeout(timer)
+      joined.waiting -= 1
+    },
+  }
+}
+
+// D7: the save's own failure codes map to translated copy. Anything else (Supabase,
+// network, auth provider errors) gets the generic copy; its text is never shown.
+const SAVE_ERROR_KEYS: Record<DiagnosisSaveErrorCode, string> = {
+  signInRequired: 'diagnosis.saveError.signInRequired',
+  applianceUnverified: 'diagnosis.saveError.applianceUnverified',
+  duplicateAppliances: 'diagnosis.saveError.duplicateAppliances',
+  duplicateSessions: 'diagnosis.saveError.duplicateSessions',
+  sessionMissingAppliance: 'diagnosis.saveError.sessionLinkInvalid',
+  sessionApplianceMismatch: 'diagnosis.saveError.sessionLinkInvalid',
+  sessionLinkMismatch: 'diagnosis.saveError.sessionLinkInvalid',
+  sessionNotUpdated: 'diagnosis.saveError.sessionNotUpdated',
+  timedOut: 'diagnosis.saveError.timedOut',
+  sessionCompleted: 'diagnosis.saveError.sessionCompleted',
+  sessionAlreadyExists: 'diagnosis.saveError.sessionAlreadyExists',
+}
+
+/** D16: the session with the claiming user as owner, once (and only if) they claimed it. */
+function withClaimedOwner(session: RepairSession | null, claimedBy: string | null): RepairSession | null {
+  return session && claimedBy && !session.ownerUserId ? { ...session, ownerUserId: claimedBy } : session
+}
+
+function saveErrorKeyFor(error: unknown): string {
+  return error instanceof DiagnosisSaveError ? SAVE_ERROR_KEYS[error.code] : 'diagnosis.saveError.unknown'
 }
 
 const RISK_STYLE: Record<
@@ -66,12 +170,24 @@ const EVIDENCE_KEYS = {
 function FreshDiagnosis() {
   useSyncExternalStore(subscribeLocale, getLocale)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const source = useDiagnosisSource()
   // Initial session only: the persistence effect below must not re-run when a follow-up
   // result changes what is displayed.
-  const [session] = useState(() => source.session)
-  const liveSession = source.session
+  const [initialSession] = useState(() => source.session)
+  // D16: set when a signed-in user explicitly chose to save a result made before they
+  // logged in. Until then that ownerless result is never saved.
+  const [claimedBy, setClaimedBy] = useState<string | null>(null)
+  const session = useMemo(() => withClaimedOwner(initialSession, claimedBy), [initialSession, claimedBy])
+  const liveSession = useMemo(() => withClaimedOwner(source.session, claimedBy), [source.session, claimedBy])
+  // D16: a result made as a guest, now viewed by a signed-in user who has not claimed it.
+  const claimableGuestResult =
+    !source.isFixture &&
+    !authLoading &&
+    Boolean(user) &&
+    !claimedBy &&
+    isValidDiagnosisSession(initialSession, undefined) &&
+    isValidDiagnosisSession(source.session, undefined)
   // S05: screen the text that is actually shown (description and result fields).
   const safetyVerdict = liveSession ? screenDiagnosisText(liveSession.description, liveSession.diagnosis) : null
   // The MOST SEVERE of the V04 risk decision (server data) and the S05 text screen.
@@ -83,256 +199,133 @@ function FreshDiagnosis() {
   // S07: guided repair opens only when the agreed diagnosis carries a reviewed,
   // current approved template. The diagnosis itself is still saved by the effect
   // below; only the guided-repair start is gated on template validation.
-  const guideAvailable = isGuideAvailable(source.extras, { allowFixtureTemplates: source.isFixture })
-  const [saveStatus, setSaveStatus] = useState('Saving diagnosis...')
+  const guideAvailable = isGuideAvailable(source.extras, {
+    allowFixtureTemplates: source.isFixture,
+    diagnosis: liveSession?.diagnosis ?? null,
+    decision,
+  })
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'failed' | 'signInRequired' | 'alreadyCompleted'>(
+    'saving'
+  )
   const [saveFailed, setSaveFailed] = useState(false)
+  // D7: the translation key for why the last save failed (diagnosis.saveError.*).
+  const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null)
+  // D14: the owner's finished repair for this diagnosis, when the save found one.
+  const [completedRepairId, setCompletedRepairId] = useState<string | null>(null)
+  // D3: a guest's result (valid for no owner, auth settled, nobody signed in) is never sent
+  // to the save; the page asks them to log in instead.
+  const guestResult =
+    !source.isFixture && !authLoading && !user && isValidDiagnosisSession(session, undefined)
   const [saveAttempt, setSaveAttempt] = useState(0)
   const [repairSessionReady, setRepairSessionReady] = useState(false)
   const [starting, setStarting] = useState(false)
   const [saveError, setSaveError] = useState('')
+  // D1: the ids this page's own save already wrote for an attempt. A retry starts from
+  // them (the service still checks the owner and verifies each id) instead of the
+  // first-render snapshot, so it does not insert a second diagnoses row. The shared cache
+  // is not read for this: rehydration can merge ANOTHER active repair's ids into it.
+  const savedProgress = useRef<{
+    attemptId: string
+    persistence: NonNullable<RepairSession['diagnosisPersistence']>
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    // Set synchronously below (there is no await before saveDiagnosisOnce), so the
+    // cleanup always releases this page's hold on the shared save.
+    let releaseSave: (() => void) | undefined
 
     async function saveDiagnosis() {
       if (!isValidDiagnosisSession(session, user?.id)) return
+      // D3: no save (and so no auth or database call) until auth has settled on a
+      // signed-in user. A guest gets the log-in prompt rendered from guestResult.
+      if (authLoading || !user?.id) return
       const attemptId = session.diagnosisAttemptId || crypto.randomUUID()
       if (!session.diagnosisAttemptId) {
         saveSession({ diagnosisAttemptId: attemptId })
       }
 
-      try {
-        await saveDiagnosisOnce(attemptId, async () => {
-          const {
-            data: { user },
-            error: authError,
-          } = await supabase.auth.getUser()
+      const progress = savedProgress.current
+      const diagnosisPersistence =
+        progress?.attemptId === attemptId ? progress.persistence : session.diagnosisPersistence
 
-          if (authError) throw authError
-          if (!user) throw new Error('Please log in to save your diagnosis.')
-
-          const d = session.diagnosis
-          const issueLabel = d.issueName.trim()
-          if (!issueLabel) throw new Error(t('diagnosis.issueNameMissing'))
-
-          let persistence =
-            session.diagnosisPersistence?.userId === user.id
-              ? { ...session.diagnosisPersistence }
-              : { userId: user.id }
-          saveSession({ diagnosisAttemptId: attemptId, diagnosisPersistence: persistence })
-
-          let applianceId = persistence.applianceId
-          if (applianceId) {
-            const { data: appliance, error } = await supabase
-              .from('appliances')
-              .select('id')
-              .eq('id', applianceId)
-              .eq('user_id', user.id)
-              .maybeSingle()
-
-            if (error) throw error
-            if (!appliance) throw new Error('The saved appliance could not be verified.')
-          } else {
-            const { data: matchingAppliances, error: findApplianceError } =
-              await supabase
-                .from('appliances')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('name', issueLabel)
-                .eq('appliance_type', issueLabel)
-                .limit(2)
-
-            if (findApplianceError) throw findApplianceError
-            if (matchingAppliances.length > 1) {
-              throw new Error(
-                'Multiple appliances match this name. Resolve the duplicate appliances before saving this diagnosis.'
-              )
-            }
-
-            if (matchingAppliances.length === 1) {
-              applianceId = matchingAppliances[0].id
-            } else {
-              const { data: newAppliance, error: createApplianceError } =
-                await supabase
-                  .from('appliances')
-                  .insert({
-                    user_id: user.id,
-                    name: issueLabel,
-                    appliance_type: issueLabel,
-                  })
-                  .select('id')
-                  .single()
-
-              if (createApplianceError) throw createApplianceError
-              applianceId = newAppliance.id
-            }
-
-            persistence = { ...persistence, applianceId }
-            saveSession({ diagnosisAttemptId: attemptId, diagnosisPersistence: persistence })
+      const operation = saveDiagnosisOnce(attemptId, ({ isCancelled, isAbandoned, onWriteInFlight }) =>
+        saveDiagnosisAndSession(
+          {
+            attemptId,
+            diagnosis: session.diagnosis,
+            description: session.description,
+            diagnosisPersistence,
+          },
+          {
+            readCache: getCachedSession,
+            writeCache: (partial) => {
+              // D9: an abandoned save was stuck on a read, so it holds no new row id;
+              // its late writes (e.g. its starting ids) must not overwrite a newer save's.
+              if (isAbandoned()) return
+              if (partial.diagnosisPersistence) {
+                savedProgress.current = { attemptId, persistence: partial.diagnosisPersistence }
+              }
+              saveSession(partial)
+            },
+            isCancelled,
+            onWriteInFlight,
           }
+        )
+      )
+      releaseSave = operation.release
 
-          let diagnosisId = persistence.diagnosisId
-          if (diagnosisId) {
-            const { data: diagnosis, error } = await supabase
-              .from('diagnoses')
-              .select('id')
-              .eq('id', diagnosisId)
-              .eq('user_id', user.id)
-              .maybeSingle()
-
-            if (error) throw error
-            if (!diagnosis) diagnosisId = undefined
-          }
-
-          if (!diagnosisId) {
-            const { data: diagnosisRow, error: diagnosisError } = await supabase
-              .from('diagnoses')
-              .insert({
-                user_id: user.id,
-                appliance_type: issueLabel,
-                issue_title: d.issueName,
-                diagnosis_result: d,
-              })
-              .select('id')
-              .single()
-
-            if (diagnosisError) throw diagnosisError
-            diagnosisId = diagnosisRow.id
-            persistence = { ...persistence, diagnosisId }
-            saveSession({ diagnosisAttemptId: attemptId, diagnosisPersistence: persistence })
-          }
-
-          const { data: existingSessions, error: findSessionError } = await supabase
-            .from('repair_sessions')
-            .select('id, appliance_id')
-            .eq('user_id', user.id)
-            .eq('diagnosis_id', diagnosisId)
-            .limit(2)
-
-          if (findSessionError) throw findSessionError
-          if (existingSessions.length > 1) {
-            throw new Error('Multiple repair sessions already exist for this diagnosis.')
-          }
-
-          // S06: the repair_sessions row is the single source of truth, so it
-          // carries the full payload (diagnosis/steps/issue_name/current_step)
-          // from creation — not just the appliance/diagnosis links. This is the
-          // same row later used for step progress, completion, AND reload
-          // rehydration, so there is exactly one row per repair.
-          // V06: photo/image data is stripped from the stored diagnosis, the
-          // description is capped at 500 and the title at 80 characters.
-          // Steps are the validated, issue-specific steps returned for THIS result (plus
-          // the localized "get ready safely" step). A blocked result has none, and
-          // there is no generic filler, so this is empty when nothing usable came back.
-          const planSteps = buildRepairPlan(d)
-          const safeDetails = sessionDetailsForInsert(d, session.description)
-          // The photo is uploaded to private storage in parallel with this save. When it is
-          // already there, its PATH (never image data) is stored with the row.
-          const insertedImagePath = getCachedSession()?.mediaPaths?.[0]
-          const authoritativeFields = {
-            title: safeDetails.title,
-            issue_name: safeDetails.issue_name,
-            description: safeDetails.description,
-            diagnosis: safeDetails.diagnosis,
-            steps: planSteps,
-            current_step: 0,
-            ...(insertedImagePath ? { image_path: insertedImagePath } : {}),
-          }
-
-          const existingSession = existingSessions[0]
-          if (existingSession) {
-            if (existingSession.appliance_id === null) {
-              throw new Error(
-                'An existing repair session is missing its appliance link. It was left unchanged; review it in Supabase before retrying.'
-              )
-            } else if (existingSession.appliance_id !== applianceId) {
-              throw new Error('The repair session is linked to a different appliance.')
-            }
-            // Backfill the authoritative payload on a pre-S06 row that may only
-            // have the links. Never downgrade a completed row back to in_progress.
-            const { error: backfillError } = await supabase
-              .from('repair_sessions')
-              .update(authoritativeFields)
-              .eq('id', existingSession.id)
-              .eq('user_id', user.id)
-              .eq('status', 'in_progress')
-            if (backfillError) throw backfillError
-            persistence = { ...persistence, repairSessionId: existingSession.id }
-            saveSession({
-              diagnosisAttemptId: attemptId,
-              diagnosisPersistence: persistence,
-              historySessionId: existingSession.id,
-              steps: planSteps,
-              currentStep: 0,
-            })
-          } else {
-            const { data: createdSession, error: createSessionError } = await supabase
-              .from('repair_sessions')
-              .insert({
-                user_id: user.id,
-                appliance_id: applianceId,
-                diagnosis_id: diagnosisId,
-                status: 'in_progress',
-                // Stripped diagnosis, capped text, validated issue-specific steps (see above).
-                ...authoritativeFields,
-              })
-              .select('id, user_id, diagnosis_id, appliance_id')
-              .single()
-
-            if (createSessionError) throw createSessionError
-            if (
-              createdSession.user_id !== user.id ||
-              createdSession.diagnosis_id !== diagnosisId ||
-              createdSession.appliance_id !== applianceId
-            ) {
-              throw new Error('The repair session was not saved with the expected links.')
-            }
-            persistence = { ...persistence, repairSessionId: createdSession.id }
-            saveSession({
-              diagnosisAttemptId: attemptId,
-              diagnosisPersistence: persistence,
-              historySessionId: createdSession.id,
-              steps: planSteps,
-              currentStep: 0,
-            })
-          }
-
-          // The on-device photo was saved under the attempt id at capture. Link it to the
-          // repair row id too, so a resume from History finds it on this device.
-          if (persistence.repairSessionId) {
-            void linkPhoto(attemptId, persistence.repairSessionId, user.id).catch(() => undefined)
-          }
-
-          // If the upload finished after the row was written, record the path now. A
-          // failure here must never turn a saved diagnosis into a "could not save" state.
-          const latestImagePath = getCachedSession()?.mediaPaths?.[0]
-          if (latestImagePath && latestImagePath !== insertedImagePath && persistence.repairSessionId) {
-            try {
-              await persistImagePath(persistence.repairSessionId, latestImagePath)
-            } catch (photoError) {
-              console.warn('Unable to record the photo reference:', photoError instanceof Error ? photoError.message : 'unknown')
-            }
-          }
-        })
-
-        if (!cancelled) {
-          setRepairSessionReady(true)
-          setSaveFailed(false)
-          setSaveStatus('saved')
-          // So a refresh or a copied link opens this repair from the database.
-          const savedId = getCachedSession()?.diagnosisPersistence?.repairSessionId
-          if (isValidSessionId(savedId)) {
-            const params = new URLSearchParams(window.location.search)
-            params.set('session', savedId)
-            navigate({ search: `?${params.toString()}` }, { replace: true })
-          }
+      const showSaved = () => {
+        if (cancelled) return
+        setRepairSessionReady(true)
+        setSaveFailed(false)
+        setSaveErrorKey(null)
+        setSaveStatus('saved')
+        // So a refresh or a copied link opens this repair from the database.
+        const savedId = getCachedSession()?.diagnosisPersistence?.repairSessionId
+        if (isValidSessionId(savedId)) {
+          const params = new URLSearchParams(window.location.search)
+          params.set('session', savedId)
+          navigate({ search: `?${params.toString()}` }, { replace: true })
         }
-      } catch (error) {
-        console.error('Diagnosis save failed:', error)
+      }
+
+      const showFailure = (error: unknown) => {
+        // A save stopped because every page left is not a failure (and nobody is shown it).
+        if (error instanceof DiagnosisSaveCancelledError) return
+        // D14: a finished repair already exists for this diagnosis. That is a state to
+        // show (with a way forward), not a failure to retry or log.
+        if (error instanceof DiagnosisSaveError && error.code === 'sessionCompleted') {
+          if (!cancelled) {
+            setSaveFailed(false)
+            setSaveErrorKey(null)
+            setSaveStatus('alreadyCompleted')
+            setCompletedRepairId(error.repairSessionId ?? null)
+          }
+          return
+        }
+        // An expired session is an expected auth outcome, not an error to log.
+        const signInRequired = error instanceof DiagnosisSaveError && error.code === 'signInRequired'
+        if (!signInRequired) console.error('Diagnosis save failed:', error)
 
         if (!cancelled) {
           setSaveFailed(true)
-          setSaveStatus('failed')
+          setSaveStatus(signInRequired ? 'signInRequired' : 'failed')
+          setSaveErrorKey(saveErrorKeyFor(error))
+        }
+      }
+
+      try {
+        await operation.promise
+        showSaved()
+      } catch (error) {
+        showFailure(error)
+        // D18: the wait timed out but the save itself was kept (a write was in flight).
+        // Keep listening: when it does settle, show what really happened. Ignored once
+        // this run is cleaned up (left the page, or a retry rejoined the save), and an
+        // abandoned save's late "cancelled" outcome is ignored by showFailure.
+        if (error instanceof DiagnosisSaveError && error.code === 'timedOut') {
+          operation.outcome.then(showSaved, showFailure)
         }
       }
     }
@@ -341,8 +334,9 @@ function FreshDiagnosis() {
 
     return () => {
       cancelled = true
+      releaseSave?.()
     }
-  }, [session, user?.id, navigate, saveAttempt])
+  }, [session, user?.id, authLoading, navigate, saveAttempt])
 
   const startRepair = async () => {
     if (!liveSession || starting) return
@@ -362,18 +356,14 @@ function FreshDiagnosis() {
     }
     setStarting(true)
     setSaveError('')
-    // S06: the authoritative repair_sessions row (with diagnosis + steps) was
-    // already created/backfilled by the save effect. We no longer create a
-    // second "history" row here; the single row IS the history row. Just make
-    // sure the local cache has the steps and the session id before navigating.
+    // S06: the authoritative repair_sessions row was already created/backfilled by the
+    // save effect; the single row IS the history row. V05: no generated steps are written
+    // to the cache, and cached steps from an older save never unlock or feed the guide.
     try {
-      const steps = liveSession.steps?.length
-        ? liveSession.steps
-        : buildRepairPlan(liveSession.diagnosis)
       saveSession({
         historySessionId: repairSessionId,
-        steps,
-        currentStep: liveSession.currentStep ?? 0,
+        steps: [],
+        currentStep: 0,
       })
       navigate('/tools')
     } catch (error) {
@@ -406,7 +396,7 @@ function FreshDiagnosis() {
 
   const validDiagnosis = source.isFixture
     ? Boolean(liveSession)
-    : isValidDiagnosisSession(liveSession, user?.id)
+    : isValidDiagnosisSession(liveSession, user?.id) || claimableGuestResult
   if (!validDiagnosis || !liveSession) {
     return (
       <PageShell className="flex items-center justify-center p-6">
@@ -442,19 +432,85 @@ function FreshDiagnosis() {
 
         {!source.isFixture && (
           <p role="status" className="text-sm text-text-secondary mb-4">
-            {t(`diagnosis.saveStatus.${saveStatus}`)}
+            {claimableGuestResult
+              ? t('diagnosis.claim.body')
+              : t(`diagnosis.saveStatus.${guestResult ? 'signInRequired' : saveStatus}`)}
           </p>
         )}
 
-        {!source.isFixture && saveFailed && (
+        {claimableGuestResult && (
+          // D16: saving a result made before logging in needs the user's explicit choice.
+          <div className="mb-6 rounded-xl border border-primary/40 bg-primary/5 p-4">
+            {/* D19 (option C): the earlier photo is never uploaded, so say so up front. */}
+            <p className="mb-3 text-sm text-text-secondary">{t('diagnosis.claim.photoNotSaved')}</p>
+            <button
+              type="button"
+              onClick={() => {
+                if (user && claimGuestSession(initialSession?.diagnosisAttemptId, user.id)) {
+                  setClaimedBy(user.id)
+                }
+              }}
+              className="min-h-11 w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              {t('diagnosis.claim.action')}
+            </button>
+          </div>
+        )}
+
+        {!source.isFixture && saveStatus === 'alreadyCompleted' && (
+          // D14: a finished repair exists; open it or start a new scan (no dead-end retry).
+          <div className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+            <p className="text-sm text-text-primary">{t('diagnosis.saveError.sessionCompleted')}</p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {isValidSessionId(completedRepairId) && (
+                <Link
+                  to={`/diagnosis?session=${completedRepairId}`}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  {t('diagnosis.viewFinishedRepair')}
+                </Link>
+              )}
+              <Link
+                to="/capture"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-text-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {t('session.scanAgain')}
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {!source.isFixture && (saveFailed || guestResult) && (
           <div role="alert" className="mb-6 flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/5 p-4 sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-warning">{t('session.notSaved')}</p>
+            <div className="flex-1">
+              <p className="text-sm text-warning">{t('session.notSaved')}</p>
+              {(guestResult || saveErrorKey) && (
+                <p className="mt-1 text-sm text-text-secondary">
+                  {t(guestResult ? 'diagnosis.saveError.signInRequired' : (saveErrorKey as string))}
+                </p>
+              )}
+              {guestResult && (
+                // D20: the result lives in this tab only; say how to keep it.
+                <p className="mt-1 text-xs text-text-subtle">{t('diagnosis.claim.sameTab')}</p>
+              )}
+            </div>
+            {(guestResult || saveStatus === 'signInRequired') && (
+              <Link
+                to="/login"
+                // D16: come back here after logging in, where the result can be saved.
+                state={{ from: { pathname: '/diagnosis' } }}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {t('nav.logIn')}
+              </Link>
+            )}
             {user && (
               <button
                 type="button"
                 onClick={() => {
                   setSaveFailed(false)
                   setSaveStatus('saving')
+                  setSaveErrorKey(null)
                   setSaveAttempt((value) => value + 1)
                 }}
                 className="min-h-11 rounded-lg border border-warning/50 px-4 py-2 text-sm font-semibold text-warning focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -764,6 +820,9 @@ function SavedDiagnosis() {
   const blocked = isBlocked(decision)
   const view = buildDiagnosisView(d, null)
   const lowConfidence = d.confidence < CONFIDENCE_THRESHOLD
+  // Same V05 gate as every other page. A saved row carries no approved template, so this
+  // is false for live data and the saved result offers no guide entry.
+  const savedGuideAvailable = isGuideAvailable(null, { diagnosis: d, decision })
 
   return (
     <PageShell className="pb-24">
@@ -796,15 +855,14 @@ function SavedDiagnosis() {
 
         {!blocked && (
           <>
-            {isFixture ? (
-              // Dev session fixtures are not real database rows, so they cannot open the live pages.
+            {isFixture || !savedGuideAvailable ? (
+              // No approved guide (and dev session fixtures are not real rows): say so plainly.
               <div className="mb-4 rounded-xl border border-border bg-surface p-4">
                 <p className="font-semibold text-text-primary">{t('guide.unavailableTitle')}</p>
                 <p className="mt-1 text-sm text-text-secondary">{t('guide.unavailableBody')}</p>
               </div>
             ) : (
-              // A saved low or medium risk repair can always be opened or resumed. The guide
-              // is built from the saved diagnosis when no exact checklist exists.
+              // Only reachable once an approved template exists for this result.
               <button
                 type="button"
                 disabled={!user}

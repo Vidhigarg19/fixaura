@@ -76,6 +76,27 @@ export function setDiagnosis(
     currentStep: 0,
   })
 }
+/**
+ * D16: a signed-in user explicitly takes over a result made in this tab before they
+ * logged in. Only an OWNERLESS, valid result for the same attempt is claimed; a result
+ * that already belongs to someone is never reassigned. Returns whether it was claimed.
+ */
+export function claimGuestSession(attemptId: string | undefined, userId: string): boolean {
+  const cached = getSession()
+  if (
+    !attemptId ||
+    !userId ||
+    !cached ||
+    cached.ownerUserId ||
+    cached.diagnosisAttemptId !== attemptId ||
+    !isValidDiagnosisSession(cached, undefined)
+  ) {
+    return false
+  }
+  saveSession({ ownerUserId: userId })
+  return true
+}
+
 export function clearSession() {
   sessionStorage.removeItem(KEY)
 }

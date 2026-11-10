@@ -95,10 +95,27 @@ export function useDiagnosisSource(): DiagnosisSource {
       const cached = getSession()
       const cachedId = cached?.diagnosisPersistence?.repairSessionId
 
+      // D10: a fresh diagnosis from this tab (its own attempt id, not yet linked to any
+      // row) is never overlaid with the user's latest active repair. Nothing ties that
+      // row to this attempt, so its ids and diagnosis belong to ANOTHER repair. The save
+      // links the attempt to its own row; after that, rehydration goes by that id below.
+      // Real resumes are unaffected: they have a row id, a history id, or no cache at all.
+      const freshUnlinkedAttempt = Boolean(
+        cached?.diagnosis && cached.diagnosisAttemptId && !cachedId && !cached.historySessionId
+      )
+      if (freshUnlinkedAttempt) return
+
+      // D11: a cache linked to a row only by its history id (what the saved-session view
+      // leaves behind) is reloaded by THAT id, never replaced by the user's latest active
+      // repair. Every writer of historySessionId stores a repair_sessions id, and the
+      // by-id read is scoped to the signed-in owner. Only an unlinked cache (e.g. a new tab)
+      // still falls back to the latest active repair.
+      const linkedId = cachedId ?? cached?.historySessionId
+
       let result: RehydrateResult
       try {
-        result = cachedId
-          ? await getRepairSessionById(cachedId)
+        result = linkedId
+          ? await getRepairSessionById(linkedId)
           : await getActiveRepairSession()
       } catch (error) {
         // DB unreachable / transient: keep whatever the cache gave us rather
@@ -127,21 +144,24 @@ export function useDiagnosisSource(): DiagnosisSource {
       // Merge DB-authoritative fields over the cache. Cache-only fields
       // (imageDataUrl / ownerUserId / diagnosisAttemptId / persistence) are
       // preserved so the current flow keeps working; the DB wins on the
-      // durable fields (diagnosis / steps / currentStep).
+      // durable fields (diagnosis / currentStep).
       const dbSession = result.session
-      const dbSteps = dbSession.steps ?? []
       const merged: RepairSession = {
         ...(cached ?? {}),
         diagnosis: dbSession.diagnosis,
         description: dbSession.description || cached?.description || '',
-        steps: dbSteps.length ? dbSteps : cached?.steps,
+        // D8 / V05: stored steps are not approved guide content, so the database's steps
+        // are never copied into the cache (the guide reads cached steps once a guide is
+        // available). Whatever the cache already held is left as it was.
+        steps: cached?.steps,
         currentStep: dbSession.currentStep,
         // The database path keeps the photo available in a new tab or a resumed session.
         // A freshly captured photo (cached imageDataUrl) still wins for display.
         imagePath: dbSession.imagePath ?? cached?.imagePath,
         historySessionId: result.sessionId,
+        // D21: the cached userId is kept when there is one; it is never made up (it used
+        // to become '' here). An absent userId means "not known", exactly as '' did.
         diagnosisPersistence: {
-          userId: cached?.diagnosisPersistence?.userId ?? '',
           ...cached?.diagnosisPersistence,
           repairSessionId: result.sessionId,
           diagnosisId:
